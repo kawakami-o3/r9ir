@@ -1,12 +1,18 @@
 use std::io;
 
 fn main() {
-  let mut a = String::new();
+  let mut input = String::new();
 
-  io::stdin().read_line(&mut a)
+  io::stdin().read_line(&mut input)
     .expect("Failed to read line");
 
+  let val = input.trim();
 
-  println!("hello {}", a);
+
+  println!("\t.text\n\t\
+            .global _mymain\n\
+            _mymain:\n\t\
+            mov ${}, %eax\n\t\
+            ret\n", val);
 }
 
