@@ -1,6 +1,5 @@
 #include <stdio.h>
 
-//extern int mymain(void);
 #define WEAK __attribute__((weak))
 extern int intfn(void) WEAK;
 extern char *stringfn(void) WEAK;
