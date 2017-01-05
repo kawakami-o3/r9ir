@@ -1,3 +1,4 @@
+use std::env;
 use std::fmt;
 use std::io;
 use std::io::Write;
@@ -16,7 +17,7 @@ struct Buffer {
 impl Buffer {
     fn new() -> Buffer {
         let mut vec = Vec::new();
-        
+
         for i in io::stdin().bytes() {
             vec.push(char::from(i.unwrap()));
         }
@@ -54,6 +55,24 @@ impl fmt::Display for Buffer {
     }
 }
 
+
+enum Ast {
+    OpPlus {left: Box<Ast>, right: Box<Ast>},
+    OpMinus {left: Box<Ast>, right: Box<Ast>},
+    Int(u32),
+    Str(String)
+}
+
+fn new_ast_op(op: char, l: Ast, r: Ast) -> Ast {
+    match op {
+        '+' => Ast::OpPlus {left: Box::new(l), right: Box::new(r)},
+        '-' => Ast::OpMinus {left: Box::new(l), right: Box::new(r)},
+        _ => {
+            panic!();
+        }
+    }
+}
+
 fn skip_space(buf: &mut Buffer) {
     while buf.can_read() {
         let c = buf.getc();
@@ -66,7 +85,7 @@ fn skip_space(buf: &mut Buffer) {
     }
 }
 
-fn read_number(buf: &mut Buffer, mut n: u32) -> u32 {
+fn read_number(buf: &mut Buffer, mut n: u32) -> Ast {
     while buf.can_read() {
         let c = buf.getc();
 
@@ -76,44 +95,10 @@ fn read_number(buf: &mut Buffer, mut n: u32) -> u32 {
         }
         n = n * 10 + c.to_digit(10).unwrap();
     }
-    return n;
+    return Ast::Int(n);
 }
 
-fn compile_expr2(buf: &mut Buffer) {
-    loop {
-        skip_space(buf);
-        if false == buf.can_read() {
-            print!("ret\n");
-            return;
-        }
-
-        let c = buf.getc();
-        let op = match c {
-            '+' => "add",
-            '-' => "sub",
-            _ => { let _ = error!("Operator expected, but got '{}'", c); panic!()}
-        };
-
-        skip_space(buf);
-        let n = buf.getc();
-        if false == n.is_digit(10) {
-            let _ = error!("Number expected, but got '{}'", n);
-        }
-        print!("{} ${}, %rax\n\t", op, read_number(buf, n.to_digit(10).unwrap()));
-    }
-}
-
-fn compile_expr(buf: &mut Buffer, mut n: u32) {
-    n = read_number(buf, n);
-    println!("\t.text\n\t\
-              .global _intfn\n\
-              _intfn:\n\t\
-              mov ${}, %rax\n\t", n);
-    compile_expr2(buf);
-}
-
-
-fn compile_string(buf: &mut Buffer) {
+fn read_string(buf: &mut Buffer) -> Ast {
     let mut is_escape = false;
     let mut s = String::new();
 
@@ -139,28 +124,163 @@ fn compile_string(buf: &mut Buffer) {
         s.push(c);
     }
 
-    println!("\t.text\n\t\
-             .mydata:\n\t\
-            .string \"{}\"\n\t\
+    return Ast::Str(s);
+}
+
+
+fn read_prim(buf: &mut Buffer) -> Ast {
+    if false == buf.can_read() {
+        panic!("Unexpected EOF");
+    }
+
+    let c = buf.getc();
+    if c.is_digit(10) {
+        return read_number(buf, c.to_digit(10).unwrap());
+    } else if c == '"' {
+        return read_string(buf);
+    }
+    panic!("Don't know how to handle '{}'",c);
+}
+
+fn read_expr2(buf: &mut Buffer, left: Ast) -> Ast {
+    skip_space(buf);
+    if false == buf.can_read() {
+        return left;
+    }
+
+    let op = buf.getc();
+    skip_space(buf);
+    let right: Ast = read_prim(buf);
+
+    return read_expr2(buf, new_ast_op(op, left, right));
+}
+
+fn read_expr() -> Ast {
+    let buf: &mut Buffer = &mut Buffer::new();
+
+    let left : Ast = read_prim(buf);
+    return read_expr2(buf, left);
+}
+
+fn print_quote(s: String) {
+    for c in s.chars() {
+        if c == '\"' || c == '\\' {
+            print!("\\");
+        }
+        print!("{}", c);
+    }
+}
+
+fn emit_string(ast: &Ast) {
+    print!("\t.data\n\
+           .mydata:\n\t\
+           .string \"");
+    match *ast {
+        Ast::Str(ref s) => {
+            print_quote(s.clone())
+        }
+        _ => {
+            panic!()
+        }
+    }
+    print!("\"\n\t\
             .text\n\t\
             .global _stringfn\n\
             _stringfn:\n\t\
             lea .mydata(%rip), %rax\n\t\
-            ret", s);
+            ret\n")
 }
 
-fn compile() {
-    let buf: &mut Buffer = &mut Buffer::new();
-    let c = buf.getc();
-
-    if c.is_digit(10) {
-        return compile_expr(buf, c.to_digit(10).unwrap());
-    } else if c == '"' {
-        return compile_string(buf);
+fn emit_binop(ast: Ast) {
+    match ast {
+        Ast::OpPlus {left, right} => {
+            emit_intexpr(*left);
+            print!("mov %eax, %ebx\n\t");
+            emit_intexpr(*right);
+            print!("add %ebx, %eax\n\t");
+        }
+        Ast::OpMinus {left, right} => {
+            emit_intexpr(*left);
+            print!("mov %eax, %ebx\n\t");
+            emit_intexpr(*right);
+            print!("sub %ebx, %eax\n\t");
+        }
+        _ => {
+            panic!("invalid operand");
+        }
     }
-    let _ = error!("error");
+}
+
+fn ensure_intexpr(ast: &Ast) {
+    match *ast {
+        Ast::OpPlus {ref left, ref right} => { }
+        Ast::OpMinus {ref left, ref right} => { }
+        Ast::Int(i) => { }
+        _ => {
+            panic!("integer or binary operator expected");
+        }
+    }
+}
+
+fn emit_intexpr(ast: Ast) {
+    ensure_intexpr(&ast);
+    match ast {
+        Ast::Int(i) => {
+            print!("mov ${}, %eax\n\t", i);
+        }
+        _ => {
+            emit_binop(ast);
+        }
+    }
+}
+
+fn print_ast(ast: Ast) {
+    match ast {
+        Ast::OpPlus {left, right} => {
+            print!("(+ ");
+            print_ast(*left);
+            print!(" ");
+            print_ast(*right);
+            print!(")");
+        }
+        Ast::OpMinus {left, right} => {
+            print!("(- ");
+            print_ast(*left);
+            print!(" ");
+            print_ast(*right);
+            print!(")");
+        }
+        Ast::Int(i) => {
+            print!("{}", i);
+        }
+        Ast::Str(s) => {
+            print_quote(s);
+        }
+    }
+}
+
+fn compile(ast: Ast) {
+    match ast {
+        Ast::Str(s) => {
+            emit_string(&Ast::Str(s));
+        }
+        _ => {
+            print!(".text\n\t\
+                    .global _intfn\n\
+                    _intfn:\n\t");
+            emit_intexpr(ast);
+            print!("ret\n");
+        }
+    }
 }
 
 fn main() {
-    compile();
+    let args: Vec<String> = env::args().collect();
+    let ast: Ast = read_expr();
+
+    if args.len() > 1 && args[1] == "-a" {
+        print_ast(ast);
+    } else {
+        compile(ast);
+    }
 }
