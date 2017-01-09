@@ -55,18 +55,15 @@ impl fmt::Display for Buffer {
     }
 }
 
-
 enum Ast {
-    OpPlus {left: Box<Ast>, right: Box<Ast>},
-    OpMinus {left: Box<Ast>, right: Box<Ast>},
+    Op {op:char, left: Box<Ast>, right: Box<Ast>},
     Int(u32),
     Str(String)
 }
 
 fn new_ast_op(op: char, l: Ast, r: Ast) -> Ast {
     match op {
-        '+' => Ast::OpPlus {left: Box::new(l), right: Box::new(r)},
-        '-' => Ast::OpMinus {left: Box::new(l), right: Box::new(r)},
+        '+' | '-' | '*' | '/' => Ast::Op {op:op, left: Box::new(l), right: Box::new(r)},
         _ => {
             panic!();
         }
@@ -85,6 +82,14 @@ fn skip_space(buf: &mut Buffer) {
     }
 }
 
+fn priority(op: char) -> i32 {
+    match op {
+        '+' | '-' => 1,
+        '*' | '/' => 2,
+        _ => { panic!() }
+    }
+}
+
 fn read_number(buf: &mut Buffer, mut n: u32) -> Ast {
     while buf.can_read() {
         let c = buf.getc();
@@ -96,6 +101,42 @@ fn read_number(buf: &mut Buffer, mut n: u32) -> Ast {
         n = n * 10 + c.to_digit(10).unwrap();
     }
     return Ast::Int(n);
+}
+
+fn read_prim(buf: &mut Buffer) -> Ast {
+    if false == buf.can_read() {
+        panic!("Unexpected EOF");
+    }
+
+    let c = buf.getc();
+    if c.is_digit(10) {
+        return read_number(buf, c.to_digit(10).unwrap());
+    } else if c == '"' {
+        return read_string(buf);
+    }
+    panic!("Don't know how to handle '{}'",c);
+}
+
+fn read_expr2(buf: &mut Buffer, prec: i32) -> Ast {
+    let mut ast = read_prim(buf);
+
+    loop {
+        skip_space(buf);
+        if false == buf.can_read() {
+            return ast;
+        }
+        let c = buf.getc();
+        let prec2 = priority(c);
+        if prec2 < prec {
+            buf.ungetc();
+            return ast
+        }
+
+        skip_space(buf);
+        ast = new_ast_op(c, ast, read_expr2(buf, prec2 + 1));
+    }
+
+    return ast;
 }
 
 fn read_string(buf: &mut Buffer) -> Ast {
@@ -127,39 +168,10 @@ fn read_string(buf: &mut Buffer) -> Ast {
     return Ast::Str(s);
 }
 
-
-fn read_prim(buf: &mut Buffer) -> Ast {
-    if false == buf.can_read() {
-        panic!("Unexpected EOF");
-    }
-
-    let c = buf.getc();
-    if c.is_digit(10) {
-        return read_number(buf, c.to_digit(10).unwrap());
-    } else if c == '"' {
-        return read_string(buf);
-    }
-    panic!("Don't know how to handle '{}'",c);
-}
-
-fn read_expr2(buf: &mut Buffer, left: Ast) -> Ast {
-    skip_space(buf);
-    if false == buf.can_read() {
-        return left;
-    }
-
-    let op = buf.getc();
-    skip_space(buf);
-    let right: Ast = read_prim(buf);
-
-    return read_expr2(buf, new_ast_op(op, left, right));
-}
-
 fn read_expr() -> Ast {
     let buf: &mut Buffer = &mut Buffer::new();
 
-    let left : Ast = read_prim(buf);
-    return read_expr2(buf, left);
+    return read_expr2(buf, 0);
 }
 
 fn print_quote(s: String) {
@@ -192,29 +204,34 @@ fn emit_string(ast: &Ast) {
 }
 
 fn emit_binop(ast: Ast) {
-    match ast {
-        Ast::OpPlus {left, right} => {
-            emit_intexpr(*left);
+    if let Ast::Op {op, left, right} = ast {
+        let opasm = match op {
+            '+' => "add",
+            '-' => "sub",
+            '*' => "imul",
+            '/' => "---",
+            _ => { panic!() }
+        };
+
+        emit_intexpr(*left);
+        print!("push %rax\n\t");
+        emit_intexpr(*right);
+
+        if op == '/' {
             print!("mov %eax, %ebx\n\t");
-            emit_intexpr(*right);
-            print!("add %ebx, %eax\n\t");
-        }
-        Ast::OpMinus {left, right} => {
-            emit_intexpr(*left);
-            print!("mov %eax, %ebx\n\t");
-            emit_intexpr(*right);
-            print!("sub %ebx, %eax\n\t");
-        }
-        _ => {
-            panic!("invalid operand");
+            print!("pop %rax\n\t");
+            print!("mov $0, %edx\n\t");
+            print!("idiv %ebx\n\t");
+        } else {
+            print!("pop %rbx\n\t");
+            print!("{} %ebx, %eax\n\t", opasm);
         }
     }
 }
 
 fn ensure_intexpr(ast: &Ast) {
     match *ast {
-        Ast::OpPlus {ref left, ref right} => { }
-        Ast::OpMinus {ref left, ref right} => { }
+        Ast::Op {op, ref left, ref right} => { }
         Ast::Int(i) => { }
         _ => {
             panic!("integer or binary operator expected");
@@ -236,15 +253,8 @@ fn emit_intexpr(ast: Ast) {
 
 fn print_ast(ast: Ast) {
     match ast {
-        Ast::OpPlus {left, right} => {
-            print!("(+ ");
-            print_ast(*left);
-            print!(" ");
-            print_ast(*right);
-            print!(")");
-        }
-        Ast::OpMinus {left, right} => {
-            print!("(- ");
+        Ast::Op {op, left, right} => {
+            print!("({} ", op);
             print_ast(*left);
             print!(" ");
             print_ast(*right);
