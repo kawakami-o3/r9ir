@@ -9,4 +9,4 @@ Rcc is a small C compiler.
 The differences with 8cc are
 
 1. it is written in Rust
-2. it produces an assembler for mac.
+2. it generates an assembler code for mac.
