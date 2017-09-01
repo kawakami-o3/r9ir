@@ -5,9 +5,32 @@ use std::io::Write;
 use std::io::Read;
 use std::collections::LinkedList;
 
+use std::error::Error;
+use std::io::prelude::*;
+use std::fs::File;
+use std::path::Path;
+
 macro_rules! error {
     ($fmt:expr) => (writeln!(&mut io::stderr(), $fmt));
     ($fmt:expr,$($x:tt)*) => (writeln!(&mut io::stderr(), $fmt, $( $x )*));
+}
+
+fn write_debug(bytes: &[u8]) {
+    /*
+    let path = Path::new("./debug.log");
+    let display = path.display();
+
+    let mut file = match File::create(&path) {
+        Err(why) => panic!("couldn't open {}: {}", display, Error::description(&why)),
+        Ok(file) => file,
+    };
+
+    match file.write_all(bytes) {
+        Err(why) => panic!("couldn't read {}: {}", display, Error::description(&why)),
+        //Ok(_) => print!("successfully wrote to {}", display),
+        Ok(_) => (),
+    }
+    */
 }
 
 struct Env {
@@ -17,16 +40,71 @@ struct Env {
 
 impl Env {
     fn new() -> Env {
-        let mut vs = LinkedList::new();
-        vs.push_back(Var::new(String::from("null")));
-        Env {
+        //let mut vs = LinkedList::new();
+        let mut ret = Env {
             buffer: Buffer::new(),
             //vars:  VARS : LinkedList<Var> = LinkedList::new();
-            vars: vs,
+            vars: LinkedList::new()
+        };
+        //ret.vars.push_back(ret.new_var(String::from("null")));
+        ret.vars.push_back(Var {
+            name: String::from("null"),
+            pos: 0
+        });
+
+        ret
+    }
+
+    fn null(&mut self) -> Var {
+        Var {
+            name: String::from("null"),
+            pos: 0
         }
+    }
+
+    fn new_var(&mut self, name:String) -> Var {
+        let v = Var {
+            name: name,
+            pos: self.vars.len()
+        };
+
+        self.vars.push_back(v.clone());
+        v
+    }
+
+    //fn has_var(&mut self, name: String) -> bool {
+    fn find_var(&mut self, name: String) -> Var {
+        for x in self.vars.iter() {
+            if x.name == name {
+                return x.clone()
+            }
+        }
+        self.null()
     }
 }
 
+
+//static mut V-ARS : LinkedList<Var> = LinkedList::new();
+//static mut V-ARS : Option<LinkedList<Var>> = None;
+//static mut V-ARS : LinkedList<Var>; // = LinkedList::new();
+
+//fn find_var(name: String) -> Option<&Var> {
+/*
+#[inline]
+//fn find_var<'a>(name: String) -> &'a Var {
+fn find_var(name: String) -> Var {
+    //let mut iter = V-ARS.iter();
+
+    unsafe {
+        for x in VARS.unwrap() {
+            if x.name == name {
+                return x.clone();
+            }
+        }
+        return VARS.unwrap().front().unwrap().clone();
+    }
+}
+*/
 
 struct Buffer {
     chars: Vec<char>,
@@ -47,6 +125,26 @@ impl Buffer {
         }
     }
 
+    fn print(& self) {
+        //println!("{:?}", self.chars)
+
+        let mut bytes: Vec<u8> = Vec::new();
+
+        //let a = self.chars[0].as_byte();
+
+        for c in self.chars.clone() {
+            let mut bs = [0; 2];
+            c.encode_utf8(&mut bs);
+
+            for b in bs.iter() {
+                bytes.push(*b);
+            }
+        }
+
+        //write_debug("hello".as_bytes())
+        write_debug(&bytes)
+    }
+
     fn getc(&mut self) -> char {
         self.idx += 1;
         return self.chars[self.idx - 1];
@@ -56,14 +154,29 @@ impl Buffer {
         self.idx -= 1;
     }
 
-    fn can_read(&mut self) -> bool {
+    fn can_read(& self) -> bool {
         return self.chars.len() > self.idx;
     }
 
-    fn is_end(&mut self) -> bool {
+    fn is_end(& self) -> bool {
         return !self.can_read();
     }
+
+    fn skip_space(&mut self) {
+        while self.can_read() {
+            let c = self.getc();
+            if c.is_whitespace() {
+                continue;
+            }
+
+            self.ungetc();
+            return;
+        }
+    }
 }
+
+
+
 
 impl fmt::Display for Buffer {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -84,6 +197,7 @@ struct Var {
 }
 
 impl Var {
+    /*
     fn new(name:String) -> Var {
         unsafe {
             Var {
@@ -92,6 +206,7 @@ impl Var {
             }
         }
     }
+    */
 
     fn is_null(&self) -> bool {
         self.pos == 0
@@ -118,6 +233,15 @@ impl Ast {
         match *self {
             Ast::Null => true,
             _ => false
+        }
+    }
+
+    fn print(&self) {
+        match *self {
+            Ast::Op {op:a, left:ref b, right:ref c} => print!("op"),
+            Ast::Int(i) => print!("int"),
+            Ast::Sym(ref v) => print!("var {}", v.name),
+            Ast::Null => print!("null")
         }
     }
 }
@@ -157,12 +281,15 @@ fn emit_string(ast: &Ast) {
 
 
 fn make_ast_op(op: char, l: Ast, r: Ast) -> Ast {
+    Ast::Op {op:op, left: Box::new(l), right: Box::new(r)}
+    /*
     match op {
         '+' | '-' | '*' | '/' => Ast::Op {op:op, left: Box::new(l), right: Box::new(r)},
-        _ => {
-            panic!();
+        a => {
+            panic!("operator: {}", a);
         }
     }
+    */
 }
 
 fn make_ast_int(var: u32) -> Ast {
@@ -172,137 +299,115 @@ fn make_ast_int(var: u32) -> Ast {
 fn make_ast_sym(var: Var) -> Ast {
     Ast::Sym(var)
 }
-
-//static mut VARS : LinkedList<Var> = LinkedList::new();
-static mut VARS : Option<LinkedList<Var>> = None;
-//static mut VARS : LinkedList<Var>; // = LinkedList::new();
-
-//fn find_var(name: String) -> Option<&Var> {
-#[inline]
-//fn find_var<'a>(name: String) -> &'a Var {
-fn find_var(name: String) -> Var {
-    //let mut iter = VARS.iter();
-
-    unsafe {
-        for x in VARS.unwrap() {
-            if x.name == name {
-                return x.clone();
-            }
-        }
-        return VARS.unwrap().front().unwrap().clone();
-    }
-}
-
+/*
 fn make_var(name: String) -> Var {
     return Var::new(name);
 }
-
-fn skip_space(buf: &mut Buffer) {
-    while buf.can_read() {
-        let c = buf.getc();
-        if c.is_whitespace() {
-            continue;
-        }
-
-        buf.ungetc();
-        return;
-    }
-}
+*/
 
 fn priority(op: char) -> i32 {
     match op {
         '=' => 1,
         '+' | '-' => 2,
         '*' | '/' => 3,
-        _ => { panic!() }
+        //a => { panic!("operator: {}", a) }
+        _ => -1
     }
 }
 
-fn read_number(buf: &mut Buffer, mut n: u32) -> Ast {
+fn read_number(environment: &mut Env, mut n: u32) -> Ast {
     loop {
-        let c = buf.getc();
+        let c = environment.buffer.getc();
         if !c.is_digit(10) {
-            buf.ungetc();
-            return Ast::Int(n);
+            environment.buffer.ungetc();
+            return make_ast_int(n);
         }
         n = n * 10 + c.to_digit(10).unwrap();
     }
 }
 
 /* https://github.com/rui314/8cc/commit/6384c521a214484b31cd5c76ccebe1df3269a54e */
-fn read_symbol(buf: &mut Buffer) -> Ast {
-    let mut is_escape = false;
+fn read_symbol(environment: &mut Env) -> Ast {
+    // let mut is_escape = false;
     let mut sym = String::new(); // no limit symbol length
-    let mut i = 1;
+    // let mut i = 1;
 
     loop {
+        let c = environment.buffer.getc();
 
-        let c = buf.getc();
+        //print!("c={}\n", c);
         if !c.is_alphabetic() {
-            buf.ungetc();
+            environment.buffer.ungetc();
             break;
         }
         sym.push(c);
     }
 
-    let v = find_var(sym.clone());
+    //print!("sym={}\n", sym);
+    let v = environment.find_var(sym.clone());
     //return make_ast_sym(*v.is_null() ?  make_var(sym) : *v);
     if v.is_null() {
-        return make_ast_sym(make_var(sym));
+        //return make_ast_sym(make_var(sym));
+        return make_ast_sym(environment.new_var(sym));
     } else {
         return make_ast_sym(v.clone());
     }
 }
 
-fn read_prim(buf: &mut Buffer) -> Ast {
-    if buf.is_end() {
+fn read_prim(environment: &mut Env) -> Ast {
+    if environment.buffer.is_end() {
         return Ast::Null;
     }
 
-    let c = buf.getc();
+    let c = environment.buffer.getc();
+    //print!("[read_prim] c={}\n", c);
     if c.is_digit(10) {
-        return read_number(buf, c.to_digit(10).unwrap());
+        return read_number(environment, c.to_digit(10).unwrap());
     } else if c.is_alphabetic() {
-        return read_symbol(buf);
+        environment.buffer.ungetc();
+        return read_symbol(environment);
     }
     panic!("Don't know how to handle '{}'",c);
 }
 
 // TODO 若干異なるがうまくいくか?
-fn read_expr2(buf: &mut Buffer, prec: i32) -> Ast {
-    let mut ast = read_prim(buf);
+fn read_expr2(environment: &mut Env, prec: i32) -> Ast {
+    environment.buffer.skip_space();
+    let mut ast = read_prim(environment);
 
     loop {
-        skip_space(buf);
-        if buf.is_end() {
-            return ast;
+        environment.buffer.skip_space();
+        if environment.buffer.is_end() {
+            return ast
         }
-        let c = buf.getc();
+        let c = environment.buffer.getc();
         let prec2 = priority(c);
-        if prec2 < prec {
-            buf.ungetc();
+        if prec2 < 0 || prec2 < prec {
+            environment.buffer.ungetc();
             return ast
         }
 
-        skip_space(buf);
-        ast = make_ast_op(c, ast, read_expr2(buf, prec2 + 1));
-    }
+        environment.buffer.skip_space();
 
-    return ast;
+        //ast.print();
+        ast = make_ast_op(c, ast, read_expr2(environment, prec2 + 1));
+    }
 }
 
-fn read_expr() -> Ast {
-    let buf: &mut Buffer = &mut Buffer::new();
+fn read_expr(environment: &mut Env) -> Ast {
+    //let buf: &mut Buffer = &mut Buffer::new();
 
-    let r: Ast = read_expr2(buf, 0);
+    let r: Ast = read_expr2(environment, 0);
     if r.is_null() {
         return Ast::Null;
     }
 
-    skip_space(buf);
-    let c: char = buf.getc();
+    environment.buffer.skip_space();
+    //environment.buffer.print();
+    
+    let c: char = environment.buffer.getc();
     if c != ';' {
-        error!("Unterminated expression");
+        panic!("Unterminated expression");
     }
     return r;
 }
@@ -314,7 +419,7 @@ fn emit_binop(ast: Ast) {
             if let Ast::Sym(v) = *left {
                 print!("mov %eax, -{}(%rbp)\n\t", v.pos * 4);
             } else {
-                error!("Symbol expected");
+                panic!("Symbol expected");
             }
             return;
         }
@@ -380,6 +485,7 @@ fn print_ast(ast: Ast) {
 fn main() {
     let args: Vec<String> = env::args().collect();
     let wantast: bool = args.len() > 1 && args[1] == "-a";
+    let environment = &mut Env::new();
 
     // null
     /*
@@ -394,7 +500,7 @@ fn main() {
                 _mymain:\n\t");
     }
     loop {
-        let ast: Ast = read_expr();
+        let ast: Ast = read_expr(environment);
         if ast.is_null() {
             break;
         }

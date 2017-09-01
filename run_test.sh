@@ -52,7 +52,7 @@ function testfail {
 
 cargo build
 
-testast '1' '1'
+testast '1' '1;'
 testast '(+ (- (+ 1 2) 3) 4)' '1+2-3+4;'
 testast '(+ (+ 1 (* 2 3)) 4)' '1+2*3+4;'
 testast '(+ (* 1 2) (* 3 4))' '1*2+3*4;'
@@ -72,7 +72,7 @@ test 4 '4/2+6/3;'
 test 3 '24/2/4;'
 
 test 2 '1;2;'
-test 3 'a=1;a+1;'
+test 3 'a=1;a+2;'
 test 102 'a=1;b=48+2;c=a+b;c*2;'
 
 testfail '0abc;'
