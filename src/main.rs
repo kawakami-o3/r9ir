@@ -10,13 +10,16 @@ use std::io::prelude::*;
 use std::fs::File;
 use std::path::Path;
 
+
 macro_rules! error {
     ($fmt:expr) => (writeln!(&mut io::stderr(), $fmt));
     ($fmt:expr,$($x:tt)*) => (writeln!(&mut io::stderr(), $fmt, $( $x )*));
 }
 
-fn write_debug(bytes: &[u8]) {
+const MAX_ARGS: u32 = 6;
+
     /*
+fn write_debug(bytes: &[u8]) {
     let path = Path::new("./debug.log");
     let display = path.display();
 
@@ -30,8 +33,8 @@ fn write_debug(bytes: &[u8]) {
         //Ok(_) => print!("successfully wrote to {}", display),
         Ok(_) => (),
     }
-    */
 }
+    */
 
 struct Env {
     buffer: Buffer,
@@ -124,7 +127,7 @@ impl Buffer {
             idx: 0,
         }
     }
-
+/*
     fn print(& self) {
         //println!("{:?}", self.chars)
 
@@ -144,7 +147,7 @@ impl Buffer {
         //write_debug("hello".as_bytes())
         write_debug(&bytes)
     }
-
+*/
     fn getc(&mut self) -> char {
         self.idx += 1;
         return self.chars[self.idx - 1];
@@ -176,8 +179,6 @@ impl Buffer {
 }
 
 
-
-
 impl fmt::Display for Buffer {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut s = String::new();
@@ -194,6 +195,7 @@ impl fmt::Display for Buffer {
 struct Var {
     name: String,
     pos: usize,
+
 }
 
 impl Var {
@@ -220,6 +222,12 @@ impl Var {
     }
 }
 
+struct Func {
+    name: String,
+    nargs: u32,
+    args: Vec<Ast>
+}
+
 enum Ast {
     Op {op:char, left: Box<Ast>, right: Box<Ast>},
     Int(u32),
@@ -235,7 +243,7 @@ impl Ast {
             _ => false
         }
     }
-
+/*
     fn print(&self) {
         match *self {
             Ast::Op {op:a, left:ref b, right:ref c} => print!("op"),
@@ -244,6 +252,7 @@ impl Ast {
             Ast::Null => print!("null")
         }
     }
+    */
 }
 
 /*
@@ -370,7 +379,6 @@ fn read_prim(environment: &mut Env) -> Ast {
     panic!("Don't know how to handle '{}'",c);
 }
 
-// TODO 若干異なるがうまくいくか?
 fn read_expr2(environment: &mut Env, prec: i32) -> Ast {
     environment.buffer.skip_space();
     let mut ast = read_prim(environment);
