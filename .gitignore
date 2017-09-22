@@ -7,7 +7,8 @@
 Cargo.lock
 
 *~
-memo.txt
-tmp.out
-tmp.s
+memo.md
+*.out
+*.o
+*.s
 

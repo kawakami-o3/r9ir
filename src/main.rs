@@ -1,6 +1,9 @@
+#![allow(unused_imports)]
+
 use std::env;
 use std::fmt;
 use std::io;
+use std::cmp;
 use std::io::Write;
 use std::io::Read;
 use std::collections::LinkedList;
@@ -10,27 +13,21 @@ use std::io::prelude::*;
 use std::fs::File;
 use std::path::Path;
 
+
 macro_rules! error {
     ($fmt:expr) => (writeln!(&mut io::stderr(), $fmt));
     ($fmt:expr,$($x:tt)*) => (writeln!(&mut io::stderr(), $fmt, $( $x )*));
 }
 
-fn write_debug(bytes: &[u8]) {
-    /*
-    let path = Path::new("./debug.log");
-    let display = path.display();
-
-    let mut file = match File::create(&path) {
-        Err(why) => panic!("couldn't open {}: {}", display, Error::description(&why)),
-        Ok(file) => file,
-    };
-
-    match file.write_all(bytes) {
-        Err(why) => panic!("couldn't read {}: {}", display, Error::description(&why)),
-        //Ok(_) => print!("successfully wrote to {}", display),
-        Ok(_) => (),
+const MAX_ARGS: usize = 6;
+fn regs(i: usize) -> String {
+    match i {
+        0 => String::from("%rcx"),
+        1 => String::from("%rdx"),
+        2 => String::from("%r8"),
+        3 => String::from("%r9"),
+        _ => format!("{}(%rsp)", 8 * i)
     }
-    */
 }
 
 struct Env {
@@ -40,13 +37,10 @@ struct Env {
 
 impl Env {
     fn new() -> Env {
-        //let mut vs = LinkedList::new();
         let mut ret = Env {
             buffer: Buffer::new(),
-            //vars:  VARS : LinkedList<Var> = LinkedList::new();
             vars: LinkedList::new()
         };
-        //ret.vars.push_back(ret.new_var(String::from("null")));
         ret.vars.push_back(Var {
             name: String::from("null"),
             pos: 0
@@ -72,39 +66,15 @@ impl Env {
         v
     }
 
-    //fn has_var(&mut self, name: String) -> bool {
-    fn find_var(&mut self, name: String) -> Var {
+    fn find_var(&mut self, name: &String) -> Var {
         for x in self.vars.iter() {
-            if x.name == name {
+            if x.name == *name {
                 return x.clone()
             }
         }
         self.null()
     }
 }
-
-
-//static mut V-ARS : LinkedList<Var> = LinkedList::new();
-//static mut V-ARS : Option<LinkedList<Var>> = None;
-//static mut V-ARS : LinkedList<Var>; // = LinkedList::new();
-
-//fn find_var(name: String) -> Option<&Var> {
-/*
-#[inline]
-//fn find_var<'a>(name: String) -> &'a Var {
-fn find_var(name: String) -> Var {
-    //let mut iter = V-ARS.iter();
-
-    unsafe {
-        for x in VARS.unwrap() {
-            if x.name == name {
-                return x.clone();
-            }
-        }
-        return VARS.unwrap().front().unwrap().clone();
-    }
-}
-*/
 
 struct Buffer {
     chars: Vec<char>,
@@ -124,7 +94,7 @@ impl Buffer {
             idx: 0,
         }
     }
-
+/*
     fn print(& self) {
         //println!("{:?}", self.chars)
 
@@ -144,7 +114,7 @@ impl Buffer {
         //write_debug("hello".as_bytes())
         write_debug(&bytes)
     }
-
+*/
     fn getc(&mut self) -> char {
         self.idx += 1;
         return self.chars[self.idx - 1];
@@ -176,8 +146,6 @@ impl Buffer {
 }
 
 
-
-
 impl fmt::Display for Buffer {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut s = String::new();
@@ -194,6 +162,7 @@ impl fmt::Display for Buffer {
 struct Var {
     name: String,
     pos: usize,
+
 }
 
 impl Var {
@@ -220,11 +189,17 @@ impl Var {
     }
 }
 
+struct Func {
+    name: String,
+    args: Vec<Ast>
+}
+
 enum Ast {
     Op {op:char, left: Box<Ast>, right: Box<Ast>},
     Int(u32),
     //Str(String),
     Sym(Var),
+    Func(Func),
     Null
 }
 
@@ -235,47 +210,8 @@ impl Ast {
             _ => false
         }
     }
-
-    fn print(&self) {
-        match *self {
-            Ast::Op {op:a, left:ref b, right:ref c} => print!("op"),
-            Ast::Int(i) => print!("int"),
-            Ast::Sym(ref v) => print!("var {}", v.name),
-            Ast::Null => print!("null")
-        }
-    }
 }
 
-/*
-fn print_quote(s: String) {
-    for c in s.chars() {
-        if c == '\"' || c == '\\' {
-            print!("\\");
-        }
-        print!("{}", c);
-    }
-}
-
-fn emit_string(ast: &Ast) {
-    print!("\t.data\n\
-           .mydata:\n\t\
-           .string \"");
-    match *ast {
-        Ast::Str(ref s) => {
-            print_quote(s.clone())
-        }
-        _ => {
-            panic!()
-        }
-    }
-    print!("\"\n\t\
-            .text\n\t\
-            .global _stringfn\n\
-            _stringfn:\n\t\
-            lea .mydata(%rip), %rax\n\t\
-            ret\n")
-}
-*/
 
 // ***** the following content is compatible. *****
 
@@ -299,6 +235,11 @@ fn make_ast_int(var: u32) -> Ast {
 fn make_ast_sym(var: Var) -> Ast {
     Ast::Sym(var)
 }
+
+fn make_ast_funcall(fname: String, args: Vec<Ast>) -> Ast {
+    Ast::Func(Func{name: fname, args: args})
+}
+
 /*
 fn make_var(name: String) -> Var {
     return Var::new(name);
@@ -326,32 +267,65 @@ fn read_number(environment: &mut Env, mut n: u32) -> Ast {
     }
 }
 
-/* https://github.com/rui314/8cc/commit/6384c521a214484b31cd5c76ccebe1df3269a54e */
-fn read_symbol(environment: &mut Env) -> Ast {
+fn read_ident(environment: &mut Env) -> String {
     // let mut is_escape = false;
     let mut sym = String::new(); // no limit symbol length
     // let mut i = 1;
 
     loop {
         let c = environment.buffer.getc();
-
-        //print!("c={}\n", c);
-        if !c.is_alphabetic() {
+        if ! (c.is_digit(10) || c.is_alphabetic()) {
             environment.buffer.ungetc();
             break;
         }
         sym.push(c);
     }
+    sym
+}
 
-    //print!("sym={}\n", sym);
-    let v = environment.find_var(sym.clone());
-    //return make_ast_sym(*v.is_null() ?  make_var(sym) : *v);
-    if v.is_null() {
-        //return make_ast_sym(make_var(sym));
-        return make_ast_sym(environment.new_var(sym));
-    } else {
-        return make_ast_sym(v.clone());
+fn read_func_args(environment: &mut Env, fname: String) -> Ast {
+    let mut args: Vec<Ast> = vec![];
+    loop {
+        environment.buffer.skip_space();
+        if environment.buffer.getc() == ')' {
+            break;
+        }
+        environment.buffer.ungetc();
+        args.push(read_expr2(environment, 0));
+
+        let c = environment.buffer.getc();
+        if c == ')' {
+            break;
+        }
+        if c == ',' {
+            environment.buffer.skip_space();
+        } else {
+            panic!("Unexpected character: '{}'", c);
+        }
     }
+
+    if args.len() > MAX_ARGS {
+        panic!("Too many arguments: {}", fname);
+    }
+
+    make_ast_funcall(fname, args)
+}
+
+fn read_ident_or_func(environment: &mut Env) -> Ast {
+    let name = read_ident(environment);
+
+    environment.buffer.skip_space();
+    if environment.buffer.getc() == '(' {
+        return read_func_args(environment, name);
+    }
+
+    environment.buffer.ungetc();
+
+    let mut v = environment.find_var(&name);
+    if v.is_null() {
+        v = environment.new_var(name);
+    }
+    return make_ast_sym(v);
 }
 
 fn read_prim(environment: &mut Env) -> Ast {
@@ -360,17 +334,15 @@ fn read_prim(environment: &mut Env) -> Ast {
     }
 
     let c = environment.buffer.getc();
-    //print!("[read_prim] c={}\n", c);
     if c.is_digit(10) {
         return read_number(environment, c.to_digit(10).unwrap());
     } else if c.is_alphabetic() {
         environment.buffer.ungetc();
-        return read_symbol(environment);
+        return read_ident_or_func(environment);
     }
     panic!("Don't know how to handle '{}'",c);
 }
 
-// TODO 若干異なるがうまくいくか?
 fn read_expr2(environment: &mut Env, prec: i32) -> Ast {
     environment.buffer.skip_space();
     let mut ast = read_prim(environment);
@@ -456,11 +428,62 @@ fn emit_expr(ast: Ast) {
         Ast::Sym(v) => {
             print!("mov -{}(%rbp), %eax\n\t", v.pos * 4);
         }
+        Ast::Func(f) => {
+            let n = f.args.len();
+            let shift = 8 * 2 * cmp::max(f.args.len() / 2 + 1, 2);
+            
+            print!("subq ${}, %rsp\n\t", shift);
+
+            for x in f.args {
+                emit_expr(x);
+                print!("push %rax\n\t");
+            }
+            for i in 0..n {
+                print!("pop {}\n\t", regs(n - i - 1));
+            }
+            print!("call {}\n\t", f.name);
+
+            print!("addq ${}, %rsp\n\t", shift);
+        }
         _ => {
             emit_binop(ast);
         }
     }
 }
+
+/*
+fn emit_expr(ast: Ast) {
+    match ast {
+        Ast::Int(i) => {
+            print!("mov ${}, %eax\n\t", i);
+        }
+        Ast::Sym(v) => {
+            print!("mov -{}(%rbp), %eax\n\t", v.pos * 4);
+        }
+        Ast::Func(f) => {
+            let n = f.args.len();
+            for i in 0..n-1 {
+                print!("push %{}\n\t", regs(i));
+            }
+            for x in f.args {
+                emit_expr(x);
+                print!("push %rax\n\t");
+            }
+            for i in 0..n-1 {
+                print!("pop %{}\n\t", regs(n - i - 1));
+            }
+            print!("mov $0, %eax\n\t");
+            print!("call {}\n\t", f.name);
+            for i in 0..n-1 {
+                print!("pop %{}\n\t", regs(n - i - 1));
+            }
+        }
+        _ => {
+            emit_binop(ast);
+        }
+    }
+}
+*/
 
 fn print_ast(ast: Ast) {
     match ast {
@@ -476,6 +499,20 @@ fn print_ast(ast: Ast) {
         }
         Ast::Sym(v) => {
             print!("{}", v.name);
+        }
+        Ast::Func(f) => {
+            print!("{}(", f.name);
+            let mut i: usize = 0;
+            let n: usize = f.args.len();
+            for x in f.args {
+                print_ast(x);
+                i+=1;
+
+                if i < n {
+                    print!(",");
+                }
+            }
+            print!(")");
         }
         _ => {
         }
@@ -493,12 +530,20 @@ fn main() {
         VARS.unwrap().push_back(Var::new(String::from("null")));
     }
     */
-
+/*
     if !wantast {
         print!(".text\n\t\
                 .global _mymain\n\
                 _mymain:\n\t");
     }
+*/
+
+    if !wantast {
+        print!(".text\n\t\
+                .global mymain\n\
+                mymain:\n\t");
+    }
+
     loop {
         let ast: Ast = read_expr(environment);
         if ast.is_null() {
