@@ -8,6 +8,7 @@ Cargo.lock
 
 *~
 memo.md
-tmp.out
-tmp.s
+*.out
+*.o
+*.s
 
