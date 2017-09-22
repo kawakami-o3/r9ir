@@ -11,7 +11,8 @@ function compile {
     echo "Failed to compile $1"
     exit
   fi
-  gcc -o tmp.out test/driver.c tmp.s -undefined dynamic_lookup
+  #gcc -o tmp.out test/driver.c tmp.s -undefined dynamic_lookup
+  gcc -g -o tmp.out test/driver.c tmp.s
   #gcc -o tmp.out test/driver.c tmp.s
   if [ $? -ne 0 ]; then
     echo "GCC failed"
@@ -61,6 +62,9 @@ testast '(/ (/ 24 2) 4)' '24/2/4;'
 
 testast '(= a 3)' 'a=3;'
 
+testast 'a()' 'a();'
+#testast 'a(b,c,d,e,f,g)' 'a(b,c,d,e,f,g);'
+
 test 0 '0;'
 
 test 3 '1+2;'
@@ -74,6 +78,9 @@ test 3 '24/2/4;'
 test 2 '1;2;'
 test 3 'a=1;a+2;'
 test 102 'a=1;b=48+2;c=a+b;c*2;'
+
+test 25 'sum2(20, 5);'
+#test 15 'sum5(1,2,3,4,5);'
 
 testfail '0abc;'
 testfail '1+;'
