@@ -191,7 +191,7 @@ cnt = []
 #open("tmp.s").each do |ln|
 open(ARGV.first).each do |ln|
 	ln = ln.strip.chomp
-	if ln == "_mymain:"
+	if ln =~ /mymain:/
 		is_main = true
 		next
 	end
