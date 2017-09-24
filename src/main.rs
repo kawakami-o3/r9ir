@@ -7,6 +7,7 @@ use std::cmp;
 use std::io::Write;
 use std::io::Read;
 use std::collections::LinkedList;
+use std::process::Command;
 
 use std::error::Error;
 use std::io::prelude::*;
@@ -19,14 +20,43 @@ macro_rules! error {
     ($fmt:expr,$($x:tt)*) => (writeln!(&mut io::stderr(), $fmt, $( $x )*));
 }
 
+fn is_mac() -> bool {
+    match Command::new("sw_vers").output() {
+        Ok(output) => output.status.success(),
+        Err(_) => false
+    }
+}
+
+
+
 const MAX_ARGS: usize = 6;
 fn regs(i: usize) -> String {
-    match i {
-        0 => String::from("%rcx"),
-        1 => String::from("%rdx"),
-        2 => String::from("%r8"),
-        3 => String::from("%r9"),
-        _ => format!("{}(%rsp)", 8 * i)
+    if is_mac() {
+        match i {
+            0 => String::from("%rdi"),
+            1 => String::from("%rsi"),
+            2 => String::from("%rdx"),
+            3 => String::from("%rcx"),
+            4 => String::from("%r8"),
+            5 => String::from("%r9"),
+            _ => format!("{}(%rsp)", 8 * i)
+        }
+    } else {
+        match i {
+            0 => String::from("%rcx"),
+            1 => String::from("%rdx"),
+            2 => String::from("%r8"),
+            3 => String::from("%r9"),
+            _ => format!("{}(%rsp)", 16 * i)
+        }
+    }
+}
+
+fn fname(s: String) -> String {
+    if is_mac() {
+        format!("_{}", s)
+    } else {
+        s
     }
 }
 
@@ -429,6 +459,7 @@ fn emit_expr(ast: Ast) {
             print!("mov -{}(%rbp), %eax\n\t", v.pos * 4);
         }
         Ast::Func(f) => {
+            // not working on windows with more than 4 arguments.
             let n = f.args.len();
             let shift = 8 * 2 * cmp::max(f.args.len() / 2 + 1, 2);
             
@@ -441,7 +472,7 @@ fn emit_expr(ast: Ast) {
             for i in 0..n {
                 print!("pop {}\n\t", regs(n - i - 1));
             }
-            print!("call {}\n\t", f.name);
+            print!("call {}\n\t", fname(f.name));
 
             print!("addq ${}, %rsp\n\t", shift);
         }
@@ -530,18 +561,12 @@ fn main() {
         VARS.unwrap().push_back(Var::new(String::from("null")));
     }
     */
-/*
-    if !wantast {
-        print!(".text\n\t\
-                .global _mymain\n\
-                _mymain:\n\t");
-    }
-*/
 
     if !wantast {
-        print!(".text\n\t\
-                .global mymain\n\
-                mymain:\n\t");
+        let main = fname(String::from("mymain"));
+        print!(".text\n\t");
+        print!(".global {}\n", main);
+        print!("{}:\n\t", main);
     }
 
     loop {
