@@ -89,5 +89,6 @@ test abc5 'printf("%s", "abc");5;'
 testfail '0abc;'
 testfail '1+;'
 
+
 echo "All tests passed"
 
