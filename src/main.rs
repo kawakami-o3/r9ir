@@ -63,13 +63,15 @@ fn fname(s: String) -> String {
 struct Env {
     buffer: Buffer,
     vars: LinkedList<Var>,
+    strings: LinkedList<Ast>,
 }
 
 impl Env {
     fn new() -> Env {
         let mut ret = Env {
             buffer: Buffer::new(),
-            vars: LinkedList::new()
+            vars: LinkedList::new(),
+            strings: LinkedList::new()
         };
         ret.vars.push_back(Var {
             name: String::from("null"),
@@ -103,6 +105,12 @@ impl Env {
             }
         }
         self.null()
+    }
+
+    fn new_str(&mut self, s: &String) -> Ast {
+        let id = self.strings.len();
+        self.strings.push_back(Ast::Str(id, s.clone()));
+        Ast::Str(id, s.clone())
     }
 }
 
@@ -227,7 +235,7 @@ struct Func {
 enum Ast {
     Op {op:char, left: Box<Ast>, right: Box<Ast>},
     Int(u32),
-    //Str(String),
+    Str(usize, String),
     Sym(Var),
     Func(Func),
     Null
@@ -265,6 +273,12 @@ fn make_ast_int(var: u32) -> Ast {
 fn make_ast_sym(var: Var) -> Ast {
     Ast::Sym(var)
 }
+
+/*
+fn make_ast_str(id: usize, var: String) -> Ast {
+    Ast::Str(id, var)
+}
+*/
 
 fn make_ast_funcall(fname: String, args: Vec<Ast>) -> Ast {
     Ast::Func(Func{name: fname, args: args})
@@ -355,7 +369,8 @@ fn read_ident_or_func(environment: &mut Env) -> Ast {
     if v.is_null() {
         v = environment.new_var(name);
     }
-    return make_ast_sym(v);
+    
+    make_ast_sym(v)
 }
 
 fn read_prim(environment: &mut Env) -> Ast {
@@ -366,11 +381,42 @@ fn read_prim(environment: &mut Env) -> Ast {
     let c = environment.buffer.getc();
     if c.is_digit(10) {
         return read_number(environment, c.to_digit(10).unwrap());
+    } else if c == '"' {
+        return read_string(environment);
     } else if c.is_alphabetic() {
         environment.buffer.ungetc();
         return read_ident_or_func(environment);
     }
     panic!("Don't know how to handle '{}'",c);
+}
+
+fn read_string(environment: &mut Env) -> Ast {
+    let mut buf = String::new();
+    loop {
+        if environment.buffer.is_end() {
+            panic!("Unterminated string");
+        }
+        let c = environment.buffer.getc();
+        if c == '"' {
+            break;
+        }
+
+        if c == '\\' {
+            if environment.buffer.is_end() {
+                panic!("Unterminated \\");
+            }
+            buf.push(c);
+            buf.push(environment.buffer.getc());
+        } else {
+            buf.push(c);
+        }
+    }
+/*
+    let id = environment.strings.len();
+    environment.add_str(&buf);
+    make_ast_str(id, buf)
+    */
+    environment.new_str(&buf)
 }
 
 fn read_expr2(environment: &mut Env, prec: i32) -> Ast {
@@ -458,6 +504,9 @@ fn emit_expr(ast: Ast) {
         Ast::Sym(v) => {
             print!("mov -{}(%rbp), %eax\n\t", v.pos * 4);
         }
+        Ast::Str(id, _) => {
+            print!("lea .s{}(%rip), %rax\n\t", id);
+        }
         Ast::Func(f) => {
             // not working on windows with more than 4 arguments.
             let n = f.args.len();
@@ -516,6 +565,15 @@ fn emit_expr(ast: Ast) {
 }
 */
 
+fn print_quote(s: &String) {
+    for c in s.chars() {
+        if c == '\"' || c == '\\' {
+            print!("\\");
+        }
+        print!("{}", c);
+    }
+}
+
 fn print_ast(ast: Ast) {
     match ast {
         Ast::Op {op, left, right} => {
@@ -530,6 +588,11 @@ fn print_ast(ast: Ast) {
         }
         Ast::Sym(v) => {
             print!("{}", v.name);
+        }
+        Ast::Str(_, s) => {
+            print!("\"");
+            print_quote(&s);
+            print!("\"");
         }
         Ast::Func(f) => {
             print!("{}(", f.name);
@@ -550,35 +613,55 @@ fn print_ast(ast: Ast) {
     }
 }
 
+fn emit_data_section(environment: & Env) {
+    if environment.strings.len() == 0 {
+        return;
+    }
+
+    print!("\t.data\n");
+    for s in &environment.strings {
+        match s {
+            &Ast::Str(id, ref s) => {
+                print!(".s{}:\n\t", id);
+                print!(".string \"");
+                print_quote(s);
+                print!("\"\n");
+            }
+            _ => {}
+        }
+    }
+    print!("\t");
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     let wantast: bool = args.len() > 1 && args[1] == "-a";
     let environment = &mut Env::new();
 
-    // null
-    /*
-    unsafe {
-        VARS.unwrap().push_back(Var::new(String::from("null")));
+    let mut asts: Vec<Ast> = vec![];
+    loop {
+        let ast: Ast = read_expr(environment);
+        if ast.is_null() {
+            break;
+        }
+        asts.push(ast);
     }
-    */
 
     if !wantast {
+        emit_data_section(environment);
+
         let main = fname(String::from("mymain"));
         print!(".text\n\t");
         print!(".global {}\n", main);
         print!("{}:\n\t", main);
     }
 
-    loop {
-        let ast: Ast = read_expr(environment);
-        if ast.is_null() {
-            break;
-        }
+    for a in asts {
         if wantast {
-            print_ast(ast);
+            print_ast(a);
         } else {
             //compile(ast);
-            emit_expr(ast);
+            emit_expr(a);
         }
     }
     if !wantast {
