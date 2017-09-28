@@ -62,7 +62,7 @@ fn fname(s: String) -> String {
 
 struct Env {
     buffer: Buffer,
-    vars: LinkedList<Var>,
+    vars: LinkedList<Ast>,
     strings: LinkedList<Ast>,
 }
 
@@ -73,35 +73,47 @@ impl Env {
             vars: LinkedList::new(),
             strings: LinkedList::new()
         };
-        ret.vars.push_back(Var {
+        /*
+        ret.vars.push_back(Ast::Var(Var {
             name: String::from("null"),
             pos: 0
-        });
+        }));
+        */
+
+        ret.vars.push_back(Ast::Null);
 
         ret
     }
 
-    fn null(&mut self) -> Var {
+    fn null(&mut self) -> Ast {
+        Ast::Null
+        /*
         Var {
             name: String::from("null"),
             pos: 0
         }
+        */
     }
 
-    fn new_var(&mut self, name:String) -> Var {
+    fn new_var(&mut self, name:String) -> Ast {
         let v = Var {
             name: name,
             pos: self.vars.len()
         };
 
-        self.vars.push_back(v.clone());
-        v
+        self.vars.push_back(Ast::Var(v.clone()));
+        Ast::Var(v)
     }
 
-    fn find_var(&mut self, name: &String) -> Var {
+    fn find_var(&mut self, name: &String) -> Ast {
         for x in self.vars.iter() {
-            if x.name == *name {
-                return x.clone()
+            match x {
+                &Ast::Var(ref v) => {
+                    if v.name == *name {
+                        return Ast::Var(v.clone())
+                    }
+                }
+                _ => { }
             }
         }
         self.null()
@@ -215,10 +227,6 @@ impl Var {
     }
     */
 
-    fn is_null(&self) -> bool {
-        self.pos == 0
-    }
-
     fn clone(&self) -> Var {
         Var {
             name: self.name.clone(),
@@ -236,7 +244,7 @@ enum Ast {
     Op {op:char, left: Box<Ast>, right: Box<Ast>},
     Int(u32),
     Str(usize, String),
-    Sym(Var),
+    Var(Var),
     Func(Func),
     Null
 }
@@ -270,25 +278,9 @@ fn make_ast_int(var: u32) -> Ast {
     Ast::Int(var)
 }
 
-fn make_ast_sym(var: Var) -> Ast {
-    Ast::Sym(var)
-}
-
-/*
-fn make_ast_str(id: usize, var: String) -> Ast {
-    Ast::Str(id, var)
-}
-*/
-
 fn make_ast_funcall(fname: String, args: Vec<Ast>) -> Ast {
     Ast::Func(Func{name: fname, args: args})
 }
-
-/*
-fn make_var(name: String) -> Var {
-    return Var::new(name);
-}
-*/
 
 fn priority(op: char) -> i32 {
     match op {
@@ -369,8 +361,7 @@ fn read_ident_or_func(environment: &mut Env) -> Ast {
     if v.is_null() {
         v = environment.new_var(name);
     }
-    
-    make_ast_sym(v)
+    v
 }
 
 fn read_prim(environment: &mut Env) -> Ast {
@@ -464,7 +455,7 @@ fn emit_binop(ast: Ast) {
     if let Ast::Op {op, left, right} = ast {
         if op == '=' {
             emit_expr(*right);
-            if let Ast::Sym(v) = *left {
+            if let Ast::Var(v) = *left {
                 print!("mov %eax, -{}(%rbp)\n\t", v.pos * 4);
             } else {
                 panic!("Symbol expected");
@@ -501,7 +492,7 @@ fn emit_expr(ast: Ast) {
         Ast::Int(i) => {
             print!("mov ${}, %eax\n\t", i);
         }
-        Ast::Sym(v) => {
+        Ast::Var(v) => {
             print!("mov -{}(%rbp), %eax\n\t", v.pos * 4);
         }
         Ast::Str(id, _) => {
@@ -586,7 +577,7 @@ fn print_ast(ast: Ast) {
         Ast::Int(i) => {
             print!("{}", i);
         }
-        Ast::Sym(v) => {
+        Ast::Var(v) => {
             print!("{}", v.name);
         }
         Ast::Str(_, s) => {
