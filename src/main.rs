@@ -20,18 +20,18 @@ macro_rules! error {
     ($fmt:expr,$($x:tt)*) => (writeln!(&mut io::stderr(), $fmt, $( $x )*));
 }
 
-fn is_mac() -> bool {
-    match Command::new("sw_vers").output() {
-        Ok(output) => output.status.success(),
-        Err(_) => false
-    }
-}
-
-
 
 const MAX_ARGS: usize = 6;
 fn regs(i: usize) -> String {
-    if is_mac() {
+    if cfg!(target_os = "windows") {
+        match i {
+            0 => String::from("%rcx"),
+            1 => String::from("%rdx"),
+            2 => String::from("%r8"),
+            3 => String::from("%r9"),
+            _ => format!("{}(%rsp)", 16 * i)
+        }
+    } else {
         match i {
             0 => String::from("%rdi"),
             1 => String::from("%rsi"),
@@ -41,19 +41,11 @@ fn regs(i: usize) -> String {
             5 => String::from("%r9"),
             _ => format!("{}(%rsp)", 8 * i)
         }
-    } else {
-        match i {
-            0 => String::from("%rcx"),
-            1 => String::from("%rdx"),
-            2 => String::from("%r8"),
-            3 => String::from("%r9"),
-            _ => format!("{}(%rsp)", 16 * i)
-        }
     }
 }
 
 fn fname(s: String) -> String {
-    if is_mac() {
+    if cfg!(target_os = "macos") {
         format!("_{}", s)
     } else {
         s
@@ -243,6 +235,7 @@ struct Func {
 enum Ast {
     Op {op:char, left: Box<Ast>, right: Box<Ast>},
     Int(u32),
+    Char(char),
     Str(usize, String),
     Var(Var),
     Func(Func),
@@ -276,6 +269,10 @@ fn make_ast_op(op: char, l: Ast, r: Ast) -> Ast {
 
 fn make_ast_int(var: u32) -> Ast {
     Ast::Int(var)
+}
+
+fn make_ast_char(c: char) -> Ast {
+    Ast::Char(c)
 }
 
 fn make_ast_funcall(fname: String, args: Vec<Ast>) -> Ast {
@@ -364,23 +361,6 @@ fn read_ident_or_func(environment: &mut Env) -> Ast {
     v
 }
 
-fn read_prim(environment: &mut Env) -> Ast {
-    if environment.buffer.is_end() {
-        return Ast::Null;
-    }
-
-    let c = environment.buffer.getc();
-    if c.is_digit(10) {
-        return read_number(environment, c.to_digit(10).unwrap());
-    } else if c == '"' {
-        return read_string(environment);
-    } else if c.is_alphabetic() {
-        environment.buffer.ungetc();
-        return read_ident_or_func(environment);
-    }
-    panic!("Don't know how to handle '{}'",c);
-}
-
 fn read_string(environment: &mut Env) -> Ast {
     let mut buf = String::new();
     loop {
@@ -409,6 +389,55 @@ fn read_string(environment: &mut Env) -> Ast {
     */
     environment.new_str(&buf)
 }
+
+fn read_char(environment: &mut Env) -> Ast {
+    fn unterminated() {
+        panic!("Unterminated char");
+    }
+
+    if environment.buffer.is_end() {
+        unterminated();
+    }
+
+    let chr = match environment.buffer.getc() {
+        '\\' => {
+            if environment.buffer.is_end() {
+                unterminated();
+            }
+            environment.buffer.getc()
+        }
+        c => { c }
+    };
+
+    if environment.buffer.is_end() {
+        unterminated();
+    }
+    if environment.buffer.getc() != '\'' {
+        panic!("Malformed char constant");
+    }
+    make_ast_char(chr)
+}
+
+fn read_prim(environment: &mut Env) -> Ast {
+    if environment.buffer.is_end() {
+        return Ast::Null;
+    }
+
+    let c = environment.buffer.getc();
+    if c.is_digit(10) {
+        return read_number(environment, c.to_digit(10).unwrap());
+    } else if c == '"' {
+        return read_string(environment);
+    } else if c == '\'' {
+        return read_char(environment);
+    } else if c.is_alphabetic() {
+        environment.buffer.ungetc();
+        return read_ident_or_func(environment);
+    }
+    panic!("Don't know how to handle '{}'",c);
+}
+
+
 
 fn read_expr2(environment: &mut Env, prec: i32) -> Ast {
     environment.buffer.skip_space();
@@ -491,6 +520,9 @@ fn emit_expr(ast: Ast) {
     match ast {
         Ast::Int(i) => {
             print!("mov ${}, %eax\n\t", i);
+        }
+        Ast::Char(c) => {
+            print!("mov ${}, %eax\n\t", c as u32);
         }
         Ast::Var(v) => {
             print!("mov -{}(%rbp), %eax\n\t", v.pos * 4);
@@ -576,6 +608,9 @@ fn print_ast(ast: Ast) {
         }
         Ast::Int(i) => {
             print!("{}", i);
+        }
+        Ast::Char(c) => {
+            print!("'{}'", c);
         }
         Ast::Var(v) => {
             print!("{}", v.name);
