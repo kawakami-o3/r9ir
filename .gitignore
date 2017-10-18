@@ -13,4 +13,4 @@ memo.md
 *.out
 *.o
 *.s
-
+.vscode
