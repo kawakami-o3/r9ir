@@ -1,5 +1,9 @@
 #![allow(unused_imports)]
 
+mod string;
+mod rcc_env;
+
+use rcc_env::*;
 use std::env;
 use std::fmt;
 use std::io;
@@ -20,18 +24,17 @@ macro_rules! error {
     ($fmt:expr,$($x:tt)*) => (writeln!(&mut io::stderr(), $fmt, $( $x )*));
 }
 
-fn is_mac() -> bool {
-    match Command::new("sw_vers").output() {
-        Ok(output) => output.status.success(),
-        Err(_) => false
-    }
-}
-
-
-
 const MAX_ARGS: usize = 6;
 fn regs(i: usize) -> String {
-    if is_mac() {
+    if cfg!(taret_os = "windows") {
+        match i {
+            0 => String::from("%rcx"),
+            1 => String::from("%rdx"),
+            2 => String::from("%r8"),
+            3 => String::from("%r9"),
+            _ => format!("{}(%rsp)", 16 * i)
+        }
+    } else {
         match i {
             0 => String::from("%rdi"),
             1 => String::from("%rsi"),
@@ -41,223 +44,16 @@ fn regs(i: usize) -> String {
             5 => String::from("%r9"),
             _ => format!("{}(%rsp)", 8 * i)
         }
-    } else {
-        match i {
-            0 => String::from("%rcx"),
-            1 => String::from("%rdx"),
-            2 => String::from("%r8"),
-            3 => String::from("%r9"),
-            _ => format!("{}(%rsp)", 16 * i)
-        }
     }
 }
 
 fn fname(s: String) -> String {
-    if is_mac() {
+    if cfg!(taret_os = "mac") {
         format!("_{}", s)
     } else {
         s
     }
 }
-
-struct Env {
-    buffer: Buffer,
-    vars: LinkedList<Ast>,
-    strings: LinkedList<Ast>,
-}
-
-impl Env {
-    fn new() -> Env {
-        let mut ret = Env {
-            buffer: Buffer::new(),
-            vars: LinkedList::new(),
-            strings: LinkedList::new()
-        };
-        /*
-        ret.vars.push_back(Ast::Var(Var {
-            name: String::from("null"),
-            pos: 0
-        }));
-        */
-
-        ret.vars.push_back(Ast::Null);
-
-        ret
-    }
-
-    fn null(&mut self) -> Ast {
-        Ast::Null
-        /*
-        Var {
-            name: String::from("null"),
-            pos: 0
-        }
-        */
-    }
-
-    fn new_var(&mut self, name:String) -> Ast {
-        let v = Var {
-            name: name,
-            pos: self.vars.len()
-        };
-
-        self.vars.push_back(Ast::Var(v.clone()));
-        Ast::Var(v)
-    }
-
-    fn find_var(&mut self, name: &String) -> Ast {
-        for x in self.vars.iter() {
-            match x {
-                &Ast::Var(ref v) => {
-                    if v.name == *name {
-                        return Ast::Var(v.clone())
-                    }
-                }
-                _ => { }
-            }
-        }
-        self.null()
-    }
-
-    fn new_str(&mut self, s: &String) -> Ast {
-        let id = self.strings.len();
-        self.strings.push_back(Ast::Str(id, s.clone()));
-        Ast::Str(id, s.clone())
-    }
-}
-
-struct Buffer {
-    chars: Vec<char>,
-    idx: usize,
-}
-
-impl Buffer {
-    fn new() -> Buffer {
-        let mut vec = Vec::new();
-
-        for i in io::stdin().bytes() {
-            vec.push(char::from(i.unwrap()));
-        }
-
-        Buffer {
-            chars: vec,
-            idx: 0,
-        }
-    }
-/*
-    fn print(& self) {
-        //println!("{:?}", self.chars)
-
-        let mut bytes: Vec<u8> = Vec::new();
-
-        //let a = self.chars[0].as_byte();
-
-        for c in self.chars.clone() {
-            let mut bs = [0; 2];
-            c.encode_utf8(&mut bs);
-
-            for b in bs.iter() {
-                bytes.push(*b);
-            }
-        }
-
-        //write_debug("hello".as_bytes())
-        write_debug(&bytes)
-    }
-*/
-    fn getc(&mut self) -> char {
-        self.idx += 1;
-        return self.chars[self.idx - 1];
-    }
-
-    fn ungetc(&mut self) {
-        self.idx -= 1;
-    }
-
-    fn can_read(& self) -> bool {
-        return self.chars.len() > self.idx;
-    }
-
-    fn is_end(& self) -> bool {
-        return !self.can_read();
-    }
-
-    fn skip_space(&mut self) {
-        while self.can_read() {
-            let c = self.getc();
-            if c.is_whitespace() {
-                continue;
-            }
-
-            self.ungetc();
-            return;
-        }
-    }
-}
-
-
-impl fmt::Display for Buffer {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut s = String::new();
-        for i in &self.chars {
-            for c in i.escape_default() {
-                s.push(c);
-            }
-            s.push(',');
-        }
-        write!(f, "['{}', {}]", s, self.idx)
-    }
-}
-
-struct Var {
-    name: String,
-    pos: usize,
-
-}
-
-impl Var {
-    /*
-    fn new(name:String) -> Var {
-        unsafe {
-            Var {
-                name: name,
-                pos: VARS.unwrap().len(), // + 1,
-            }
-        }
-    }
-    */
-
-    fn clone(&self) -> Var {
-        Var {
-            name: self.name.clone(),
-            pos: self.pos,
-        }
-    }
-}
-
-struct Func {
-    name: String,
-    args: Vec<Ast>
-}
-
-enum Ast {
-    Op {op:char, left: Box<Ast>, right: Box<Ast>},
-    Int(u32),
-    Str(usize, String),
-    Var(Var),
-    Func(Func),
-    Null
-}
-
-impl Ast {
-    fn is_null(&self) -> bool {
-        match *self {
-            Ast::Null => true,
-            _ => false
-        }
-    }
-}
-
 
 // ***** the following content is compatible. *****
 
@@ -627,11 +423,11 @@ fn emit_data_section(environment: & Env) {
 fn main() {
     let args: Vec<String> = env::args().collect();
     let wantast: bool = args.len() > 1 && args[1] == "-a";
-    let environment = &mut Env::new();
+    let environment = &mut rcc_env::Env::new();
 
-    let mut asts: Vec<Ast> = vec![];
+    let mut asts: Vec<rcc_env::Ast> = vec![];
     loop {
-        let ast: Ast = read_expr(environment);
+        let ast: rcc_env::Ast = read_expr(environment);
         if ast.is_null() {
             break;
         }
