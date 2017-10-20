@@ -187,6 +187,7 @@ pub struct Func {
 pub enum Ast {
     Op {op:char, left: Box<Ast>, right: Box<Ast>},
     Int(u32),
+    Char(char),
     Str(usize, String),
     Var(Var),
     Func(Func),
