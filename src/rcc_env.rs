@@ -1,13 +1,15 @@
-
+use std::cell::Cell;
 use std::io;
 use std::io::Read;
 use std::collections::LinkedList;
 
+use lex::*;
 
 pub struct Env {
     pub buffer: Buffer,
     pub vars: LinkedList<Ast>,
     pub strings: LinkedList<Ast>,
+    pub token_stored: Token,
 }
 
 impl Env {
@@ -15,14 +17,9 @@ impl Env {
         let mut ret = Env {
             buffer: Buffer::new(),
             vars: LinkedList::new(),
-            strings: LinkedList::new()
+            strings: LinkedList::new(),
+            token_stored: Token::Null,
         };
-        /*
-        ret.vars.push_back(Ast::Var(Var {
-            name: String::from("null"),
-            pos: 0
-        }));
-        */
 
         ret.vars.push_back(Ast::Null);
 
@@ -67,6 +64,14 @@ impl Env {
         let id = self.strings.len();
         self.strings.push_back(Ast::Str(id, s.clone()));
         Ast::Str(id, s.clone())
+    }
+
+    pub fn store(&mut self, t: Token) {
+        self.token_stored = t
+    }
+
+    pub fn get_token(&mut self) -> Token {
+        self.token_stored.clone()
     }
 }
 
