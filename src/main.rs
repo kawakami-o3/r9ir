@@ -1,9 +1,12 @@
 #![allow(unused_imports)]
+#![allow(unused_macros)]
 
-mod string;
 mod rcc_env;
+mod lex;
 
 use rcc_env::*;
+use lex::*;
+
 use std::env;
 use std::fmt;
 use std::io;
@@ -56,23 +59,8 @@ fn fname(s: String) -> String {
     }
 }
 
-// ***** the following content is compatible. *****
-
-
 fn make_ast_op(op: char, l: Ast, r: Ast) -> Ast {
     Ast::Op {op:op, left: Box::new(l), right: Box::new(r)}
-    /*
-    match op {
-        '+' | '-' | '*' | '/' => Ast::Op {op:op, left: Box::new(l), right: Box::new(r)},
-        a => {
-            panic!("operator: {}", a);
-        }
-    }
-    */
-}
-
-fn make_ast_int(var: u32) -> Ast {
-    Ast::Int(var)
 }
 
 fn make_ast_char(c: char) -> Ast {
@@ -93,51 +81,24 @@ fn priority(op: char) -> i32 {
     }
 }
 
-fn read_number(environment: &mut Env, mut n: u32) -> Ast {
-    loop {
-        let c = environment.buffer.getc();
-        if !c.is_digit(10) {
-            environment.buffer.ungetc();
-            return make_ast_int(n);
-        }
-        n = n * 10 + c.to_digit(10).unwrap();
-    }
-}
-
-fn read_ident(environment: &mut Env) -> String {
-    // let mut is_escape = false;
-    let mut sym = String::new(); // no limit symbol length
-    // let mut i = 1;
-
-    loop {
-        let c = environment.buffer.getc();
-        if ! (c.is_digit(10) || c.is_alphabetic()) {
-            environment.buffer.ungetc();
-            break;
-        }
-        sym.push(c);
-    }
-    sym
-}
 
 fn read_func_args(environment: &mut Env, fname: String) -> Ast {
     let mut args: Vec<Ast> = vec![];
     loop {
-        environment.buffer.skip_space();
-        if environment.buffer.getc() == ')' {
+        let tok = read_token(environment);
+        if tok.is_punct(')') {
             break;
         }
-        environment.buffer.ungetc();
+        unget_token(environment, tok);
+
         args.push(read_expr2(environment, 0));
 
-        let c = environment.buffer.getc();
-        if c == ')' {
+        let tok2 = read_token(environment);
+        if tok2.is_punct(')') {
             break;
         }
-        if c == ',' {
-            environment.buffer.skip_space();
-        } else {
-            panic!("Unexpected character: '{}'", c);
+        if ! tok2.is_punct(',') {
+            panic!("Unexpected token: '{}'", tok2.string());
         }
     }
 
@@ -148,15 +109,13 @@ fn read_func_args(environment: &mut Env, fname: String) -> Ast {
     make_ast_funcall(fname, args)
 }
 
-fn read_ident_or_func(environment: &mut Env) -> Ast {
-    let name = read_ident(environment);
-
-    environment.buffer.skip_space();
-    if environment.buffer.getc() == '(' {
+fn read_ident_or_func(environment: &mut Env, name: String) -> Ast {
+    let tok = read_token(environment);
+    if tok.is_punct('(') {
         return read_func_args(environment, name);
     }
 
-    environment.buffer.ungetc();
+    unget_token(environment, tok);
 
     let mut v = environment.find_var(&name);
     if v.is_null() {
@@ -165,122 +124,59 @@ fn read_ident_or_func(environment: &mut Env) -> Ast {
     v
 }
 
-fn read_string(environment: &mut Env) -> Ast {
-    let mut buf = String::new();
-    loop {
-        if environment.buffer.is_end() {
-            panic!("Unterminated string");
-        }
-        let c = environment.buffer.getc();
-        if c == '"' {
-            break;
-        }
-
-        if c == '\\' {
-            if environment.buffer.is_end() {
-                panic!("Unterminated \\");
-            }
-            buf.push(c);
-            buf.push(environment.buffer.getc());
-        } else {
-            buf.push(c);
-        }
-    }
-/*
-    let id = environment.strings.len();
-    environment.add_str(&buf);
-    make_ast_str(id, buf)
-    */
-    environment.new_str(&buf)
-}
-
-fn read_char(environment: &mut Env) -> Ast {
-    fn unterminated() {
-        panic!("Unterminated char");
-    }
-
-    if environment.buffer.is_end() {
-        unterminated();
-    }
-
-    let chr = match environment.buffer.getc() {
-        '\\' => {
-            if environment.buffer.is_end() {
-                unterminated();
-            }
-            environment.buffer.getc()
-        }
-        c => { c }
-    };
-
-    if environment.buffer.is_end() {
-        unterminated();
-    }
-    if environment.buffer.getc() != '\'' {
-        panic!("Malformed char constant");
-    }
-    make_ast_char(chr)
-}
 
 fn read_prim(environment: &mut Env) -> Ast {
-    if environment.buffer.is_end() {
+    let tok = read_token(environment);
+    if tok.is_null() {
         return Ast::Null;
     }
 
-    let c = environment.buffer.getc();
-    if c.is_digit(10) {
-        return read_number(environment, c.to_digit(10).unwrap());
-    } else if c == '"' {
-        return read_string(environment);
-    } else if c == '\'' {
-        return read_char(environment);
-    } else if c.is_alphabetic() {
-        environment.buffer.ungetc();
-        return read_ident_or_func(environment);
+    match tok {
+        Token::Ident(c) => read_ident_or_func(environment, c),
+        Token::Int(i) => Ast::Int(i),
+        Token::Char(c) => make_ast_char(c),
+        Token::Str(ref s) => environment.new_str(s),
+        Token::Punct(c) => panic!("unexpected character: '{}'", c),
+        Token::Null => panic!("Don't know how to handle 'Null'")
     }
-    panic!("Don't know how to handle '{}'",c);
 }
 
 
 
 fn read_expr2(environment: &mut Env, prec: i32) -> Ast {
-    environment.buffer.skip_space();
     let mut ast = read_prim(environment);
 
     loop {
-        environment.buffer.skip_space();
-        if environment.buffer.is_end() {
-            return ast
-        }
-        let c = environment.buffer.getc();
-        let prec2 = priority(c);
-        if prec2 < 0 || prec2 < prec {
-            environment.buffer.ungetc();
-            return ast
-        }
+        let tok = read_token(environment);
 
-        environment.buffer.skip_space();
-
-        //ast.print();
-        ast = make_ast_op(c, ast, read_expr2(environment, prec2 + 1));
+        match tok {
+            Token::Punct(c) => {
+                let prec2 = priority(c);
+                if prec2 < 0 || prec2 < prec {
+                    unget_token(environment, tok);
+                    return ast;
+                }
+                ast = make_ast_op(c, ast, read_expr2(environment, prec2 + 1));
+            },
+            _ => {
+                unget_token(environment, tok);
+                return ast;
+            }
+        }
     }
 }
 
 fn read_expr(environment: &mut Env) -> Ast {
-    //let buf: &mut Buffer = &mut Buffer::new();
-
     let r: Ast = read_expr2(environment, 0);
     if r.is_null() {
         return Ast::Null;
     }
 
-    environment.buffer.skip_space();
-    //environment.buffer.print();
-    
-    let c: char = environment.buffer.getc();
-    if c != ';' {
-        panic!("Unterminated expression");
+    let tok = read_token(environment);
+    if ! tok.is_punct(';') {
+        panic!("Unterminated expression: {}", tok.string());
     }
+
     return r;
 }
 
@@ -338,7 +234,10 @@ fn emit_expr(ast: Ast) {
             // not working on windows with more than 4 arguments.
             let n = f.args.len();
             let shift = 8 * 2 * cmp::max(f.args.len() / 2 + 1, 2);
-            
+
+            print!("pushq %rbp\n\t");
+            print!("movq %rsp, %rbp\n\t");
+
             print!("subq ${}, %rsp\n\t", shift);
 
             for x in f.args {
@@ -348,49 +247,18 @@ fn emit_expr(ast: Ast) {
             for i in 0..n {
                 print!("pop {}\n\t", regs(n - i - 1));
             }
+            print!("mov $0, %eax\n\t");
             print!("call {}\n\t", fname(f.name));
 
             print!("addq ${}, %rsp\n\t", shift);
-        }
-        _ => {
-            emit_binop(ast);
-        }
-    }
-}
 
-/*
-fn emit_expr(ast: Ast) {
-    match ast {
-        Ast::Int(i) => {
-            print!("mov ${}, %eax\n\t", i);
-        }
-        Ast::Sym(v) => {
-            print!("mov -{}(%rbp), %eax\n\t", v.pos * 4);
-        }
-        Ast::Func(f) => {
-            let n = f.args.len();
-            for i in 0..n-1 {
-                print!("push %{}\n\t", regs(i));
-            }
-            for x in f.args {
-                emit_expr(x);
-                print!("push %rax\n\t");
-            }
-            for i in 0..n-1 {
-                print!("pop %{}\n\t", regs(n - i - 1));
-            }
-            print!("mov $0, %eax\n\t");
-            print!("call {}\n\t", f.name);
-            for i in 0..n-1 {
-                print!("pop %{}\n\t", regs(n - i - 1));
-            }
+            print!("popq %rbp\n\t");
         }
         _ => {
             emit_binop(ast);
         }
     }
 }
-*/
 
 fn print_quote(s: &String) {
     for c in s.chars() {
