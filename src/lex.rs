@@ -27,7 +27,17 @@ impl Token {
         }
     }
 
-    pub fn string(&self) -> String {
+    pub fn is_keyword(&self) -> bool {
+        match *self {
+            Token::Ident(ref i) => match i.as_str() {
+                "int" | "char" | "string" => true,
+                _ => false
+            },
+            _ => false
+        }
+    }
+
+    pub fn to_string(&self) -> String {
         match *self {
             Token::Ident(ref c) => format!("{}", c),
             Token::Punct(c) => format!("{}", c),
@@ -123,20 +133,18 @@ fn read_ident(environment: &mut Env, c: char) -> Token {
 
 
 pub fn read_token_int(environment: &mut Env) -> Token {
-    environment.buffer.skip_space();
-    if environment.buffer.is_end() {
-        return Token::Null;
-    }
-
-    let c = environment.buffer.getc();
-    match c {
-        '0' ... '9' => read_number(environment, c),
-        '"' => read_string(environment),
-        '\'' => read_char(environment),
-        'A' ... 'Z' | 'a' ... 'z' | '_' => read_ident(environment, c),
-        '/' | '=' | '*' | '+' | '-' | '(' | ')' | ',' | ';'
-            => Token::Punct(c),
-        _ => panic!("Unexpected character: '{}'", c)
+    let chr = environment.buffer.getc_nonspace();
+    match chr {
+        Some(c) => match c {
+            '0' ... '9' => read_number(environment, c),
+            '"' => read_string(environment),
+            '\'' => read_char(environment),
+            'A' ... 'Z' | 'a' ... 'z' | '_' => read_ident(environment, c),
+            '/' | '=' | '*' | '+' | '-' | '(' | ')' | ',' | ';'
+                => Token::Punct(c),
+            _ => panic!("Unexpected character: '{}'", c)
+        }
+        None => Token::Null
     }
 }
 
@@ -145,6 +153,12 @@ pub fn unget_token(environment: &mut Env, tok: Token) {
         panic!("Push back buffer is already full");
     }
     environment.store(tok)
+}
+
+pub fn peek_token(environment: &mut Env) -> Token {
+    let tok = read_token(environment);
+    unget_token(environment, tok.clone());
+    tok
 }
 
 pub fn read_token(environment: &mut Env) -> Token {

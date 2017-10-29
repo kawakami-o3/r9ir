@@ -71,6 +71,10 @@ fn make_ast_funcall(fname: String, args: Vec<Ast>) -> Ast {
     Ast::Func(Func{name: fname, args: args})
 }
 
+fn make_ast_decl(var: Ast, init: Ast) -> Ast {
+    Ast::Decl {var: Box::new(var), init: Box::new(init)}
+}
+
 fn priority(op: char) -> i32 {
     match op {
         '=' => 1,
@@ -85,20 +89,20 @@ fn priority(op: char) -> i32 {
 fn read_func_args(environment: &mut Env, fname: String) -> Ast {
     let mut args: Vec<Ast> = vec![];
     loop {
-        let tok = read_token(environment);
+        let mut tok = read_token(environment);
         if tok.is_punct(')') {
             break;
         }
         unget_token(environment, tok);
 
-        args.push(read_expr2(environment, 0));
+        args.push(read_expr(environment, 0));
 
-        let tok2 = read_token(environment);
-        if tok2.is_punct(')') {
+        tok = read_token(environment);
+        if tok.is_punct(')') {
             break;
         }
-        if ! tok2.is_punct(',') {
-            panic!("Unexpected token: '{}'", tok2.string());
+        if ! tok.is_punct(',') {
+            panic!("Unexpected token: '{}'", tok.to_string());
         }
     }
 
@@ -117,13 +121,13 @@ fn read_ident_or_func(environment: &mut Env, name: String) -> Ast {
 
     unget_token(environment, tok);
 
-    let mut v = environment.find_var(&name);
+    let v = environment.find_var(&name);
     if v.is_null() {
-        v = environment.new_var(name);
+        //v = environment.new_var(name);
+        panic!("Undefined variable: {}", name)
     }
     v
 }
-
 
 fn read_prim(environment: &mut Env) -> Ast {
     let tok = read_token(environment);
@@ -141,9 +145,14 @@ fn read_prim(environment: &mut Env) -> Ast {
     }
 }
 
+fn ensure_lvalue(ast: & Ast) {
+    match *ast {
+        Ast::Var(_) => {},
+        _ => panic!("variable expected")
+    }
+}
 
-
-fn read_expr2(environment: &mut Env, prec: i32) -> Ast {
+fn read_expr(environment: &mut Env, prec: i32) -> Ast {
     let mut ast = read_prim(environment);
 
     loop {
@@ -156,7 +165,12 @@ fn read_expr2(environment: &mut Env, prec: i32) -> Ast {
                     unget_token(environment, tok);
                     return ast;
                 }
-                ast = make_ast_op(c, ast, read_expr2(environment, prec2 + 1));
+
+                if c == '=' {
+                    ensure_lvalue(&ast);
+                }
+
+                ast = make_ast_op(c, ast, read_expr(environment, prec2 + 1));
             },
             _ => {
                 unget_token(environment, tok);
@@ -166,29 +180,71 @@ fn read_expr2(environment: &mut Env, prec: i32) -> Ast {
     }
 }
 
-fn read_expr(environment: &mut Env) -> Ast {
-    let r: Ast = read_expr2(environment, 0);
-    if r.is_null() {
+fn expect(environment: &mut Env, punct: char) {
+    let tok = read_token(environment);
+    if ! tok.is_punct(punct) {
+        panic!("Unterminated expression: {}", tok.to_string());
+    }
+}
+
+fn get_ctype(tok: Token) -> rcc_env::CType {
+    match tok {
+        Token::Ident(ident) => match ident.as_str() {
+            "int" => CType::Int,
+            "char" => CType::Char,
+            "string" => CType::Str,
+            _ => CType::Void
+        }
+        _ => CType::Void
+    }
+}
+
+fn read_decl(environment: &mut Env) -> Ast {
+    let ctype = get_ctype(read_token(environment));
+    let name = read_token(environment);
+    match name {
+        Token::Ident(ident) => {
+            let var = environment.new_var(ctype, ident);
+            expect(environment, '=');
+            let init = read_expr(environment, 0);
+            return make_ast_decl(var, init);
+        }
+        _ => panic!("Identifier expected, but got {}", name.to_string())
+    }
+}
+
+fn read_decl_or_stmt(environment: &mut Env) -> Ast {
+    let mut tok = peek_token(environment);
+    if tok.is_null() {
         return Ast::Null;
     }
+    
+    let r = match tok.is_keyword() {
+        true => read_decl(environment),
+        false => read_expr(environment, 0)
+    };
 
-    let tok = read_token(environment);
+    tok = read_token(environment);
     if ! tok.is_punct(';') {
-        panic!("Unterminated expression: {}", tok.string());
+        panic!("Unterminated expression: {}", tok.to_string());
     }
 
-    return r;
+    r
+}
+
+fn emit_assign(var: Ast, value: Ast) {
+    emit_expr(value);
+    if let Ast::Var(v) = var {
+        print!("mov %eax, -{}(%rbp)\n\t", v.pos * 4);
+    } else {
+        panic!();
+    }
 }
 
 fn emit_binop(ast: Ast) {
     if let Ast::Op {op, left, right} = ast {
         if op == '=' {
-            emit_expr(*right);
-            if let Ast::Var(v) = *left {
-                print!("mov %eax, -{}(%rbp)\n\t", v.pos * 4);
-            } else {
-                panic!("Symbol expected");
-            }
+            emit_assign(*left, *right);
             return;
         }
 
@@ -254,6 +310,9 @@ fn emit_expr(ast: Ast) {
 
             print!("popq %rbp\n\t");
         }
+        Ast::Decl {var, init} => {
+            emit_assign(*var, *init)
+        }
         _ => {
             emit_binop(ast);
         }
@@ -306,9 +365,23 @@ fn print_ast(ast: Ast) {
             }
             print!(")");
         }
+        Ast::Decl {var, init} => {
+            if let Ast::Var(Var {ref name, ref ctype, ref pos}) = *var {
+                ignore_warn(*pos);
+                print!("(decl {} {} ", ctype.to_string(), name);
+                print_ast(*init);
+                print!(")");
+            } else {
+                panic!();
+            }
+        }
         _ => {
         }
     }
+}
+
+fn ignore_warn(i: usize) -> usize {
+    i + 1
 }
 
 fn emit_data_section(environment: & Env) {
@@ -338,7 +411,8 @@ fn main() {
 
     let mut asts: Vec<rcc_env::Ast> = vec![];
     loop {
-        let ast: rcc_env::Ast = read_expr(environment);
+        //let ast: rcc_env::Ast = read_expr(environment);
+        let ast: rcc_env::Ast = read_decl_or_stmt(environment);
         if ast.is_null() {
             break;
         }
