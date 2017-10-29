@@ -36,9 +36,10 @@ impl Env {
         */
     }
 
-    pub fn new_var(&mut self, name:String) -> Ast {
+    pub fn new_var(&mut self, ctype: CType, name:String) -> Ast {
         let v = Var {
             name: name,
+            ctype: ctype,
             pos: self.vars.len()
         };
 
@@ -132,16 +133,16 @@ impl Buffer {
         return !self.can_read();
     }
 
-    pub fn skip_space(&mut self) {
+    pub fn getc_nonspace(&mut self) -> Option<char> {
         while self.can_read() {
             let c = self.getc();
             if c.is_whitespace() {
                 continue;
             }
 
-            self.ungetc();
-            return;
+            return Some(c);
         }
+        return None
     }
 }
 
@@ -161,6 +162,7 @@ impl fmt::Display for Buffer {
 */
 pub struct Var {
     pub name: String,
+    pub ctype: CType,
     pub pos: usize,
 }
 
@@ -179,6 +181,7 @@ impl Var {
     pub fn clone(&self) -> Var {
         Var {
             name: self.name.clone(),
+            ctype: self.ctype.clone(),
             pos: self.pos,
         }
     }
@@ -196,6 +199,7 @@ pub enum Ast {
     Str(usize, String),
     Var(Var),
     Func(Func),
+    Decl {var: Box<Ast>, init: Box<Ast>},
     Null
 }
 
@@ -208,5 +212,21 @@ impl Ast {
     }
 }
 
+#[derive(Clone)]
+pub enum CType {
+    Void,
+    Int,
+    Char,
+    Str
+}
 
-
+impl CType {
+    pub fn to_string(&self) -> String {
+        String::from(match *self {
+            CType::Void => "void",
+            CType::Int => "int",
+            CType::Char => "char",
+            CType::Str => "string"
+        })
+    }
+}
