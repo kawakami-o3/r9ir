@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 #![allow(unused_macros)]
+#![allow(unused_variables)]
 
 mod rcc_env;
 mod lex;
@@ -59,8 +60,8 @@ fn fname(s: String) -> String {
     }
 }
 
-fn make_ast_op(op: char, l: Ast, r: Ast) -> Ast {
-    Ast::Op {op:op, left: Box::new(l), right: Box::new(r)}
+fn make_ast_op(op: char, ctype: CType, l: Ast, r: Ast) -> Ast {
+    Ast::Op {op:op, ctype:ctype, left: Box::new(l), right: Box::new(r)}
 }
 
 fn make_ast_char(c: char) -> Ast {
@@ -68,11 +69,18 @@ fn make_ast_char(c: char) -> Ast {
 }
 
 fn make_ast_funcall(fname: String, args: Vec<Ast>) -> Ast {
-    Ast::Func(Func{name: fname, args: args})
+    Ast::Func(Func{name: fname, args: args}, CType::Int)
 }
 
-fn make_ast_decl(var: Ast, init: Ast) -> Ast {
-    Ast::Decl {var: Box::new(var), init: Box::new(init)}
+fn make_ast_decl(var: Ast, init: Ast, ctype: CType) -> Ast {
+    Ast::Decl {var: Box::new(var), init: Box::new(init), ctype:ctype}
+}
+
+fn is_right_assoc(tok: Token) -> bool {
+    match tok {
+        Token::Punct(i) => i == '=',
+        _ => false
+    }
 }
 
 fn priority(op: char) -> i32 {
@@ -85,6 +93,32 @@ fn priority(op: char) -> i32 {
     }
 }
 
+fn result_type<'a>(op: char, mut a: &'a Ast, mut b: &'a Ast) -> CType {
+    let err_msg = format!("incompatible operands: {} and {} for {}", ast_to_string(a), ast_to_string(b), op);
+
+    if a.get_ctype() as i32 > b.get_ctype() as i32 {
+        let tmp = b;
+        b = a;
+        a = tmp;
+    }
+
+    match a.get_ctype() {
+        CType::Void => panic!(err_msg),
+        CType::Int => match b.get_ctype() {
+            CType::Int | CType::Char => {
+                return CType::Int;
+            }
+            _ => panic!(err_msg)
+        }
+        CType::Char => match b.get_ctype() {
+            CType::Char => {
+                return CType::Int;
+            }
+            _ => panic!(err_msg)
+        }
+        CType::Str => panic!(err_msg)
+    }
+}
 
 fn read_func_args(environment: &mut Env, fname: String) -> Ast {
     let mut args: Vec<Ast> = vec![];
@@ -147,7 +181,7 @@ fn read_prim(environment: &mut Env) -> Ast {
 
 fn ensure_lvalue(ast: & Ast) {
     match *ast {
-        Ast::Var(_) => {},
+        Ast::Var(_, _) => {},
         _ => panic!("variable expected")
     }
 }
@@ -170,7 +204,9 @@ fn read_expr(environment: &mut Env, prec: i32) -> Ast {
                     ensure_lvalue(&ast);
                 }
 
-                ast = make_ast_op(c, ast, read_expr(environment, prec2 + 1));
+                let mut rest = read_expr(environment, prec2 + if is_right_assoc(tok) { 0 } else { 1 });
+                let ctype = result_type(c, &mut ast, &mut rest);
+                ast = make_ast_op(c, ctype, ast, rest);
             },
             _ => {
                 unget_token(environment, tok);
@@ -187,27 +223,15 @@ fn expect(environment: &mut Env, punct: char) {
     }
 }
 
-fn get_ctype(tok: Token) -> rcc_env::CType {
-    match tok {
-        Token::Ident(ident) => match ident.as_str() {
-            "int" => CType::Int,
-            "char" => CType::Char,
-            "string" => CType::Str,
-            _ => CType::Void
-        }
-        _ => CType::Void
-    }
-}
-
 fn read_decl(environment: &mut Env) -> Ast {
-    let ctype = get_ctype(read_token(environment));
+    let ctype = read_token(environment).get_ctype();
     let name = read_token(environment);
     match name {
         Token::Ident(ident) => {
-            let var = environment.new_var(ctype, ident);
+            let var = environment.new_var(ctype.clone(), ident);
             expect(environment, '=');
             let init = read_expr(environment, 0);
-            return make_ast_decl(var, init);
+            return make_ast_decl(var, init, ctype);
         }
         _ => panic!("Identifier expected, but got {}", name.to_string())
     }
@@ -218,10 +242,11 @@ fn read_decl_or_stmt(environment: &mut Env) -> Ast {
     if tok.is_null() {
         return Ast::Null;
     }
-    
-    let r = match tok.is_keyword() {
-        true => read_decl(environment),
-        false => read_expr(environment, 0)
+
+    let r = if tok.is_keyword() {
+        read_decl(environment)
+    } else {
+        read_expr(environment, 0)
     };
 
     tok = read_token(environment);
@@ -234,7 +259,7 @@ fn read_decl_or_stmt(environment: &mut Env) -> Ast {
 
 fn emit_assign(var: Ast, value: Ast) {
     emit_expr(value);
-    if let Ast::Var(v) = var {
+    if let Ast::Var(v, _) = var {
         print!("mov %eax, -{}(%rbp)\n\t", v.pos * 4);
     } else {
         panic!();
@@ -242,7 +267,7 @@ fn emit_assign(var: Ast, value: Ast) {
 }
 
 fn emit_binop(ast: Ast) {
-    if let Ast::Op {op, left, right} = ast {
+    if let Ast::Op {op, ctype, left, right} = ast {
         if op == '=' {
             emit_assign(*left, *right);
             return;
@@ -280,13 +305,13 @@ fn emit_expr(ast: Ast) {
         Ast::Char(c) => {
             print!("mov ${}, %eax\n\t", c as u32);
         }
-        Ast::Var(v) => {
+        Ast::Var(v, ctype) => {
             print!("mov -{}(%rbp), %eax\n\t", v.pos * 4);
         }
         Ast::Str(id, _) => {
             print!("lea .s{}(%rip), %rax\n\t", id);
         }
-        Ast::Func(f) => {
+        Ast::Func(f, ctype) => {
             // not working on windows with more than 4 arguments.
             let n = f.args.len();
             let shift = 8 * 2 * cmp::max(f.args.len() / 2 + 1, 2);
@@ -310,7 +335,7 @@ fn emit_expr(ast: Ast) {
 
             print!("popq %rbp\n\t");
         }
-        Ast::Decl {var, init} => {
+        Ast::Decl {var, init, ctype} => {
             emit_assign(*var, *init)
         }
         _ => {
@@ -319,69 +344,64 @@ fn emit_expr(ast: Ast) {
     }
 }
 
-fn print_quote(s: &String) {
-    for c in s.chars() {
+fn quote(target: &String) -> String {
+    let mut s = String::new();
+    for c in target.chars() {
         if c == '\"' || c == '\\' {
-            print!("\\");
+            s += "\\";
         }
-        print!("{}", c);
+        s += format!("{}", c).as_str();
     }
+    return s
 }
 
-fn print_ast(ast: Ast) {
-    match ast {
-        Ast::Op {op, left, right} => {
-            print!("({} ", op);
-            print_ast(*left);
-            print!(" ");
-            print_ast(*right);
-            print!(")");
+fn ast_to_string_int(ast: & Ast, mut buf: String) -> String {
+    match *ast {
+        Ast::Op {ref op, ref ctype, ref left, ref right} => {
+            buf += format!("({} {} {})", op, ast_to_string(left), ast_to_string(right)).as_str();
         }
-        Ast::Int(i) => {
-            print!("{}", i);
+        Ast::Int(ref i) => {
+            buf += format!("{}", i).as_str();
         }
-        Ast::Char(c) => {
-            print!("'{}'", c);
+        Ast::Char(ref c) => {
+            buf += format!("'{}'", c).as_str();
         }
-        Ast::Var(v) => {
-            print!("{}", v.name);
+        Ast::Var(ref v, _) => {
+            buf += v.name.as_str();
         }
-        Ast::Str(_, s) => {
-            print!("\"");
-            print_quote(&s);
-            print!("\"");
+        Ast::Str(_, ref s) => {
+            buf += format!("\"{}\"", quote(&s)).as_str();
         }
-        Ast::Func(f) => {
-            print!("{}(", f.name);
+        Ast::Func(ref f, ref ctype) => {
+            buf += format!("{}(", f.name).as_str();
             let mut i: usize = 0;
             let n: usize = f.args.len();
-            for x in f.args {
-                print_ast(x);
+            for x in f.get_args() {
+                buf += ast_to_string(&x).as_str();
                 i+=1;
 
                 if i < n {
-                    print!(",");
+                    buf += ",";
                 }
             }
-            print!(")");
+            buf += ")";
         }
-        Ast::Decl {var, init} => {
-            if let Ast::Var(Var {ref name, ref ctype, ref pos}) = *var {
-                ignore_warn(*pos);
-                print!("(decl {} {} ", ctype.to_string(), name);
-                print_ast(*init);
-                print!(")");
+        Ast::Decl {ref var, ref init, ref ctype} => {
+            if let Ast::Var(Var {ref name, ref pos}, _) = **var {
+                buf += format!("(decl {} {} {})", ctype.to_string(), name, ast_to_string(init)).as_str();
             } else {
-                panic!();
+                panic!("Expected Ast::Var.");
             }
         }
         _ => {
         }
-    }
+    };
+
+    return buf;
 }
 
-fn ignore_warn(i: usize) -> usize {
-    i + 1
+fn ast_to_string(ast: & Ast) -> String {
+    ast_to_string_int(ast, String::new())
 }
 
 fn emit_data_section(environment: & Env) {
@@ -394,9 +414,7 @@ fn emit_data_section(environment: & Env) {
         match s {
             &Ast::Str(id, ref s) => {
                 print!(".s{}:\n\t", id);
-                print!(".string \"");
-                print_quote(s);
-                print!("\"\n");
+                print!(".string \"{}\"\n", quote(s));
             }
             _ => {}
         }
@@ -411,7 +429,6 @@ fn main() {
 
     let mut asts: Vec<rcc_env::Ast> = vec![];
     loop {
-        //let ast: rcc_env::Ast = read_expr(environment);
         let ast: rcc_env::Ast = read_decl_or_stmt(environment);
         if ast.is_null() {
             break;
@@ -430,9 +447,8 @@ fn main() {
 
     for a in asts {
         if wantast {
-            print_ast(a);
+            print!("{}", ast_to_string(&a));
         } else {
-            //compile(ast);
             emit_expr(a);
         }
     }
