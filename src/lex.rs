@@ -37,6 +37,18 @@ impl Token {
         }
     }
 
+    pub fn get_ctype(&self) -> CType {
+        match *self {
+            Token::Ident(ref ident) => match ident.as_str() {
+                "int" => CType::Int,
+                "char" => CType::Char,
+                "string" => CType::Str,
+                _ => CType::Void
+            }
+            _ => CType::Void
+        }
+    }
+
     pub fn to_string(&self) -> String {
         match *self {
             Token::Ident(ref c) => format!("{}", c),

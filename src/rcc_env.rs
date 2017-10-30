@@ -39,20 +39,19 @@ impl Env {
     pub fn new_var(&mut self, ctype: CType, name:String) -> Ast {
         let v = Var {
             name: name,
-            ctype: ctype,
             pos: self.vars.len()
         };
 
-        self.vars.push_back(Ast::Var(v.clone()));
-        Ast::Var(v)
+        self.vars.push_back(Ast::Var(v.clone(), ctype.clone()));
+        Ast::Var(v, ctype)
     }
 
     pub fn find_var(&mut self, name: &String) -> Ast {
         for x in self.vars.iter() {
             match x {
-                &Ast::Var(ref v) => {
+                &Ast::Var(ref v, ref ctype) => {
                     if v.name == *name {
-                        return Ast::Var(v.clone())
+                        return Ast::Var(v.clone(), ctype.clone())
                     }
                 }
                 _ => { }
@@ -160,9 +159,9 @@ impl fmt::Display for Buffer {
     }
 }
 */
+#[derive(Clone)]
 pub struct Var {
     pub name: String,
-    pub ctype: CType,
     pub pos: usize,
 }
 
@@ -181,25 +180,32 @@ impl Var {
     pub fn clone(&self) -> Var {
         Var {
             name: self.name.clone(),
-            ctype: self.ctype.clone(),
             pos: self.pos,
         }
     }
 }
 
+#[derive(Clone)]
 pub struct Func {
     pub name: String,
     pub args: Vec<Ast>
 }
 
+impl Func {
+    pub fn get_args(&self) -> Vec<Ast> {
+        self.args.clone()
+    }
+}
+
+#[derive(Clone)]
 pub enum Ast {
-    Op {op:char, left: Box<Ast>, right: Box<Ast>},
+    Op {op:char, ctype:CType, left: Box<Ast>, right: Box<Ast>},
     Int(u32),
     Char(char),
     Str(usize, String),
-    Var(Var),
-    Func(Func),
-    Decl {var: Box<Ast>, init: Box<Ast>},
+    Var(Var, CType),
+    Func(Func, CType),
+    Decl {var: Box<Ast>, init: Box<Ast>, ctype:CType},
     Null
 }
 
@@ -208,6 +214,19 @@ impl Ast {
         match *self {
             Ast::Null => true,
             _ => false
+        }
+    }
+
+    pub fn get_ctype(&self) -> CType {
+        match *self {
+            Ast::Op {ref op, ref ctype, ref left, ref right} => ctype.clone(),
+            Ast::Int(_) => CType::Int,
+            Ast::Char(_) => CType::Char,
+            Ast::Str(_, _) => CType::Str,
+            Ast::Var(_, ref ctype) => ctype.clone(),
+            Ast::Func(_, ref ctype) => ctype.clone(),
+            Ast::Decl {ref var, ref init, ref ctype} => ctype.clone(),
+            Ast::Null => CType::Void
         }
     }
 }
