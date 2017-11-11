@@ -37,15 +37,15 @@ impl Token {
         }
     }
 
-    pub fn get_ctype(&self) -> CType {
+    pub fn get_ctype(&self) -> Ctype {
         match *self {
             Token::Ident(ref ident) => match ident.as_str() {
-                "int" => CType::Int,
-                "char" => CType::Char,
-                "string" => CType::Str,
-                _ => CType::Void
+                "int" => Ctype::Int,
+                "char" => Ctype::Char,
+                "string" => Ctype::Str,
+                _ => Ctype::Void
             }
-            _ => CType::Void
+            _ => Ctype::Void
         }
     }
 
@@ -152,7 +152,7 @@ pub fn read_token_int(environment: &mut Env) -> Token {
             '"' => read_string(environment),
             '\'' => read_char(environment),
             'A' ... 'Z' | 'a' ... 'z' | '_' => read_ident(environment, c),
-            '/' | '=' | '*' | '+' | '-' | '(' | ')' | ',' | ';'
+            '/' | '=' | '*' | '+' | '-' | '(' | ')' | ',' | ';' | '&'
                 => Token::Punct(c),
             _ => panic!("Unexpected character: '{}'", c)
         }
