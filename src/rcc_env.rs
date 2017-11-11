@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::cell::Cell;
 use std::io;
 use std::io::Read;
@@ -28,15 +30,13 @@ impl Env {
 
     pub fn null(&mut self) -> Ast {
         Ast::Null
-        /*
-        Var {
-            name: String::from("null"),
-            pos: 0
-        }
-        */
     }
 
-    pub fn new_var(&mut self, ctype: CType, name:String) -> Ast {
+    pub fn len_vars(&mut self) -> usize {
+        self.vars.len()
+    }
+
+    pub fn new_var(&mut self, ctype: Ctype, name:String) -> Ast {
         let v = Var {
             name: name,
             pos: self.vars.len()
@@ -94,71 +94,71 @@ impl Buffer {
             idx: 0,
         }
     }
-/*
-    fn print(& self) {
-        //println!("{:?}", self.chars)
+    /*
+       fn print(& self) {
+//println!("{:?}", self.chars)
 
-        let mut bytes: Vec<u8> = Vec::new();
+let mut bytes: Vec<u8> = Vec::new();
 
-        //let a = self.chars[0].as_byte();
+//let a = self.chars[0].as_byte();
 
-        for c in self.chars.clone() {
-            let mut bs = [0; 2];
-            c.encode_utf8(&mut bs);
+for c in self.chars.clone() {
+let mut bs = [0; 2];
+c.encode_utf8(&mut bs);
 
-            for b in bs.iter() {
-                bytes.push(*b);
-            }
-        }
+for b in bs.iter() {
+bytes.push(*b);
+}
+}
 
-        //write_debug("hello".as_bytes())
-        write_debug(&bytes)
-    }
+//write_debug("hello".as_bytes())
+write_debug(&bytes)
+}
 */
-    pub fn getc(&mut self) -> char {
-        self.idx += 1;
-        return self.chars[self.idx - 1];
-    }
+pub fn getc(&mut self) -> char {
+    self.idx += 1;
+    return self.chars[self.idx - 1];
+}
 
-    pub fn ungetc(&mut self) {
-        self.idx -= 1;
-    }
+pub fn ungetc(&mut self) {
+    self.idx -= 1;
+}
 
-    pub fn can_read(& self) -> bool {
-        return self.chars.len() > self.idx;
-    }
+pub fn can_read(& self) -> bool {
+    return self.chars.len() > self.idx;
+}
 
-    pub fn is_end(& self) -> bool {
-        return !self.can_read();
-    }
+pub fn is_end(& self) -> bool {
+    return !self.can_read();
+}
 
-    pub fn getc_nonspace(&mut self) -> Option<char> {
-        while self.can_read() {
-            let c = self.getc();
-            if c.is_whitespace() {
-                continue;
-            }
-
-            return Some(c);
+pub fn getc_nonspace(&mut self) -> Option<char> {
+    while self.can_read() {
+        let c = self.getc();
+        if c.is_whitespace() {
+            continue;
         }
-        return None
+
+        return Some(c);
     }
+    return None
+}
 }
 
 /*
-impl fmt::Display for Buffer {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut s = String::new();
-        for i in &self.chars {
-            for c in i.escape_default() {
-                s.push(c);
-            }
-            s.push(',');
-        }
-        write!(f, "['{}', {}]", s, self.idx)
-    }
-}
-*/
+   impl fmt::Display for Buffer {
+   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+   let mut s = String::new();
+   for i in &self.chars {
+   for c in i.escape_default() {
+   s.push(c);
+   }
+   s.push(',');
+   }
+   write!(f, "['{}', {}]", s, self.idx)
+   }
+   }
+   */
 #[derive(Clone)]
 pub struct Var {
     pub name: String,
@@ -167,15 +167,15 @@ pub struct Var {
 
 impl Var {
     /*
-    fn new(name:String) -> Var {
-        unsafe {
-            Var {
-                name: name,
-                pos: VARS.unwrap().len(), // + 1,
-            }
-        }
-    }
-    */
+       fn new(name:String) -> Var {
+       unsafe {
+       Var {
+       name: name,
+       pos: VARS.unwrap().len(), // + 1,
+       }
+       }
+       }
+       */
 
     pub fn clone(&self) -> Var {
         Var {
@@ -199,13 +199,20 @@ impl Func {
 
 #[derive(Clone)]
 pub enum Ast {
-    Op {op:char, ctype:CType, left: Box<Ast>, right: Box<Ast>},
+    //UnaryOp {op:char, ctype:Ctype, operand: Box<Ast>},
+    BinOp {op:char, ctype:Ctype, left: Box<Ast>, right: Box<Ast>},
+
     Int(u32),
     Char(char),
     Str(usize, String),
-    Var(Var, CType),
-    Func(Func, CType),
-    Decl {var: Box<Ast>, init: Box<Ast>, ctype:CType},
+
+    Literal {operand: Box<Ast>},
+    Var(Var, Ctype),
+    Func(Func, Ctype),
+    //Decl {var: Box<Ast>, init: Box<Ast>, ctype:Ctype},
+    Decl {var: Box<Ast>, init: Box<Ast>},
+    Addr {ctype:Ctype, operand: Box<Ast>},
+    Deref {ctype:Ctype, operand: Box<Ast>},
     Null
 }
 
@@ -217,35 +224,128 @@ impl Ast {
         }
     }
 
-    pub fn get_ctype(&self) -> CType {
+    pub fn get_ctype(&self) -> Ctype {
         match *self {
-            Ast::Op {ref op, ref ctype, ref left, ref right} => ctype.clone(),
-            Ast::Int(_) => CType::Int,
-            Ast::Char(_) => CType::Char,
-            Ast::Str(_, _) => CType::Str,
+            Ast::BinOp {ref op, ref ctype, ref left, ref right} => ctype.clone(),
+            Ast::Int(_) => Ctype::Int,
+            Ast::Char(_) => Ctype::Char,
+            Ast::Str(_, _) => Ctype::Str,
             Ast::Var(_, ref ctype) => ctype.clone(),
             Ast::Func(_, ref ctype) => ctype.clone(),
-            Ast::Decl {ref var, ref init, ref ctype} => ctype.clone(),
-            Ast::Null => CType::Void
+            //Ast::Decl {ref var, ref init, ref ctype} => ctype.clone(),
+            Ast::Decl {ref var, ref init} => {
+                if let Ast::Var(Var {ref name, ref pos}, ref ctype) = **var {
+                    return ctype.clone()
+                } else {
+                    panic!("[Decl] internal error")
+                }
+            }
+            Ast::Literal {ref operand} => {
+                operand.get_ctype()
+                /*
+                if let Ast::Var(Var {ref name, ref pos}, ref ctype) = **operand {
+                    return ctype.clone()
+                } else {
+                    panic!("[Literal] internal error: {}", operand.to_string())
+                }
+                */
+            }
+            Ast::Addr {ref ctype, ref operand} => ctype.clone(),
+            Ast::Deref {ref ctype, ref operand} => ctype.clone(),
+            Ast::Null => Ctype::Void
+        }
+    }
+
+    pub fn to_string(&self) -> String {
+        match *self {
+            Ast::BinOp {ref op, ref ctype, ref left, ref right} => String::from("BinOp"),
+            Ast::Int(_) => String::from("Int"),
+            Ast::Char(_) => String::from("Char"),
+            Ast::Str(_, _) => String::from("Str"),
+            Ast::Var(_, ref ctype) => String::from("Var"),
+            Ast::Func(_, ref ctype) => String::from("Func"),
+            //Ast::Decl {ref var, ref init, ref ctype} => ctype.clone(),
+            Ast::Decl {ref var, ref init} => {
+                String::from("Decl")
+            }
+            Ast::Literal {ref operand} => {
+                String::from("Decl")
+            }
+            Ast::Addr {ref ctype, ref operand} => String::from("Addr"),
+            Ast::Deref {ref ctype, ref operand} => String::from("Deref"),
+            Ast::Null => String::from("Null")
         }
     }
 }
 
 #[derive(Clone)]
-pub enum CType {
+pub enum Ctype {
     Void,
     Int,
     Char,
-    Str
+    Str,
+    Ptr(Box<Ctype>),
+    Null
 }
+/*
+ * TODO ptr に相当するものを追加する必要がありそう
+ +typedef struct Ctype {
+ +  int type;
+ +  struct Ctype *ptr;
+ +} Ctype;
 
-impl CType {
+ +static Ctype *ctype_int = &(Ctype){ CTYPE_INT, NULL };
+ +static Ctype *ctype_char = &(Ctype){ CTYPE_CHAR, NULL };
+ +static Ctype *ctype_str = &(Ctype){ CTYPE_STR, NULL };
+
+*/
+
+
+impl Ctype {
     pub fn to_string(&self) -> String {
-        String::from(match *self {
-            CType::Void => "void",
-            CType::Int => "int",
-            CType::Char => "char",
-            CType::Str => "string"
-        })
+        match *self {
+            Ctype::Void => String::from("void"),
+            Ctype::Int => String::from("int"),
+            Ctype::Char => String::from("char"),
+            Ctype::Str => String::from("string"),
+            Ctype::Ptr(ref ptr) => {
+                let mut s = String::from((**ptr).to_string());
+                s.push('*');
+                s.clone()
+            },
+            Ctype::Null => String::from("null_type")
+        }
+    }
+
+    pub fn ptr(&self) -> Ctype {
+        match *self {
+            Ctype::Ptr(ref i) => (**i).clone(),
+            _ => panic!("not match to Ptr")
+        }
+    }
+
+    pub fn is_ptr(&self) -> bool {
+        match *self {
+            Ctype::Ptr(_) => true,
+            _ => false
+        }
+    }
+
+    pub fn is_null(&self) -> bool {
+        match *self {
+            Ctype::Null => true,
+            _ => false
+        }
+    }
+
+    pub fn priority(&self) -> i32 {
+        match *self {
+            Ctype::Void => 1,
+            Ctype::Int => 2,
+            Ctype::Char => 3,
+            Ctype::Str => 4,
+            Ctype::Ptr(ref i) => 5,
+            Ctype::Null => 1000000
+        }
     }
 }
