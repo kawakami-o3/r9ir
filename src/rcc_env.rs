@@ -229,7 +229,7 @@ impl Ast {
             Ast::BinOp {ref op, ref ctype, ref left, ref right} => ctype.clone(),
             Ast::Int(_) => Ctype::Int,
             Ast::Char(_) => Ctype::Char,
-            Ast::Str(_, _) => Ctype::Str,
+            Ast::Str(_, _) => Ctype::Array,
             Ast::Var(_, ref ctype) => ctype.clone(),
             Ast::Func(_, ref ctype) => ctype.clone(),
             //Ast::Decl {ref var, ref init, ref ctype} => ctype.clone(),
@@ -283,7 +283,7 @@ pub enum Ctype {
     Void,
     Int,
     Char,
-    Str,
+    Array,
     Ptr(Box<Ctype>),
     Null
 }
@@ -307,7 +307,11 @@ impl Ctype {
             Ctype::Void => String::from("void"),
             Ctype::Int => String::from("int"),
             Ctype::Char => String::from("char"),
-            Ctype::Str => String::from("string"),
+            Ctype::Array => {
+                let mut s = Ctype::Char.to_string();
+                s.push_str("[]");
+                s.clone()
+            }
             Ctype::Ptr(ref ptr) => {
                 let mut s = String::from((**ptr).to_string());
                 s.push('*');
@@ -343,7 +347,7 @@ impl Ctype {
             Ctype::Void => 1,
             Ctype::Int => 2,
             Ctype::Char => 3,
-            Ctype::Str => 4,
+            Ctype::Array => 4,
             Ctype::Ptr(ref i) => 5,
             Ctype::Null => 1000000
         }

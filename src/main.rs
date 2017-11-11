@@ -22,12 +22,29 @@ use std::io::prelude::*;
 use std::fs::File;
 use std::path::Path;
 
-
+/*
 macro_rules! error {
     ($fmt:expr) => (writeln!(&mut io::stderr(), $fmt));
     ($fmt:expr,$($x:tt)*) => (writeln!(&mut io::stderr(), $fmt, $( $x )*));
 }
+*/
 
+macro_rules! warn {
+    ($fmt:expr) => {
+        eprintln!($fmt);
+    };
+    ($fmt:expr,$($x:tt)*) => {
+        eprintln!($fmt, $( $x )*);
+    }
+}
+
+macro_rules! rcc_assert {
+    ($x:expr) => {
+        if ! $x {
+            panic!("Assertion failed: {}", stringify!($x));
+        }
+    }
+}
 
 const MAX_ARGS: usize = 6;
 fn regs(i: usize) -> String {
@@ -175,45 +192,37 @@ fn read_prim(environment: &mut Env) -> Ast {
     }
 }
 
-fn result_type_int<'a>(mut a: &'a Ctype, mut b: &'a Ctype) -> Ctype {
-    if (*a).is_ptr() {
-        if ! (*b).is_ptr() {
-            return Ctype::Null;
-        }
-
-       return Ctype::Ptr(Box::new(result_type_int(&a.ptr(), &b.ptr()))); 
-    }
+fn result_type_int<'a>(op: char, mut a: &'a Ctype, mut b: &'a Ctype) -> Ctype {
     if a.priority() > b.priority() {
         let tmp = b;
         b = a;
         a = tmp;
     }
+    if (*b).is_ptr() {
+        if op != '+' && op != '-' {
+            return Ctype::Null;
+        }
+        if ! (*a).is_ptr() {
+            warn!("Making a pointer from {}", a.to_string());
+            return b.clone();
+        }
+
+       return Ctype::Ptr(Box::new(result_type_int(op, &a.ptr(), &b.ptr()))); 
+    }
+
 
     match *a {
         Ctype::Void => Ctype::Null,
-        Ctype::Int => match *b {
-            Ctype::Int | Ctype::Char => {
-                return Ctype::Int;
-            }
-            _ => {
-                Ctype::Null
-            }
-        }
-        Ctype::Char => match *b {
-            Ctype::Char => {
-                return Ctype::Int;
-            }
-            _ => {
-                Ctype::Null
-            }
-        }
-        Ctype::Str => Ctype::Null,
+        Ctype::Int | Ctype::Char => Ctype::Int,
+        Ctype::Array => {
+            result_type_int(op, &make_ptr_type(a.ptr()), b)
+        },
         _ => panic!("internal error")
     }
 }
 
 fn result_type<'a>(op: char, a: &'a Ast, b: &'a Ast) -> Ctype {
-    let ret = result_type_int(&a.get_ctype(), &b.get_ctype());
+    let ret = result_type_int(op, &a.get_ctype(), &b.get_ctype());
     if ret.is_null() {
         panic!("incompatible operands: {}: {} and {}", op, ast_to_string(a), ast_to_string(b));
     }
@@ -268,6 +277,11 @@ fn read_expr(environment: &mut Env, prec: i32) -> Ast {
 
                 let mut rest = read_expr(environment, prec2 + if is_right_assoc(tok) { 0 } else { 1 });
                 let ctype = result_type(c, &mut ast, &mut rest);
+                if ctype.is_ptr() && (! ast.get_ctype().is_ptr()) {
+                    let tmp = rest;
+                    rest = ast;
+                    ast = tmp;
+                }
                 ast = make_ast_binop(c, ctype, ast, rest);
             },
             _ => {
@@ -339,10 +353,42 @@ fn emit_assign(var: Ast, value: Ast) {
     }
 }
 
+fn ctype_shift(ctype: & Ctype) -> i32 {
+    match *ctype {
+        Ctype::Char => 0,
+        Ctype::Int => 2,
+        _ => 3
+    }
+}
+
+fn ctype_size(ctype: & Ctype) -> i32 {
+    1 << ctype_shift(ctype)
+}
+
+fn emit_pointer_arith<'a>(op: char, left: &'a Ast, right: &'a Ast) {
+    rcc_assert!(left.get_ctype().is_ptr());
+
+    emit_expr(left.clone());
+    print!("push %rax\n\t");
+    emit_expr(right.clone());
+    let shift = ctype_shift(& left.get_ctype());
+    if shift > 0 {
+        print!("sal ${}, %rax\n\t", shift);
+    }
+    print!("mov %rax, %rbx\n\t");
+    print!("pop %rax\n\t");
+    print!("add %rbx, %rax\n\t");
+}
+
 fn emit_binop(ast: Ast) {
     if let Ast::BinOp {op, ctype, left, right} = ast {
         if op == '=' {
             emit_assign(*left, *right);
+            return;
+        }
+
+        if ctype.is_ptr() {
+            emit_pointer_arith(op, &left, &right);
             return;
         }
 
@@ -397,7 +443,22 @@ fn emit_expr(ast: Ast) {
             }
         }
         Ast::Var(v, ctype) => {
-            print!("mov -{}(%rbp), %rax\n\t", v.pos * 8);
+            match ctype_size(& ctype) {
+                1 => {
+                    print!("mov $0, %eax\n\t");
+                    print!("mov -{}(%rbp), %al\n\t", v.pos * 8);
+                }
+                4 => {
+                    print!("mov -{}(%rbp), %eax\n\t", v.pos * 8);
+                }
+                8 => {
+                    print!("mov -{}(%rbp), %rax\n\t", v.pos * 8);
+                }
+                _ => {
+                    panic!("internal error");
+                }
+            }
+
         }
         Ast::Func(f, ctype) => {
             // not working on windows with more than 4 arguments.
@@ -416,7 +477,7 @@ fn emit_expr(ast: Ast) {
             for i in 0..n {
                 print!("pop {}\n\t", regs(n - i - 1));
             }
-            print!("mov $0, %rax\n\t");
+            print!("mov $0, %eax\n\t");
             print!("call {}\n\t", fname(f.name));
 
             print!("addq ${}, %rsp\n\t", shift);
@@ -432,18 +493,26 @@ fn emit_expr(ast: Ast) {
                     print!("lea -{}(%rbp), %rax\n\t", v.pos * 8);
                 }
                 _ => {
-                    panic!("internal error"); // TODO assert
+                    panic!("Failed: Not Addr");
                 }
             }
         }
         Ast::Deref {ctype, operand} => {
             match operand.get_ctype() {
-                Ctype::Ptr(_) => {
+                Ctype::Ptr(ref ct) => {
                     emit_expr(*operand);
-                    print!("mov (%rax), %rax\n\t");
+                    let reg = match ctype_size(ct) {
+                        1 => "%bl",
+                        4 => "%ebx",
+                        8 => "%rbx",
+                        _ => panic!("internal error")
+                    };
+                    print!("mov $0, %ebx\n\t");
+                    print!("mov (%rax), {}\n\t", reg);
+                    print!("mov %rbx, %rax\n\t");
                 }
                 _ => {
-                    panic!("internal error"); // TODO assert
+                    panic!("Failed: Not Deref");
                 }
             }
         }
