@@ -42,7 +42,6 @@ impl Token {
             Token::Ident(ref ident) => match ident.as_str() {
                 "int" => Ctype::Int,
                 "char" => Ctype::Char,
-                "string" => Ctype::Str,
                 _ => Ctype::Void
             }
             _ => Ctype::Void
