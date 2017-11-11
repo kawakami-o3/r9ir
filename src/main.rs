@@ -60,20 +60,41 @@ fn fname(s: String) -> String {
     }
 }
 
-fn make_ast_op(op: char, ctype: CType, l: Ast, r: Ast) -> Ast {
-    Ast::Op {op:op, ctype:ctype, left: Box::new(l), right: Box::new(r)}
+
+fn make_ast_binop(op: char, ctype: Ctype, l: Ast, r: Ast) -> Ast {
+    Ast::BinOp {op:op, ctype:ctype, left: Box::new(l), right: Box::new(r)}
+}
+
+
+fn make_ast_int(i: u32) -> Ast {
+    Ast::Literal { operand: Box::new(Ast::Int(i)) }
 }
 
 fn make_ast_char(c: char) -> Ast {
-    Ast::Char(c)
+    Ast::Literal { operand: Box::new(Ast::Char(c)) }
+}
+
+fn make_ast_string(environment: &mut Env, s: & String) -> Ast {
+    Ast::Literal { operand: Box::new(environment.new_str(s)) }
 }
 
 fn make_ast_funcall(fname: String, args: Vec<Ast>) -> Ast {
-    Ast::Func(Func{name: fname, args: args}, CType::Int)
+    Ast::Func(Func{name: fname, args: args}, Ctype::Int)
 }
 
-fn make_ast_decl(var: Ast, init: Ast, ctype: CType) -> Ast {
-    Ast::Decl {var: Box::new(var), init: Box::new(init), ctype:ctype}
+//fn make_ast_decl(var: Ast, init: Ast, ctype: Ctype) -> Ast {
+//    Ast::Decl {var: Box::new(var), init: Box::new(init), ctype:ctype}
+//}
+fn make_ast_decl(var: Ast, init: Ast) -> Ast {
+    Ast::Decl {var: Box::new(var), init: Box::new(init)}
+}
+
+fn make_ast_var(environment: & mut Env, ctype: & Ctype, name: & String) -> Ast {
+    return environment.new_var(ctype.clone(), (*name).clone());
+}
+
+fn make_ptr_type(ctype: Ctype) -> Ctype {
+    Ctype::Ptr(Box::new(ctype))
 }
 
 fn is_right_assoc(tok: Token) -> bool {
@@ -90,33 +111,6 @@ fn priority(op: char) -> i32 {
         '*' | '/' => 3,
         //a => { panic!("operator: {}", a) }
         _ => -1
-    }
-}
-
-fn result_type<'a>(op: char, mut a: &'a Ast, mut b: &'a Ast) -> CType {
-    let err_msg = format!("incompatible operands: {} and {} for {}", ast_to_string(a), ast_to_string(b), op);
-
-    if a.get_ctype() as i32 > b.get_ctype() as i32 {
-        let tmp = b;
-        b = a;
-        a = tmp;
-    }
-
-    match a.get_ctype() {
-        CType::Void => panic!(err_msg),
-        CType::Int => match b.get_ctype() {
-            CType::Int | CType::Char => {
-                return CType::Int;
-            }
-            _ => panic!(err_msg)
-        }
-        CType::Char => match b.get_ctype() {
-            CType::Char => {
-                return CType::Int;
-            }
-            _ => panic!(err_msg)
-        }
-        CType::Str => panic!(err_msg)
     }
 }
 
@@ -171,23 +165,91 @@ fn read_prim(environment: &mut Env) -> Ast {
 
     match tok {
         Token::Ident(c) => read_ident_or_func(environment, c),
-        Token::Int(i) => Ast::Int(i),
+        //Token::Int(i) => Ast::Int(i),
+        Token::Int(i) => make_ast_int(i),
         Token::Char(c) => make_ast_char(c),
-        Token::Str(ref s) => environment.new_str(s),
+        //Token::Str(ref s) => environment.new_str(s),
+        Token::Str(ref s) => make_ast_string(environment, s),
         Token::Punct(c) => panic!("unexpected character: '{}'", c),
         Token::Null => panic!("Don't know how to handle 'Null'")
     }
 }
 
-fn ensure_lvalue(ast: & Ast) {
-    match *ast {
-        Ast::Var(_, _) => {},
-        _ => panic!("variable expected")
+fn result_type_int<'a>(mut a: &'a Ctype, mut b: &'a Ctype) -> Ctype {
+    if (*a).is_ptr() {
+        if ! (*b).is_ptr() {
+            return Ctype::Null;
+        }
+
+       return Ctype::Ptr(Box::new(result_type_int(&a.ptr(), &b.ptr()))); 
+    }
+    if a.priority() > b.priority() {
+        let tmp = b;
+        b = a;
+        a = tmp;
+    }
+
+    match *a {
+        Ctype::Void => Ctype::Null,
+        Ctype::Int => match *b {
+            Ctype::Int | Ctype::Char => {
+                return Ctype::Int;
+            }
+            _ => {
+                Ctype::Null
+            }
+        }
+        Ctype::Char => match *b {
+            Ctype::Char => {
+                return Ctype::Int;
+            }
+            _ => {
+                Ctype::Null
+            }
+        }
+        Ctype::Str => Ctype::Null,
+        _ => panic!("internal error")
     }
 }
 
+fn result_type<'a>(op: char, a: &'a Ast, b: &'a Ast) -> Ctype {
+    let ret = result_type_int(&a.get_ctype(), &b.get_ctype());
+    if ret.is_null() {
+        panic!("incompatible operands: {}: {} and {}", op, ast_to_string(a), ast_to_string(b));
+    }
+    ret
+}
+
+fn ensure_lvalue(ast: & Ast) {
+    match *ast {
+        Ast::Var(_, _) => {},
+        _ => panic!("lvalue expected, but got {}", ast_to_string(ast))
+    }
+}
+
+fn read_unary_expr(environment: &mut Env) -> Ast {
+    let tok = read_token(environment);
+
+    if tok.is_punct('&') {
+        let operand = read_unary_expr(environment);
+        ensure_lvalue(&operand);
+        return Ast::Addr {ctype:make_ptr_type(operand.get_ctype()), operand:Box::new(operand)};
+    }
+    
+    if tok.is_punct('*') {
+        let operand = read_unary_expr(environment);
+        if ! operand.get_ctype().is_ptr() {
+            panic!("pointer type expected, but got {}", ast_to_string(&operand))
+        }
+        return Ast::Deref {ctype:make_ptr_type(operand.get_ctype()), operand:Box::new(operand)};
+    }
+
+    unget_token(environment, tok);
+    return read_prim(environment);
+}
+
 fn read_expr(environment: &mut Env, prec: i32) -> Ast {
-    let mut ast = read_prim(environment);
+    let mut ast = read_unary_expr(environment);
 
     loop {
         let tok = read_token(environment);
@@ -206,7 +268,7 @@ fn read_expr(environment: &mut Env, prec: i32) -> Ast {
 
                 let mut rest = read_expr(environment, prec2 + if is_right_assoc(tok) { 0 } else { 1 });
                 let ctype = result_type(c, &mut ast, &mut rest);
-                ast = make_ast_op(c, ctype, ast, rest);
+                ast = make_ast_binop(c, ctype, ast, rest);
             },
             _ => {
                 unget_token(environment, tok);
@@ -224,16 +286,27 @@ fn expect(environment: &mut Env, punct: char) {
 }
 
 fn read_decl(environment: &mut Env) -> Ast {
-    let ctype = read_token(environment).get_ctype();
-    let name = read_token(environment);
-    match name {
+    let mut ctype = read_token(environment).get_ctype();
+    let mut tok: Token;
+
+    loop {
+        tok = read_token(environment);
+        if ! tok.is_punct('*') {
+            break;
+        }
+        ctype = make_ptr_type(ctype);
+    }
+
+    //let name = read_token(environment);
+    match tok {
         Token::Ident(ident) => {
-            let var = environment.new_var(ctype.clone(), ident);
+            //let var = environment.new_var(ctype.clone(), ident);
+            let var = make_ast_var(environment, & ctype.clone(), & ident);
             expect(environment, '=');
             let init = read_expr(environment, 0);
-            return make_ast_decl(var, init, ctype);
+            return make_ast_decl(var, init);
         }
-        _ => panic!("Identifier expected, but got {}", name.to_string())
+        _ => panic!("Identifier expected, but got {}", tok.to_string())
     }
 }
 
@@ -260,14 +333,14 @@ fn read_decl_or_stmt(environment: &mut Env) -> Ast {
 fn emit_assign(var: Ast, value: Ast) {
     emit_expr(value);
     if let Ast::Var(v, _) = var {
-        print!("mov %eax, -{}(%rbp)\n\t", v.pos * 4);
+        print!("mov %rax, -{}(%rbp)\n\t", v.pos * 8);
     } else {
         panic!();
     }
 }
 
 fn emit_binop(ast: Ast) {
-    if let Ast::Op {op, ctype, left, right} = ast {
+    if let Ast::BinOp {op, ctype, left, right} = ast {
         if op == '=' {
             emit_assign(*left, *right);
             return;
@@ -286,30 +359,45 @@ fn emit_binop(ast: Ast) {
         emit_expr(*right);
 
         if op == '/' {
-            print!("mov %eax, %ebx\n\t");
+            print!("mov %rax, %rbx\n\t");
             print!("pop %rax\n\t");
             print!("mov $0, %edx\n\t");
-            print!("idiv %ebx\n\t");
+            print!("idiv %rbx\n\t");
         } else {
             print!("pop %rbx\n\t");
-            print!("{} %ebx, %eax\n\t", opasm);
+            print!("{} %rbx, %rax\n\t", opasm);
         }
     }
 }
 
 fn emit_expr(ast: Ast) {
     match ast {
+        /*
         Ast::Int(i) => {
             print!("mov ${}, %eax\n\t", i);
         }
         Ast::Char(c) => {
             print!("mov ${}, %eax\n\t", c as u32);
         }
-        Ast::Var(v, ctype) => {
-            print!("mov -{}(%rbp), %eax\n\t", v.pos * 4);
+        */
+        Ast::Literal {operand} => {
+            match *operand {
+                Ast::Int(i) => {
+                    print!("mov ${}, %rax\n\t", i);
+                }
+                Ast::Char(c) => {
+                    print!("mov ${}, %rax\n\t", c as u32);
+                }
+                Ast::Str(id, _) => {
+                    print!("lea .s{}(%rip), %rax\n\t", id);
+                }
+                _ => {
+                    panic!("internal error");
+                }
+            }
         }
-        Ast::Str(id, _) => {
-            print!("lea .s{}(%rip), %rax\n\t", id);
+        Ast::Var(v, ctype) => {
+            print!("mov -{}(%rbp), %rax\n\t", v.pos * 8);
         }
         Ast::Func(f, ctype) => {
             // not working on windows with more than 4 arguments.
@@ -328,15 +416,36 @@ fn emit_expr(ast: Ast) {
             for i in 0..n {
                 print!("pop {}\n\t", regs(n - i - 1));
             }
-            print!("mov $0, %eax\n\t");
+            print!("mov $0, %rax\n\t");
             print!("call {}\n\t", fname(f.name));
 
             print!("addq ${}, %rsp\n\t", shift);
 
             print!("popq %rbp\n\t");
         }
-        Ast::Decl {var, init, ctype} => {
+        Ast::Decl {var, init} => {
             emit_assign(*var, *init)
+        }
+        Ast::Addr {ctype, operand} => {
+            match *operand {
+                Ast::Var(ref v, ref ctype) => {
+                    print!("lea -{}(%rbp), %rax\n\t", v.pos * 8);
+                }
+                _ => {
+                    panic!("internal error"); // TODO assert
+                }
+            }
+        }
+        Ast::Deref {ctype, operand} => {
+            match operand.get_ctype() {
+                Ctype::Ptr(_) => {
+                    emit_expr(*operand);
+                    print!("mov (%rax), %rax\n\t");
+                }
+                _ => {
+                    panic!("internal error"); // TODO assert
+                }
+            }
         }
         _ => {
             emit_binop(ast);
@@ -357,20 +466,25 @@ fn quote(target: &String) -> String {
 
 fn ast_to_string_int(ast: & Ast, mut buf: String) -> String {
     match *ast {
-        Ast::Op {ref op, ref ctype, ref left, ref right} => {
+        Ast::BinOp {ref op, ref ctype, ref left, ref right} => {
             buf += format!("({} {} {})", op, ast_to_string(left), ast_to_string(right)).as_str();
         }
-        Ast::Int(ref i) => {
-            buf += format!("{}", i).as_str();
-        }
-        Ast::Char(ref c) => {
-            buf += format!("'{}'", c).as_str();
+        Ast::Literal {ref operand} => {
+            match **operand {
+                Ast::Int(ref i) => {
+                    buf += format!("{}", i).as_str();
+                }
+                Ast::Char(ref c) => {
+                    buf += format!("'{}'", c).as_str();
+                }
+                Ast::Str(ref i, ref s) => {
+                    buf += format!("\"{}\"", quote(&s)).as_str();
+                }
+                _ => panic!("internal error")
+            }
         }
         Ast::Var(ref v, _) => {
             buf += v.name.as_str();
-        }
-        Ast::Str(_, ref s) => {
-            buf += format!("\"{}\"", quote(&s)).as_str();
         }
         Ast::Func(ref f, ref ctype) => {
             buf += format!("{}(", f.name).as_str();
@@ -386,12 +500,18 @@ fn ast_to_string_int(ast: & Ast, mut buf: String) -> String {
             }
             buf += ")";
         }
-        Ast::Decl {ref var, ref init, ref ctype} => {
-            if let Ast::Var(Var {ref name, ref pos}, _) = **var {
+        Ast::Decl {ref var, ref init} => {
+            if let Ast::Var(Var {ref name, ref pos}, ref ctype) = **var {
                 buf += format!("(decl {} {} {})", ctype.to_string(), name, ast_to_string(init)).as_str();
             } else {
                 panic!("Expected Ast::Var.");
             }
+        }
+        Ast::Addr {ref ctype, ref operand} => {
+            buf += format!("(& {})", ast_to_string(operand)).as_str();
+        }
+        Ast::Deref {ref ctype, ref operand} => {
+            buf += format!("(* {})", ast_to_string(operand)).as_str();
         }
         _ => {
         }
@@ -443,6 +563,12 @@ fn main() {
         print!(".text\n\t");
         print!(".global {}\n", main);
         print!("{}:\n\t", main);
+        print!("push %rbp\n\t");
+        print!("mov %rsp, %rbp\n\t");
+
+        if environment.len_vars() > 0 {
+            print!("sub ${}, %rsp\n\t", environment.len_vars() * 8);
+        }
     }
 
     for a in asts {
@@ -453,6 +579,7 @@ fn main() {
         }
     }
     if !wantast {
+        print!("leave\n\t");
         print!("ret\n");
     }
 }
