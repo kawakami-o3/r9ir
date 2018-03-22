@@ -20,6 +20,13 @@ impl Token {
         }
     }
 
+    pub fn is_str(&self) -> bool {
+        match *self {
+            Token::Str(_) => true,
+            _ => false
+        }
+    }
+
     pub fn is_null(&self) -> bool {
         match *self {
             Token::Null => true,
@@ -152,6 +159,7 @@ pub fn read_token_int(environment: &mut Env) -> Token {
             '\'' => read_char(environment),
             'A' ... 'Z' | 'a' ... 'z' | '_' => read_ident(environment, c),
             '/' | '=' | '*' | '+' | '-' | '(' | ')' | ',' | ';' | '&'
+                | '[' | ']' | '{' | '}'
                 => Token::Punct(c),
             _ => panic!("Unexpected character: '{}'", c)
         }

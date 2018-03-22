@@ -77,41 +77,72 @@ fn fname(s: String) -> String {
     }
 }
 
+// ast_uop -> Ast::Addr, Ast::Deref
 
-fn make_ast_binop(op: char, ctype: Ctype, l: Ast, r: Ast) -> Ast {
+
+fn ast_binop(op: char, ctype: Ctype, l: Ast, r: Ast) -> Ast {
     Ast::BinOp {op:op, ctype:ctype, left: Box::new(l), right: Box::new(r)}
 }
 
 
-fn make_ast_int(i: u32) -> Ast {
+fn ast_int(i: u32) -> Ast {
     Ast::Literal { operand: Box::new(Ast::Int(i)) }
 }
 
-fn make_ast_char(c: char) -> Ast {
+fn ast_char(c: char) -> Ast {
     Ast::Literal { operand: Box::new(Ast::Char(c)) }
 }
 
-fn make_ast_string(environment: &mut Env, s: & String) -> Ast {
+fn make_next_label(environment: &mut Env) -> u32 {
+    environment.next_label()
+}
+
+// TODO
+fn ast_lvar(environment: &mut Env, ctype: & Ctype, name: & String) -> Ast {
+    environment.new_local_var(ctype.clone(), (*name).clone())
+}
+
+// TODO
+fn ast_lref(environment: &mut Env, ctype: & Ctype, lvar: & Ast, off: u32) -> Ast {
+    environment.new_local_ref(ctype.clone(), (*name).clone())
+}
+
+// TODO
+fn ast_gvar(environment: &mut Env, ctype: & Ctype, name: & String) -> Ast {
+    environment.new_global_var(ctype.clone(), (*name).clone())
+}
+
+// TODO
+fn ast_gref(ctype: & Ctype, lvar: & Ast, off: u32) -> Ast {
+    environment.new_global_ref(ctype.clone(), (*name).clone())
+}
+
+fn ast_string(environment: &mut Env, s: & String) -> Ast {
     Ast::Literal { operand: Box::new(environment.new_str(s)) }
 }
 
-fn make_ast_funcall(fname: String, args: Vec<Ast>) -> Ast {
+fn ast_funcall(fname: String, args: Vec<Ast>) -> Ast {
     Ast::Func(Func{name: fname, args: args}, Ctype::Int)
 }
 
-//fn make_ast_decl(var: Ast, init: Ast, ctype: Ctype) -> Ast {
-//    Ast::Decl {var: Box::new(var), init: Box::new(init), ctype:ctype}
-//}
-fn make_ast_decl(var: Ast, init: Ast) -> Ast {
+fn ast_decl(var: Ast, init: Ast) -> Ast {
     Ast::Decl {var: Box::new(var), init: Box::new(init)}
 }
 
-fn make_ast_var(environment: & mut Env, ctype: & Ctype, name: & String) -> Ast {
-    return environment.new_var(ctype.clone(), (*name).clone());
+fn ast_array_init(size: usize, array_init: Ast) -> Ast {
+    Ast::ArrayInit {size: size, init: Box::new(array_init)}
 }
 
 fn make_ptr_type(ctype: Ctype) -> Ctype {
     Ctype::Ptr(Box::new(ctype))
+}
+
+fn make_array_type(ctype: Ctype, size: usize) -> Ctype {
+    Ctype::Ptr(Box::new(ctype))
+}
+
+fn find_var(environment: &mut Env, name: &String) -> Ast {
+    environment.find_var(name)
 }
 
 fn is_right_assoc(tok: Token) -> bool {
@@ -202,12 +233,18 @@ fn result_type_int<'a>(op: char, mut a: &'a Ctype, mut b: &'a Ctype) -> Ctype {
         if op != '+' && op != '-' {
             return Ctype::Null;
         }
+        /*
         if ! (*a).is_ptr() {
             warn!("Making a pointer from {}", a.to_string());
             return b.clone();
         }
-
        return Ctype::Ptr(Box::new(result_type_int(op, &a.ptr(), &b.ptr()))); 
+       */
+        if a == Ctype::Int {
+            return Ctype::Null;
+        }
+
+        return b;
     }
 
 
@@ -221,17 +258,20 @@ fn result_type_int<'a>(op: char, mut a: &'a Ctype, mut b: &'a Ctype) -> Ctype {
     }
 }
 
-fn result_type<'a>(op: char, a: &'a Ast, b: &'a Ast) -> Ctype {
-    let ret = result_type_int(op, &a.get_ctype(), &b.get_ctype());
+fn result_type(op: char, a: Ctype, b: Ctype) -> Ctype {
+    let ret = result_type_int(op, a, b);
     if ret.is_null() {
-        panic!("incompatible operands: {}: {} and {}", op, ast_to_string(a), ast_to_string(b));
+        panic!("incompatible operands: {}: {} and {}", op, a.to_string(), b.to_string());
     }
     ret
 }
 
 fn ensure_lvalue(ast: & Ast) {
     match *ast {
-        Ast::Var(_, _) => {},
+        Ast::Lvar {lname, ctype} => {},
+        Ast::Lref {lref, lrefoff} => {},
+        Ast::Gvar {gname, ctype} => {},
+        Ast::Gvar {gref, goff} => {},
         _ => panic!("lvalue expected, but got {}", ast_to_string(ast))
     }
 }
@@ -257,6 +297,24 @@ fn read_unary_expr(environment: &mut Env) -> Ast {
     return read_prim(environment);
 }
 
+fn convert_array(ast: Ast) -> Ast {
+    if let Ast::Str(id, s) = ast {
+            //return ast_gref(make_ptr_type(Ctype::Char), ast, 0);
+        return Ast::Gref {gref: ast, goff: 0};
+    }
+    if ! ast.get_ctype().is_array() {
+        return ast;
+    }
+    if let Ast::Lvar{lvar,ctype} = ast {
+        return Ast::Lref {lref: ast, lrefoff: 0};
+    }
+
+    if ! ast.is_gvar() {
+        panic("Internal error: Gvar expected, but got {}", ast.to_string());
+    }
+    return Ast::Gref {gref: ast, goff};
+}
+
 fn read_expr(environment: &mut Env, prec: i32) -> Ast {
     let mut ast = read_unary_expr(environment);
 
@@ -273,11 +331,16 @@ fn read_expr(environment: &mut Env, prec: i32) -> Ast {
 
                 if c == '=' {
                     ensure_lvalue(&ast);
+                } else {
+                    ast = convert_array(ast);
                 }
 
                 let mut rest = read_expr(environment, prec2 + if is_right_assoc(tok) { 0 } else { 1 });
-                let ctype = result_type(c, &mut ast, &mut rest);
-                if ctype.is_ptr() && (! ast.get_ctype().is_ptr()) {
+                rest = convert_array(rest);
+                //let ctype = result_type(c, &mut ast, &mut rest);
+                let ctype = result_type(c, ast.get_ctype().clone(), rest.get_ctype().clone());
+                //if ctype.is_ptr() && (! ast.get_ctype().is_ptr()) {
+                if c == '=' && (! ast.get_ctype().is_ptr()) && rest.get_ctype().is_ptr() {
                     let tmp = rest;
                     rest = ast;
                     ast = tmp;
@@ -292,10 +355,69 @@ fn read_expr(environment: &mut Env, prec: i32) -> Ast {
     }
 }
 
+fn get_ctype(token: Token) -> Ctype{
+    token.get_ctype()
+}
+
+fn is_type_keyword(tok: & Tok) {
+    ! tok.get_ctype().is_null()
+}
+
 fn expect(environment: &mut Env, punct: char) {
     let tok = read_token(environment);
     if ! tok.is_punct(punct) {
         panic!("Unterminated expression: {}", tok.to_string());
+    }
+}
+
+fn read_decl_array_initializer(environment: &mut Env, ctype: & Ctype) {
+    let mut tok = read_token(environment);
+    if ctype.is_char_ptr() && tok.is_str() {
+        match tok {
+            Token::Str(ref s) => {
+                return ast_string(s);
+            }
+            _ => panic!("internal error")
+        }
+    }
+
+    if ! tok.is_punct('{') {
+        panic!("Expected an initializer list, but got {}", tok.to_string());
+    }
+
+    match ctype {
+        Ctype::Array(c, s) => {
+            let mut init: Vec<Ast> = vec![];
+            for i in 0..s {
+                let expr = read_expr(environment, 0);
+                result_type('=', expr.get_ctype(), c);
+                tok = read_token(environment);
+                if tok.is_punct('}') && i == s - 1 {
+                    break;
+                }
+                if ! tok.is_punct(',') {
+                    panic!("comma expected, but got {}", tok.to_string());
+                }
+                if i == s - 1 {
+                    tok = read_token(environment);
+                    if ! tok.is_punct('}') {
+                        panic!("'}}' expected, but got {}", tok.to_string());
+                    }
+                    break;
+                }
+            }
+            ast_array_init(s, init)
+        }
+        _ => panic!("internal error")
+    }
+
+}
+
+fn read_declinializer(environment: &mut Env, ctype: Ctype) {
+    if let Ctype::Array(_, _) = ctype.clone() {
+        read_decl_array_initializer(ctype)
+    } else {
+        read_expr(environment, 0)
     }
 }
 
@@ -312,13 +434,32 @@ fn read_decl(environment: &mut Env) -> Ast {
     }
 
     //let name = read_token(environment);
+    // TODO Ident でないならまず弾きたい
     match tok {
         Token::Ident(ident) => {
+            let token = read_token(environment);
+            if token.is_punct('[') {
+                let size = read_expr(environemnt, 0);
+                match size {
+                    Ast::Literal {operand} => {
+                        match operand {
+                            Ast::Int(ival) => {
+                                expect(environment, ']');
+                                ctype = make_array_type(ctype, ival);
+                            }
+                            _ => panic!("Integer expected, bug got {}", ast_to_string(size))
+                        }
+                    }
+                    _ => panic!("Integer expected, bug got {}", ast_to_string(size))
+                }
+            } else {
+                unget_token(environment, token);
+            }
             //let var = environment.new_var(ctype.clone(), ident);
-            let var = make_ast_var(environment, & ctype.clone(), & ident);
+            let var = ast_lvar(environment, & ctype.clone(), & ident);
             expect(environment, '=');
-            let init = read_expr(environment, 0);
-            return make_ast_decl(var, init);
+            let init = read_declinitializer(environment, ctype.clone());
+            return ast_decl(var, init);
         }
         _ => panic!("Identifier expected, but got {}", tok.to_string())
     }
@@ -344,26 +485,29 @@ fn read_decl_or_stmt(environment: &mut Env) -> Ast {
     r
 }
 
-fn emit_assign(var: Ast, value: Ast) {
-    emit_expr(value);
-    if let Ast::Var(v, _) = var {
-        print!("mov %rax, -{}(%rbp)\n\t", v.pos * 8);
-    } else {
-        panic!();
-    }
-}
-
-fn ctype_shift(ctype: & Ctype) -> i32 {
-    match *ctype {
-        Ctype::Char => 0,
-        Ctype::Int => 2,
-        _ => 3
-    }
-}
-
 fn ctype_size(ctype: & Ctype) -> i32 {
-    1 << ctype_shift(ctype)
+    match *ctype {
+        Ctype::Char => 1,
+        Ctype::Int => 4,
+        Ctype::Ptr(_) => 8,
+        Ctype::Array(ptr, size) => ctype_size(ptr) * size,
+        _ => panic!("internal error")
+    }
 }
+
+
+// TODO ちょっと後回し。printをまず通す
+fn emit_global(ctype: Ctype, label: &String, off: i32) { }
+
+// TODO ちょっと後回し。printをまず通す
+fn emit_lload(ast: &Ast, off: i32) { }
+
+// TODO ちょっと後回し。printをまず通す
+
+fn emit_gsave(ast: &Ast, off: i32) { }
+
+// TODO ちょっと後回し。printをまず通す
+fn emit_lsave(ctype: &Ctype, loff: i32, off: i32) { }
 
 fn emit_pointer_arith<'a>(op: char, left: &'a Ast, right: &'a Ast) {
     rcc_assert!(left.get_ctype().is_ptr());
@@ -373,11 +517,22 @@ fn emit_pointer_arith<'a>(op: char, left: &'a Ast, right: &'a Ast) {
     emit_expr(right.clone());
     let shift = ctype_shift(& left.get_ctype());
     if shift > 0 {
+        // TODO imul?
         print!("sal ${}, %rax\n\t", shift);
     }
     print!("mov %rax, %rbx\n\t");
     print!("pop %rax\n\t");
     print!("add %rbx, %rax\n\t");
+}
+
+// TODO ちょっと後回し。printをまず通す
+fn emit_assign(var: Ast, value: Ast) {
+    emit_expr(value);
+    if let Ast::Var(v, _) = var {
+        print!("mov %rax, -{}(%rbp)\n\t", v.pos * 8);
+    } else {
+        panic!();
+    }
 }
 
 fn emit_binop(ast: Ast) {
@@ -416,6 +571,8 @@ fn emit_binop(ast: Ast) {
     }
 }
 
+
+// TODO ちょっと後回し。printをまず通す
 fn emit_expr(ast: Ast) {
     match ast {
         /*
@@ -533,11 +690,13 @@ fn quote(target: &String) -> String {
     return s
 }
 
+
+fn ctype_to_string(ctype: &Ctype) -> String {
+    ctype.to_string()
+}
+
 fn ast_to_string_int(ast: & Ast, mut buf: String) -> String {
     match *ast {
-        Ast::BinOp {ref op, ref ctype, ref left, ref right} => {
-            buf += format!("({} {} {})", op, ast_to_string(left), ast_to_string(right)).as_str();
-        }
         Ast::Literal {ref operand} => {
             match **operand {
                 Ast::Int(ref i) => {
@@ -546,22 +705,31 @@ fn ast_to_string_int(ast: & Ast, mut buf: String) -> String {
                 Ast::Char(ref c) => {
                     buf += format!("'{}'", c).as_str();
                 }
-                Ast::Str(ref i, ref s) => {
-                    buf += format!("\"{}\"", quote(&s)).as_str();
-                }
-                _ => panic!("internal error")
+               _ => panic!("internal error")
             }
         }
-        Ast::Var(ref v, _) => {
-            buf += v.name.as_str();
+        Ast::Str(ref i, ref s) => {
+            buf += format!("\"{}\"", quote(&s)).as_str();
         }
-        Ast::Func(ref f, ref ctype) => {
-            buf += format!("{}(", f.name).as_str();
+        Ast::Lvar {ref lname, ref ctype} => {
+            buf += lname.as_str();
+        }
+        Ast::Gvar {ref gname, ref ctype} => {
+            buf += gname.as_str();
+        }
+        Ast::Lref {ref lref, ref lrefoff} => {
+            buf += format!("{}[{}]", ast_to_string(lref), lrefoff).as_str();
+        }
+        Ast::Gref {ref gref, ref goff} => {
+            buf += format!("{}[{}]", ast_to_string(gref), goff).as_str();
+        }
+        Ast::Func {ref fname, ref args, ref ctype} => {
+            buf += format!("{}(", fname).as_str();
             let mut i: usize = 0;
-            let n: usize = f.args.len();
-            for x in f.get_args() {
+            let n: usize = args.len();
+            for x in args {
                 buf += ast_to_string(&x).as_str();
-                i+=1;
+                i += 1;
 
                 if i < n {
                     buf += ",";
@@ -570,17 +738,32 @@ fn ast_to_string_int(ast: & Ast, mut buf: String) -> String {
             buf += ")";
         }
         Ast::Decl {ref var, ref init} => {
-            if let Ast::Var(Var {ref name, ref pos}, ref ctype) = **var {
-                buf += format!("(decl {} {} {})", ctype.to_string(), name, ast_to_string(init)).as_str();
+            if let Ast::Lvar {ref lname, ref ctype} = **var {
+                buf += format!("(decl {} {} {})", ctype.to_string(), lname, ast_to_string(init)).as_str();
             } else {
                 panic!("Expected Ast::Var.");
             }
+        }
+        Ast::ArrayInit {ref size, ref array_init} => {
+            buf += "{";
+            for x in array_init {
+                buf += ast_to_string(&x).as_str();
+                i += 1;
+
+                if i < size {
+                    buf += ",";
+                }
+            }
+            buf += "}";
         }
         Ast::Addr {ref ctype, ref operand} => {
             buf += format!("(& {})", ast_to_string(operand)).as_str();
         }
         Ast::Deref {ref ctype, ref operand} => {
             buf += format!("(* {})", ast_to_string(operand)).as_str();
+        }
+        Ast::BinOp {ref op, ref ctype, ref left, ref right} => {
+            buf += format!("({} {} {})", op, ast_to_string(left), ast_to_string(right)).as_str();
         }
         _ => {
         }
@@ -594,12 +777,12 @@ fn ast_to_string(ast: & Ast) -> String {
 }
 
 fn emit_data_section(environment: & Env) {
-    if environment.strings.len() == 0 {
+    if environment.globals.len() == 0 {
         return;
     }
 
     print!("\t.data\n");
-    for s in &environment.strings {
+    for s in &environment.globals {
         match s {
             &Ast::Str(id, ref s) => {
                 print!(".s{}:\n\t", id);
@@ -609,6 +792,15 @@ fn emit_data_section(environment: & Env) {
         }
     }
     print!("\t");
+}
+
+fn ceil8(n: i32) -> i32 {
+    let rem = n % 8;
+    if rem == 0 {
+        return n;
+    } else {
+        return n - rem + 8;
+    }
 }
 
 fn main() {

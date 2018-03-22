@@ -1,6 +1,5 @@
 #![allow(dead_code)]
 
-use std::cell::Cell;
 use std::io;
 use std::io::Read;
 use std::collections::LinkedList;
@@ -9,9 +8,10 @@ use lex::*;
 
 pub struct Env {
     pub buffer: Buffer,
-    pub vars: LinkedList<Ast>,
-    pub strings: LinkedList<Ast>,
+    pub globals: LinkedList<Ast>,
+    pub locals: LinkedList<Ast>,
     pub token_stored: Token,
+    pub labelseq: u32,
 }
 
 impl Env {
@@ -21,6 +21,7 @@ impl Env {
             vars: LinkedList::new(),
             strings: LinkedList::new(),
             token_stored: Token::Null,
+            labelseq: 0,
         };
 
         ret.vars.push_back(Ast::Null);
@@ -72,6 +73,11 @@ impl Env {
 
     pub fn get_token(&mut self) -> Token {
         self.token_stored.clone()
+    }
+
+    pub fn next_label(&mut self) -> u32 {
+        self.labelseq += 1;
+        self.labelseq
     }
 }
 
@@ -185,6 +191,7 @@ impl Var {
     }
 }
 
+// TODO うまく行けば今のバージョンで要らなくなる(1/2)
 #[derive(Clone)]
 pub struct Func {
     pub name: String,
@@ -197,6 +204,8 @@ impl Func {
     }
 }
 
+
+//ast
 #[derive(Clone)]
 pub enum Ast {
     //UnaryOp {op:char, ctype:Ctype, operand: Box<Ast>},
@@ -207,19 +216,38 @@ pub enum Ast {
     Str(usize, String),
 
     Literal {operand: Box<Ast>},
-    Var(Var, Ctype),
-    Func(Func, Ctype),
+    //Var(Var, Ctype),
+    Lvar {lname: String, ctype: Ctype},
+    Lref {lref: Box<Ast>, lrefoff: usize},
+    Gvar {gname: String, ctype: Ctype},
+    Gref {gref: Box<Ast>, goff: usize},
+
+
+    Func {fname: String, args: Vec<Ast>, ctype: Ctype},
     //Decl {var: Box<Ast>, init: Box<Ast>, ctype:Ctype},
+
+    // TODO init => declinit
     Decl {var: Box<Ast>, init: Box<Ast>},
+
+    // TODO ここのsizeは流石にとっぱらっちゃう? ast_to_string_int で使っている
+    ArrayInit {size: usize, array_init: Vec<Ast>},
     Addr {ctype:Ctype, operand: Box<Ast>},
     Deref {ctype:Ctype, operand: Box<Ast>},
     Null
 }
+//ast
 
 impl Ast {
     pub fn is_null(&self) -> bool {
         match *self {
             Ast::Null => true,
+            _ => false
+        }
+    }
+
+    pub fn is_gvar(&self) -> bool {
+        match *self {
+            Ast::Gvar {gname, ctype} => true,
             _ => false
         }
     }
@@ -231,7 +259,7 @@ impl Ast {
             Ast::Char(_) => Ctype::Char,
             Ast::Str(_, _) => Ctype::Array,
             Ast::Var(_, ref ctype) => ctype.clone(),
-            Ast::Func(_, ref ctype) => ctype.clone(),
+            Ast::Func{fname, args, ctype} => ctype.clone(),
             //Ast::Decl {ref var, ref init, ref ctype} => ctype.clone(),
             Ast::Decl {ref var, ref init} => {
                 if let Ast::Var(Var {ref name, ref pos}, ref ctype) = **var {
@@ -263,7 +291,7 @@ impl Ast {
             Ast::Char(_) => String::from("Char"),
             Ast::Str(_, _) => String::from("Str"),
             Ast::Var(_, ref ctype) => String::from("Var"),
-            Ast::Func(_, ref ctype) => String::from("Func"),
+            Ast::Func{fname, args, ctype} => String::from("Func"),
             //Ast::Decl {ref var, ref init, ref ctype} => ctype.clone(),
             Ast::Decl {ref var, ref init} => {
                 String::from("Decl")
@@ -278,49 +306,19 @@ impl Ast {
     }
 }
 
+//ctype
 #[derive(Clone)]
 pub enum Ctype {
     Void,
     Int,
     Char,
-    Array,
     Ptr(Box<Ctype>),
+    Array(Box<Ctype>, usize),
     Null
 }
-/*
- * TODO ptr に相当するものを追加する必要がありそう
- +typedef struct Ctype {
- +  int type;
- +  struct Ctype *ptr;
- +} Ctype;
-
- +static Ctype *ctype_int = &(Ctype){ CTYPE_INT, NULL };
- +static Ctype *ctype_char = &(Ctype){ CTYPE_CHAR, NULL };
- +static Ctype *ctype_str = &(Ctype){ CTYPE_STR, NULL };
-
-*/
-
+//ctype
 
 impl Ctype {
-    pub fn to_string(&self) -> String {
-        match *self {
-            Ctype::Void => String::from("void"),
-            Ctype::Int => String::from("int"),
-            Ctype::Char => String::from("char"),
-            Ctype::Array => {
-                let mut s = Ctype::Char.to_string();
-                s.push_str("[]");
-                s.clone()
-            }
-            Ctype::Ptr(ref ptr) => {
-                let mut s = String::from((**ptr).to_string());
-                s.push('*');
-                s.clone()
-            },
-            Ctype::Null => String::from("null_type")
-        }
-    }
-
     pub fn ptr(&self) -> Ctype {
         match *self {
             Ctype::Ptr(ref i) => (**i).clone(),
@@ -335,6 +333,22 @@ impl Ctype {
         }
     }
 
+    pub fn is_char_ptr(&self) -> bool {
+        match self.ptr() {
+            Ctype::Char => true,
+            _ => false
+        }
+    }
+
+    pub fn is_array(&self) -> bool {
+        match self {
+            Ctype::Array(_,_) => true,
+            _ => false
+        }
+    }
+
+
+
     pub fn is_null(&self) -> bool {
         match *self {
             Ctype::Null => true,
@@ -347,9 +361,28 @@ impl Ctype {
             Ctype::Void => 1,
             Ctype::Int => 2,
             Ctype::Char => 3,
-            Ctype::Array => 4,
+            Ctype::Array(_,_) => 4,
             Ctype::Ptr(ref i) => 5,
             Ctype::Null => 1000000
+        }
+    }
+
+    pub fn to_string(&self) -> String {
+        match *self {
+            Ctype::Void => String::from("void"),
+            Ctype::Int => String::from("int"),
+            Ctype::Char => String::from("char"),
+            Ctype::Ptr(ref ptr) => {
+                let mut s = String::from((**ptr).to_string());
+                s.push('*');
+                s.clone()
+            },
+            Ctype::Array(ref ptr, ref size) => {
+                let mut s = String::from((**ptr).to_string());
+                s.push_str(format!("[{}]", size).as_str());
+                s.clone()
+            }
+            Ctype::Null => String::from("null_type")
         }
     }
 }
