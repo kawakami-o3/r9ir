@@ -3,6 +3,8 @@
 #[macro_use]
 extern crate lazy_static;
 
+use std::boxed::Box;
+use std::cell::Cell;
 use std::env;
 use std::sync::Mutex;
 
@@ -10,10 +12,11 @@ lazy_static! {
     static ref TOKENS: Mutex<Vec<Token>> = Mutex::new(Vec::new());
 }
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 enum TokenType {
     NUM,
-    OP,
+    PLUS,
+    MINUS,
     EOF,
 }
 
@@ -44,8 +47,13 @@ fn tokenize(p: &String) {
 
     for s in tokens {
         if s == "+" || s == "-" {
+            let ty = match s.as_str() {
+                "+" => TokenType::PLUS,
+                "-" => TokenType::MINUS,
+                _ => panic!(),
+            };
             let tok = Token {
-                ty: TokenType::OP,
+                ty: ty,
                 val: 0,
                 input: s,
             };
@@ -70,13 +78,122 @@ fn tokenize(p: &String) {
     TOKENS.lock().unwrap().push(tok);
 }
 
-fn fail(i: usize) {
-    match TOKENS.lock().unwrap().get(i) {
-        Some(t) => {
-            panic!("unextected token: {}", t.input);
+// Recursive-descendent parser
+
+lazy_static! {
+    static ref POS: Mutex<Cell<usize>> = Mutex::new(Cell::new(0));
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum NodeType {
+    NUM,
+    PLUS,
+    MINUS,
+}
+
+#[derive(Debug)]
+struct Node {
+    ty: NodeType,
+    lhs: Option<Box<Node>>,
+    rhs: Option<Box<Node>>,
+    val: i32,
+}
+
+fn new_node(ty: NodeType, lhs: Node, rhs: Node) -> Node {
+    Node {
+        ty: ty,
+        lhs: Some(Box::new(lhs)),
+        rhs: Some(Box::new(rhs)),
+        val: 0,
+    }
+}
+
+fn new_node_num(val: i32) -> Node {
+    Node {
+        ty: NodeType::NUM,
+        lhs: None,
+        rhs: None,
+        val: val,
+    }
+}
+
+fn number(tokens: &Vec<Token>, pos: &mut usize) -> Node {
+    //let mut pos = *POS.lock().unwrap().get_mut();
+    //if let Some(t) = TOKENS.lock().unwrap().get(*pos) {
+    if let Some(t) = tokens.get(*pos) {
+        if t.ty == TokenType::NUM {
+            let val = t.val;
+            *pos += 1;
+            return new_node_num(val);
         }
-        None => {
-            panic!("unextected token: none");
+        panic!("number expected, but got {}", t.input);
+    }
+    panic!("out of boundary");
+}
+
+fn expr(tokens: &Vec<Token>, pos: &mut usize) -> Node {
+    let mut lhs = number(tokens, pos);
+    loop {
+        let tok = tokens.get(*pos).unwrap();
+        let op = &tok.ty;
+        let ty = match op {
+            TokenType::PLUS => NodeType::PLUS,
+            TokenType::MINUS => NodeType::MINUS,
+            _ => {
+                break;
+            }
+        };
+        *pos += 1;
+        lhs = new_node(ty, lhs, number(tokens, pos));
+    }
+    return lhs;
+}
+
+// Code generator
+
+lazy_static! {
+    static ref REGS: Mutex<Vec<String>> = Mutex::new(vec![
+        String::from("rdi"),
+        String::from("rsi"),
+        String::from("r10"),
+        String::from("r11"),
+        String::from("r12"),
+        String::from("r13"),
+        String::from("r14"),
+        String::from("r15"),
+        String::from("NULL")
+    ]);
+    static ref CUR: Mutex<Cell<usize>> = Mutex::new(Cell::new(0));
+}
+
+fn gen(node: Node, cur: &mut usize) -> String {
+    if node.ty == NodeType::NUM {
+        let regs = REGS.lock().unwrap();
+        let reg = regs.get(*cur).unwrap();
+        *cur += 1;
+        if reg == "NULL" {
+            panic!("register exhausted {}", cur);
+        }
+        println!("  mov {}, {}", reg, node.val);
+        return reg.clone();
+    }
+
+    let lhs_box = node.lhs.unwrap();
+    let rhs_box = node.rhs.unwrap();
+    let dst = gen(*lhs_box, cur);
+    let src = gen(*rhs_box, cur);
+
+    match node.ty {
+        NodeType::PLUS => {
+            println!("  add {}, {}", dst, src);
+            return dst;
+        }
+        NodeType::MINUS => {
+            println!("  sub {}, {}", dst, src);
+            return dst;
+        }
+        _ => {
+            panic!("unknown operator");
         }
     }
 }
@@ -87,49 +204,21 @@ fn main() {
         println!("Usage: 9cc <code>");
         return;
     }
-    tokenize(&argv[1]);
 
+    // Tokenize and parse.
+    tokenize(&argv[1]);
+    let mut pos = POS.lock().unwrap();
+    let tokens = TOKENS.lock().unwrap();
+    let node = expr(&tokens, pos.get_mut());
+
+    // Print the prologue.
     println!(".intel_syntax noprefix");
     println!(".global main");
     println!("main:");
 
-    let tokens = TOKENS.lock().unwrap();
-    if tokens.get(0).unwrap().ty != TokenType::NUM {
-        fail(0);
-    }
-
-    println!("  mov rax, {}", tokens.get(0).unwrap().val);
-
-    let mut i = 1;
-    let mut tok = tokens.get(i).unwrap();
-    while tok.ty != TokenType::EOF {
-        if tok.ty == TokenType::OP && tok.input == "+" {
-            i += 1;
-            tok = tokens.get(i).unwrap();
-            if tok.ty != TokenType::NUM {
-                fail(i);
-            }
-            println!("  add rax, {}", tok.val);
-            i += 1;
-            tok = tokens.get(i).unwrap();
-            continue;
-        }
-
-        if tok.ty == TokenType::OP && tok.input == "-" {
-            i += 1;
-            tok = tokens.get(i).unwrap();
-            if tok.ty != TokenType::NUM {
-                fail(i);
-            }
-            println!("  sub rax, {}", tok.val);
-            i += 1;
-            tok = tokens.get(i).unwrap();
-            continue;
-        }
-
-        fail(i);
-    }
-
+    // Generate code while descending the parse tree.
+    let mut cur = CUR.lock().unwrap();
+    println!("  mov rax, {}", gen(node, cur.get_mut()));
     println!("  ret");
     return;
 }
