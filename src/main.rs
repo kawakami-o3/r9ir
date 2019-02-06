@@ -81,7 +81,7 @@ fn tokenize(p: &String) {
 // Recursive-descendent parser
 
 lazy_static! {
-    static ref POS: Mutex<Cell<usize>> = Mutex::new(Cell::new(0));
+    static ref POS: Mutex<usize> = Mutex::new(0);
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -118,8 +118,6 @@ fn new_node_num(val: i32) -> Node {
 }
 
 fn number(tokens: &Vec<Token>, pos: &mut usize) -> Node {
-    //let mut pos = *POS.lock().unwrap().get_mut();
-    //if let Some(t) = TOKENS.lock().unwrap().get(*pos) {
     if let Some(t) = tokens.get(*pos) {
         if t.ty == TokenType::NUM {
             let val = t.val;
@@ -163,7 +161,7 @@ lazy_static! {
         String::from("r15"),
         String::from("NULL")
     ]);
-    static ref CUR: Mutex<Cell<usize>> = Mutex::new(Cell::new(0));
+    static ref CUR: Mutex<usize> = Mutex::new(0);
 }
 
 fn gen(node: Node, cur: &mut usize) -> String {
@@ -209,7 +207,7 @@ fn main() {
     tokenize(&argv[1]);
     let mut pos = POS.lock().unwrap();
     let tokens = TOKENS.lock().unwrap();
-    let node = expr(&tokens, pos.get_mut());
+    let node = expr(&tokens, &mut pos);
 
     // Print the prologue.
     println!(".intel_syntax noprefix");
@@ -218,7 +216,7 @@ fn main() {
 
     // Generate code while descending the parse tree.
     let mut cur = CUR.lock().unwrap();
-    println!("  mov rax, {}", gen(node, cur.get_mut()));
+    println!("  mov rax, {}", gen(node, &mut cur));
     println!("  ret");
     return;
 }
