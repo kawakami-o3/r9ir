@@ -27,6 +27,7 @@ fn main() {
     }
 
     // Token -> Node -> IR -> asm
+    // token -> parse -> ir -> regalloc -> codegen
 
     // Tokenize and parse.
     let tokens = tokenize(&argv[1]);

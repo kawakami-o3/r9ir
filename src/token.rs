@@ -8,7 +8,7 @@ pub enum TokenType {
 
 pub struct Token {
     pub ty: TokenType,
-    pub val: i32,
+    pub val: usize,
     pub input: String,
 }
 
@@ -49,7 +49,7 @@ pub fn tokenize(p: &String) -> Vec<Token> {
         } else {
             let tok = Token {
                 ty: TokenType::NUM,
-                val: i32::from_str_radix(&s, 10).unwrap(),
+                val: usize::from_str_radix(&s, 10).unwrap(),
                 input: s,
             };
 
