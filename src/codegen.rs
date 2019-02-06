@@ -1,5 +1,5 @@
-use crate::*;
 use crate::regalloc::*;
+use crate::*;
 
 pub fn gen_x86(irv: &Vec<IR>) {
     let regs = REGS.lock().unwrap();
@@ -21,6 +21,14 @@ pub fn gen_x86(irv: &Vec<IR>) {
             }
             IRType::SUB => {
                 println!("  sub {}, {}", regs[ir.lhs as usize], regs[ir.rhs as usize]);
+            }
+            IRType::MUL => {
+                println!("  mov rax, {}", regs[ir.rhs as usize]);
+                println!("  mul {}", regs[ir.lhs as usize]);
+                println!("  mov {}, rax", regs[ir.lhs as usize]);
+            }
+            IRType::DIV => {
+                // TODO
             }
             _ => {}
         }

@@ -1,4 +1,3 @@
-
 use crate::parse::*;
 use std::sync::Mutex;
 
@@ -8,6 +7,8 @@ fn to_ir_type(node_type: &NodeType) -> IRType {
     match node_type {
         NodeType::ADD => IRType::ADD,
         NodeType::SUB => IRType::SUB,
+        NodeType::MUL => IRType::MUL,
+        NodeType::DIV => IRType::DIV,
         _ => {
             panic!();
         }
@@ -22,9 +23,12 @@ pub enum IRType {
     KILL,
     ADD,
     SUB,
+    MUL,
+    DIV,
     NOP,
 }
 
+#[derive(Debug)]
 pub struct IR {
     pub op: IRType,
     pub lhs: usize,
@@ -54,7 +58,10 @@ fn gen(v: &mut Vec<IR>, node: Node) -> usize {
     }
 
     assert!(
-        node.ty == NodeType::ADD || node.ty == NodeType::SUB,
+        node.ty == NodeType::ADD
+            || node.ty == NodeType::SUB
+            || node.ty == NodeType::MUL
+            || node.ty == NodeType::DIV,
         "not op"
     );
 

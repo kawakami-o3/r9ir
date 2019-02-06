@@ -1,8 +1,36 @@
-
 use crate::token::*;
 use std::sync::Mutex;
 
 // Recursive-descendent parser
+
+// ----------------------------------------------
+fn to_node_type(ty: &TokenType) -> NodeType {
+    match ty {
+        TokenType::ADD => NodeType::ADD,
+        TokenType::SUB => NodeType::SUB,
+        TokenType::MUL => NodeType::MUL,
+        TokenType::DIV => NodeType::DIV,
+        _ => {
+            panic!();
+        }
+    }
+}
+
+fn pos() -> usize {
+    *POS.lock().unwrap()
+}
+
+fn inc_pos() {
+    match POS.lock() {
+        Ok(mut pos) => {
+            *pos += 1;
+        }
+        _ => {
+            panic!();
+        }
+    }
+}
+// ----------------------------------------------
 
 lazy_static! {
     static ref POS: Mutex<usize> = Mutex::new(0);
@@ -13,6 +41,8 @@ pub enum NodeType {
     NUM,
     ADD,
     SUB,
+    MUL,
+    DIV,
 }
 
 #[derive(Debug)]
@@ -41,38 +71,47 @@ fn new_node_num(val: usize) -> Node {
     }
 }
 
-fn number(tokens: &Vec<Token>, pos: &mut usize) -> Node {
-    let t = &tokens[*pos];
-    if t.ty == TokenType::NUM {
-        let val = t.val;
-        *pos += 1;
-        return new_node_num(val as usize);
+fn number(tokens: &Vec<Token>) -> Node {
+    let t = &tokens[pos()];
+    if t.ty != TokenType::NUM {
+        panic!("number expected, but got {}", t.input);
     }
-    panic!("number expected, but got {}", t.input);
+    inc_pos();
+    return new_node_num(t.val as usize);
 }
 
-fn expr(tokens: &Vec<Token>, pos: &mut usize) -> Node {
-    let mut lhs = number(tokens, pos);
+fn mul(tokens: &Vec<Token>) -> Node {
+    let mut lhs = number(tokens);
     loop {
-        let ty = match &tokens[*pos].ty {
-            TokenType::ADD => NodeType::ADD,
-            TokenType::SUB => NodeType::SUB,
-            _ => {
-                break;
-            }
-        };
-        //let ty = to_node_type(&tokens[*pos].ty);
-        *pos += 1;
-        lhs = new_node(ty, lhs, number(tokens, pos));
+        let t = &tokens[pos()];
+        let op = &t.ty;
+        if *op != TokenType::MUL && *op != TokenType::DIV {
+            return lhs;
+        }
+        inc_pos();
+        lhs = new_node(to_node_type(op), lhs, number(tokens));
     }
+}
 
-    if tokens[*pos].ty != TokenType::EOF {
-        panic!("stray token: {}", tokens[*pos].input);
+fn expr(tokens: &Vec<Token>) -> Node {
+    let mut lhs = mul(tokens);
+    loop {
+        let t = &tokens[pos()];
+        let op = &t.ty;
+        if *op != TokenType::ADD && *op != TokenType::SUB {
+            return lhs;
+        }
+        inc_pos();
+        lhs = new_node(to_node_type(op), lhs, mul(tokens));
     }
-    return lhs;
 }
 
 pub fn parse(tokens: &Vec<Token>) -> Node {
-    let mut pos = POS.lock().unwrap();
-    return expr(tokens, &mut pos);
+    let node = expr(tokens);
+
+    let t = &tokens[pos()];
+    if t.ty != TokenType::EOF {
+        panic!("stray token: {}", t.input);
+    }
+    return node;
 }

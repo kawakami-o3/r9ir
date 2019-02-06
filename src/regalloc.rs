@@ -1,6 +1,5 @@
-
-use crate::*;
 use crate::ir::*;
+use crate::*;
 
 lazy_static! {
     pub static ref REGS: Mutex<Vec<String>> = Mutex::new(vec![
@@ -16,7 +15,6 @@ lazy_static! {
     static ref USED: Mutex<Vec<bool>> = Mutex::new([false; 8].to_vec());
     static ref REG_MAP: Mutex<Vec<i32>> = Mutex::new(Vec::new());
 }
-
 
 // Code generator
 
@@ -64,7 +62,7 @@ pub fn alloc_regs(irv: &mut Vec<IR>) {
             IRType::IMM => {
                 ir.lhs = alloc(ir.lhs);
             }
-            IRType::MOV | IRType::ADD | IRType::SUB => {
+            IRType::MOV | IRType::ADD | IRType::SUB | IRType::MUL | IRType::DIV => {
                 ir.lhs = alloc(ir.lhs);
                 ir.rhs = alloc(ir.rhs);
             }

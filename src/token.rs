@@ -3,9 +3,12 @@ pub enum TokenType {
     NUM,
     ADD,
     SUB,
+    MUL,
+    DIV,
     EOF,
 }
 
+#[derive(Debug)]
 pub struct Token {
     pub ty: TokenType,
     pub val: usize,
@@ -19,7 +22,7 @@ pub fn tokenize(p: &String) -> Vec<Token> {
         if c.is_whitespace() {
             continue;
         }
-        if c == '+' || c == '-' {
+        if c == '+' || c == '-' || c == '*' || c == '/' {
             token_strs.push(t.clone());
             t = String::new();
             token_strs.push(format!("{}", c));
@@ -33,10 +36,12 @@ pub fn tokenize(p: &String) -> Vec<Token> {
 
     let mut tokens = Vec::new();
     for s in token_strs {
-        if s == "+" || s == "-" {
+        if s == "+" || s == "-" || s == "*" || s == "/" {
             let ty = match s.as_str() {
                 "+" => TokenType::ADD,
                 "-" => TokenType::SUB,
+                "*" => TokenType::MUL,
+                "/" => TokenType::DIV,
                 _ => panic!(),
             };
             let tok = Token {

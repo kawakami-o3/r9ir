@@ -17,8 +17,6 @@ use crate::token::*;
 use std::env;
 use std::sync::Mutex;
 
-
-
 fn main() {
     let argv: Vec<String> = env::args().collect();
     if argv.len() != 2 {
