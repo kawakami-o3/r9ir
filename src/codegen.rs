@@ -33,6 +33,7 @@ pub fn gen_x86(irv: &Vec<IR>) {
                 println!(" div {}", regs[ir.rhs as usize]);
                 println!(" mov {}, rax", regs[ir.lhs as usize]);
             }
+            IRType::NOP => {}
             _ => {}
         }
     }

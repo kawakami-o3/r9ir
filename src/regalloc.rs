@@ -67,8 +67,7 @@ pub fn alloc_regs(irv: &mut Vec<IR>) {
                 ir.rhs = alloc(ir.rhs);
             }
             IRType::RETURN => {
-                let mut reg_map = REG_MAP.lock().unwrap();
-                kill(reg_map[ir.lhs]);
+                ir.lhs = alloc(ir.lhs);
             }
             IRType::KILL => {
                 let mut reg_map = REG_MAP.lock().unwrap();

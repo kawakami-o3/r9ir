@@ -1,9 +1,10 @@
+// Recursive-descendent parser
+
+#![allow(non_camel_case_types)]
+
 use crate::token::*;
 use std::sync::Mutex;
 
-// Recursive-descendent parser
-
-// ----------------------------------------------
 fn to_node_type(ty: &TokenType) -> NodeType {
     match ty {
         TokenType::ADD => NodeType::ADD,
@@ -17,7 +18,8 @@ fn to_node_type(ty: &TokenType) -> NodeType {
 }
 
 fn pos() -> usize {
-    *POS.lock().unwrap()
+    let i = *POS.lock().unwrap();
+    return i;
 }
 
 fn inc_pos() {
@@ -30,10 +32,17 @@ fn inc_pos() {
         }
     }
 }
-// ----------------------------------------------
 
 lazy_static! {
     static ref POS: Mutex<usize> = Mutex::new(0);
+}
+
+fn expect(ty: TokenType, tokens: &Vec<Token>) {
+    let t = &tokens[pos()];
+    if t.ty != ty {
+        panic!(format!("{:?} expected, but got {:?} ", ty, t.ty));
+    }
+    inc_pos();
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -43,6 +52,9 @@ pub enum NodeType {
     SUB,
     MUL,
     DIV,
+    RETURN,
+    COMP_STMT,
+    EXPR_STMT,
 }
 
 #[derive(Debug)]
@@ -51,6 +63,8 @@ pub struct Node {
     pub lhs: Option<Box<Node>>,
     pub rhs: Option<Box<Node>>,
     pub val: usize,
+    pub expr: Option<Box<Node>>,
+    pub stmts: Vec<Node>,
 }
 
 fn new_node(ty: NodeType, lhs: Node, rhs: Node) -> Node {
@@ -59,15 +73,8 @@ fn new_node(ty: NodeType, lhs: Node, rhs: Node) -> Node {
         lhs: Some(Box::new(lhs)),
         rhs: Some(Box::new(rhs)),
         val: 0,
-    }
-}
-
-fn new_node_num(val: usize) -> Node {
-    Node {
-        ty: NodeType::NUM,
-        lhs: None,
-        rhs: None,
-        val: val,
+        expr: None,
+        stmts: Vec::new(),
     }
 }
 
@@ -77,7 +84,14 @@ fn number(tokens: &Vec<Token>) -> Node {
         panic!("number expected, but got {}", t.input);
     }
     inc_pos();
-    return new_node_num(t.val as usize);
+    Node {
+        ty: NodeType::NUM,
+        lhs: None,
+        rhs: None,
+        val: t.val as usize,
+        expr: None,
+        stmts: Vec::new(),
+    }
 }
 
 fn mul(tokens: &Vec<Token>) -> Node {
@@ -106,12 +120,51 @@ fn expr(tokens: &Vec<Token>) -> Node {
     }
 }
 
-pub fn parse(tokens: &Vec<Token>) -> Node {
-    let node = expr(tokens);
+pub fn stmt(tokens: &Vec<Token>) -> Node {
+    let mut node = Node {
+        ty: NodeType::COMP_STMT,
+        lhs: None,
+        rhs: None,
+        val: 0,
+        expr: None,
+        stmts: Vec::new(),
+    };
 
-    let t = &tokens[pos()];
-    if t.ty != TokenType::EOF {
-        panic!("stray token: {}", t.input);
+    loop {
+        let t = &tokens[pos()];
+        if t.ty == TokenType::EOF {
+            return node;
+        }
+
+        let e = match t.ty {
+            TokenType::RETURN => {
+                inc_pos();
+                Node {
+                    ty: NodeType::RETURN,
+                    expr: Some(Box::new(expr(tokens))),
+
+                    lhs: None,
+                    rhs: None,
+                    val: 0 as usize,
+                    stmts: Vec::new(),
+                }
+            }
+            _ => Node {
+                ty: NodeType::EXPR_STMT,
+                expr: Some(Box::new(expr(tokens))),
+
+                lhs: None,
+                rhs: None,
+                val: 0,
+                stmts: Vec::new(),
+            },
+        };
+
+        node.stmts.push(e);
+        expect(TokenType::SEMI_COLON, tokens);
     }
-    return node;
+}
+
+pub fn parse(tokens: &Vec<Token>) -> Node {
+    return stmt(tokens);
 }
