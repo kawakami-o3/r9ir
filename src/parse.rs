@@ -95,6 +95,12 @@ fn term(tokens: &Vec<Token>) -> Node {
     let t = &tokens[pos()];
     inc_pos();
 
+    if t.ty == TokenType::BRA {
+        let node = assign(tokens);
+        expect(TokenType::KET, tokens);
+        return node;
+    }
+
     if t.ty == TokenType::NUM {
         return Node {
             ty: NodeType::NUM,
