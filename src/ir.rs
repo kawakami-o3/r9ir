@@ -1,5 +1,5 @@
 // Intermediate representation
-#![allow(dead_code)]
+#![allow(dead_code, non_camel_case_types)]
 
 use crate::parse::*;
 use std::collections::HashMap;
@@ -33,6 +33,7 @@ fn basereg() -> i32 {
 #[derive(Clone, Debug, PartialEq)]
 pub enum IRType {
     IMM,
+    ADD_IMM,
     MOV,
     RETURN,
     ALLOCA,
@@ -51,7 +52,6 @@ pub struct IR {
     pub op: IRType,
     pub lhs: i32,
     pub rhs: i32,
-    pub imm: Option<i32>,
 }
 
 fn add(op: IRType, lhs: i32, rhs: i32) -> usize {
@@ -59,26 +59,6 @@ fn add(op: IRType, lhs: i32, rhs: i32) -> usize {
         op: op,
         lhs: lhs,
         rhs: rhs,
-        imm: None,
-    };
-
-    match CODE.lock() {
-        Ok(mut code) => {
-            (*code).push(ir);
-            return code.len() - 1;
-        }
-        Err(_) => {
-            panic!();
-        }
-    }
-}
-
-fn add_imm(op: IRType, lhs: i32, imm: i32) -> usize {
-    let ir = IR {
-        op: op,
-        lhs: lhs,
-        rhs: 0,
-        imm: Some(imm),
     };
 
     match CODE.lock() {
@@ -112,7 +92,7 @@ fn gen_lval(node: Node) -> i32 {
     let basereg = BASEREG.lock().unwrap();
 
     add(IRType::MOV, r, *basereg);
-    add_imm(IRType::ADD, r, off);
+    add(IRType::ADD_IMM, r, off);
     return r;
 }
 

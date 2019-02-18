@@ -59,14 +59,12 @@ pub fn alloc_regs(irv: &mut Vec<IR>) {
     for i in 0..irv.len() {
         let mut ir = &mut irv[i as usize];
         match ir.op {
-            IRType::IMM | IRType::ALLOCA | IRType::RETURN => {
+            IRType::IMM | IRType::ADD_IMM | IRType::ALLOCA | IRType::RETURN => {
                 ir.lhs = alloc(ir.lhs);
             }
             IRType::MOV | IRType::LOAD | IRType::STORE | IRType::ADD | IRType::SUB | IRType::MUL | IRType::DIV => {
                 ir.lhs = alloc(ir.lhs);
-                if None == ir.imm {
-                    ir.rhs = alloc(ir.rhs);
-                }
+                ir.rhs = alloc(ir.rhs);
             }
             IRType::KILL => {
                 let mut reg_map = REG_MAP.lock().unwrap();

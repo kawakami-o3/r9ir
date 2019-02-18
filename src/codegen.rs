@@ -25,6 +25,9 @@ pub fn gen_x86(irv: &Vec<IR>) {
             IRType::IMM => {
                 println!("  mov {}, {}", regs[ir.lhs as usize], ir.rhs);
             }
+            IRType::ADD_IMM => {
+                println!("  add {}, {}", regs[ir.lhs as usize], ir.rhs);
+            }
             IRType::MOV => {
                 println!("  mov {}, {}", regs[ir.lhs as usize], regs[ir.rhs as usize]);
             }
@@ -45,11 +48,7 @@ pub fn gen_x86(irv: &Vec<IR>) {
                 println!("  mov [{}], {}", regs[ir.lhs as usize], regs[ir.rhs as usize]);
             }
             IRType::ADD => {
-                if let Some(imm) = ir.imm {
-                    println!("  add {}, {}", regs[ir.lhs as usize], imm);
-                } else  {
-                    println!("  add {}, {}", regs[ir.lhs as usize], regs[ir.rhs as usize]);
-                }
+                println!("  add {}, {}", regs[ir.lhs as usize], regs[ir.rhs as usize]);
             }
             IRType::SUB => {
                 println!("  sub {}, {}", regs[ir.lhs as usize], regs[ir.rhs as usize]);
