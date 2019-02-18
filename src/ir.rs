@@ -51,6 +51,7 @@ pub struct IR {
     pub op: IRType,
     pub lhs: i32,
     pub rhs: i32,
+    pub imm: Option<i32>,
 }
 
 fn add(op: IRType, lhs: i32, rhs: i32) -> usize {
@@ -58,6 +59,26 @@ fn add(op: IRType, lhs: i32, rhs: i32) -> usize {
         op: op,
         lhs: lhs,
         rhs: rhs,
+        imm: None,
+    };
+
+    match CODE.lock() {
+        Ok(mut code) => {
+            (*code).push(ir);
+            return code.len() - 1;
+        }
+        Err(_) => {
+            panic!();
+        }
+    }
+}
+
+fn add_imm(op: IRType, lhs: i32, imm: i32) -> usize {
+    let ir = IR {
+        op: op,
+        lhs: lhs,
+        rhs: 0,
+        imm: Some(imm),
     };
 
     match CODE.lock() {
@@ -84,20 +105,15 @@ fn gen_lval(node: Node) -> i32 {
     }
 
     let mut regno = REGNO.lock().unwrap();
-    let r1 = *regno;
+    let r = *regno;
     *regno+=1;
 
     let off = *vars.get(&node.name).unwrap();
     let basereg = BASEREG.lock().unwrap();
-    add(IRType::MOV, r1, *basereg);
 
-    let r2 = *regno;
-    *regno += 1;
-    add(IRType::IMM, r2, off);
-    add(IRType::ADD, r1, r2);
-    add(IRType::KILL, r2, -1);
-
-    return r1;
+    add(IRType::MOV, r, *basereg);
+    add_imm(IRType::ADD, r, off);
+    return r;
 }
 
 fn gen_expr(node: Node) -> i32 {
