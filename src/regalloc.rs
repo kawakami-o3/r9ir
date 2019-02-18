@@ -18,11 +18,11 @@ lazy_static! {
 
 // Code generator
 
-fn alloc(ir_reg: usize) -> usize {
+fn alloc(ir_reg: i32) -> i32 {
     let mut reg_map = REG_MAP.lock().unwrap();
-    if reg_map[ir_reg] != -1 {
-        let r = reg_map[ir_reg] as usize;
-        assert!(USED.lock().unwrap()[r], "");
+    if reg_map[ir_reg as usize] != -1 {
+        let r = reg_map[ir_reg as usize];
+        assert!(USED.lock().unwrap()[r as usize], "");
         return r;
     }
 
@@ -33,8 +33,8 @@ fn alloc(ir_reg: usize) -> usize {
             continue;
         }
         used[i] = true;
-        reg_map[ir_reg] = i as i32;
-        return i;
+        reg_map[ir_reg as usize] = i as i32;
+        return i as i32;
     }
     panic!("register exhausted");
 }
@@ -57,21 +57,18 @@ pub fn alloc_regs(irv: &mut Vec<IR>) {
     }
 
     for i in 0..irv.len() {
-        let ir = &mut irv[i as usize];
+        let mut ir = &mut irv[i as usize];
         match ir.op {
-            IRType::IMM => {
+            IRType::IMM | IRType::ALLOCA | IRType::RETURN => {
                 ir.lhs = alloc(ir.lhs);
             }
-            IRType::MOV | IRType::ADD | IRType::SUB | IRType::MUL | IRType::DIV => {
+            IRType::MOV | IRType::LOAD | IRType::STORE | IRType::ADD | IRType::SUB | IRType::MUL | IRType::DIV => {
                 ir.lhs = alloc(ir.lhs);
                 ir.rhs = alloc(ir.rhs);
             }
-            IRType::RETURN => {
-                ir.lhs = alloc(ir.lhs);
-            }
             IRType::KILL => {
                 let mut reg_map = REG_MAP.lock().unwrap();
-                kill(reg_map[ir.lhs]);
+                kill(reg_map[ir.lhs as usize]);
                 ir.op = IRType::NOP;
             }
             _ => {}

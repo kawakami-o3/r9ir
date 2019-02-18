@@ -12,7 +12,7 @@ fn to_node_type(ty: &TokenType) -> NodeType {
         TokenType::MUL => NodeType::MUL,
         TokenType::DIV => NodeType::DIV,
         _ => {
-            panic!();
+            panic!(format!("unknown TokenType {:?}", ty));
         }
     }
 }
@@ -37,14 +37,6 @@ lazy_static! {
     static ref POS: Mutex<usize> = Mutex::new(0);
 }
 
-fn expect(ty: TokenType, tokens: &Vec<Token>) {
-    let t = &tokens[pos()];
-    if t.ty != ty {
-        panic!(format!("{:?} expected, but got {:?} ", ty, t.ty));
-    }
-    inc_pos();
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub enum NodeType {
     NUM,
@@ -52,6 +44,8 @@ pub enum NodeType {
     SUB,
     MUL,
     DIV,
+    EQ,
+    IDENT,
     RETURN,
     COMP_STMT,
     EXPR_STMT,
@@ -62,9 +56,27 @@ pub struct Node {
     pub ty: NodeType,
     pub lhs: Option<Box<Node>>,
     pub rhs: Option<Box<Node>>,
-    pub val: usize,
+    pub val: i32,
+    pub name: String,
     pub expr: Option<Box<Node>>,
     pub stmts: Vec<Node>,
+}
+
+fn expect(ty: TokenType, tokens: &Vec<Token>) {
+    let t = &tokens[pos()];
+    if t.ty != ty {
+        panic!(format!("{:?} expected, but got {:?} ", ty, t.ty));
+    }
+    inc_pos();
+}
+
+fn consume(ty: TokenType, tokens: &Vec<Token>) -> bool {
+    let t = &tokens[pos()];
+    if t.ty != ty {
+        return false;
+    }
+    inc_pos();
+    return true;
 }
 
 fn new_node(ty: NodeType, lhs: Node, rhs: Node) -> Node {
@@ -73,29 +85,45 @@ fn new_node(ty: NodeType, lhs: Node, rhs: Node) -> Node {
         lhs: Some(Box::new(lhs)),
         rhs: Some(Box::new(rhs)),
         val: 0,
+        name: String::new(),
         expr: None,
         stmts: Vec::new(),
     }
 }
 
-fn number(tokens: &Vec<Token>) -> Node {
+fn term(tokens: &Vec<Token>) -> Node {
     let t = &tokens[pos()];
-    if t.ty != TokenType::NUM {
-        panic!("number expected, but got {}", t.input);
-    }
     inc_pos();
-    Node {
-        ty: NodeType::NUM,
-        lhs: None,
-        rhs: None,
-        val: t.val as usize,
-        expr: None,
-        stmts: Vec::new(),
+
+    if t.ty == TokenType::NUM {
+        return Node {
+            ty: NodeType::NUM,
+            lhs: None,
+            rhs: None,
+            val: t.val,
+            name: String::new(),
+            expr: None,
+            stmts: Vec::new(),
+        };
     }
+
+    if t.ty == TokenType::IDENT {
+        return Node {
+            ty: NodeType::IDENT,
+            lhs: None,
+            rhs: None,
+            val: t.val,
+            name: t.name.clone(),
+            expr: None,
+            stmts: Vec::new(),
+        };
+    }
+
+    panic!(format!("number expected, but got {}", t.input));
 }
 
 fn mul(tokens: &Vec<Token>) -> Node {
-    let mut lhs = number(tokens);
+    let mut lhs = term(tokens);
     loop {
         let t = &tokens[pos()];
         let op = &t.ty;
@@ -103,7 +131,7 @@ fn mul(tokens: &Vec<Token>) -> Node {
             return lhs;
         }
         inc_pos();
-        lhs = new_node(to_node_type(op), lhs, number(tokens));
+        lhs = new_node(to_node_type(op), lhs, term(tokens));
     }
 }
 
@@ -120,12 +148,21 @@ fn expr(tokens: &Vec<Token>) -> Node {
     }
 }
 
+fn assign(tokens: &Vec<Token>) -> Node {
+    let lhs = expr(tokens);
+    if consume(TokenType::EQ, tokens) {
+        return new_node(NodeType::EQ, lhs, expr(tokens));
+    }
+    return lhs;
+}
+
 pub fn stmt(tokens: &Vec<Token>) -> Node {
     let mut node = Node {
         ty: NodeType::COMP_STMT,
         lhs: None,
         rhs: None,
         val: 0,
+        name: String::new(),
         expr: None,
         stmts: Vec::new(),
     };
@@ -141,22 +178,26 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
                 inc_pos();
                 Node {
                     ty: NodeType::RETURN,
-                    expr: Some(Box::new(expr(tokens))),
 
                     lhs: None,
                     rhs: None,
-                    val: 0 as usize,
+                    val: 0,
+                    name: String::new(),
+                    expr: Some(Box::new(assign(tokens))),
                     stmts: Vec::new(),
                 }
             }
-            _ => Node {
-                ty: NodeType::EXPR_STMT,
-                expr: Some(Box::new(expr(tokens))),
+            _ => {
+                Node {
+                    ty: NodeType::EXPR_STMT,
 
-                lhs: None,
-                rhs: None,
-                val: 0,
-                stmts: Vec::new(),
+                    lhs: None,
+                    rhs: None,
+                    val: 0,
+                    name: String::new(),
+                    expr: Some(Box::new(assign(tokens))),
+                    stmts: Vec::new(),
+                }
             },
         };
 

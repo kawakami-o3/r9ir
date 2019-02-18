@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 lazy_static! {
-    pub static ref KEYWORDS: Mutex<HashMap<String, TokenType>> = Mutex::new(HashMap::new());
+    static ref KEYWORDS: Mutex<HashMap<String, TokenType>> = Mutex::new(HashMap::new());
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -15,6 +15,8 @@ pub enum TokenType {
     SUB,
     MUL,
     DIV,
+    EQ,
+    IDENT,
     RETURN,
     SEMI_COLON,
     EOF,
@@ -23,7 +25,8 @@ pub enum TokenType {
 #[derive(Debug)]
 pub struct Token {
     pub ty: TokenType,
-    pub val: usize,
+    pub val: i32,
+    pub name: String,
     pub input: String,
 }
 
@@ -37,18 +40,20 @@ fn scan(p: &String) -> Vec<Token> {
             idx += 1;
             continue;
         }
-        if c == '+' || c == '-' || c == '*' || c == '/' || c == ';' {
+        if "+-*/;=".contains(c) {
             let ty = match c {
                 '+' => TokenType::ADD,
                 '-' => TokenType::SUB,
                 '*' => TokenType::MUL,
                 '/' => TokenType::DIV,
                 ';' => TokenType::SEMI_COLON,
-                _ => panic!(),
+                '=' => TokenType::EQ,
+                _ => panic!(format!("unknown {}", c)),
             };
             let tok = Token {
                 ty: ty,
                 val: 0,
+                name: String::new(),
                 input: format!("{}", c),
             };
 
@@ -58,7 +63,7 @@ fn scan(p: &String) -> Vec<Token> {
             continue;
         }
 
-        // Keyword
+        // Identifier
         if c.is_alphabetic() || c == '_' {
             let mut s = String::new();
             s.push(c);
@@ -75,16 +80,15 @@ fn scan(p: &String) -> Vec<Token> {
 
             let keywords = KEYWORDS.lock().unwrap();
             let ty = match keywords.get(&s) {
-                Some(ty) => ty,
-                None => {
-                    panic!("unknown identifier: {}", s);
-                }
+                Some(ty) => *ty,
+                None => TokenType::IDENT,
             };
 
             let tok = Token {
-                ty: *ty,
+                ty: ty,
                 val: 0,
-                input: s,
+                name: s.clone(),
+                input: s.clone(),
             };
 
             tokens.push(tok);
@@ -107,7 +111,8 @@ fn scan(p: &String) -> Vec<Token> {
             }
             let tok = Token {
                 ty: TokenType::NUM,
-                val: usize::from_str_radix(&s, 10).unwrap(),
+                val: i32::from_str_radix(&s, 10).unwrap(),
+                name: String::new(),
                 input: s,
             };
 
@@ -121,6 +126,7 @@ fn scan(p: &String) -> Vec<Token> {
     let tok = Token {
         ty: TokenType::EOF,
         val: 0,
+        name: String::new(),
         input: String::new(),
     };
     tokens.push(tok);
