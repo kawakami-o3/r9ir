@@ -46,6 +46,7 @@ pub enum NodeType {
     DIV,
     EQ,
     IDENT,
+    IF,
     RETURN,
     COMP_STMT,
     EXPR_STMT,
@@ -60,6 +61,25 @@ pub struct Node {
     pub name: String,
     pub expr: Option<Box<Node>>,
     pub stmts: Vec<Node>,
+
+    // "if"
+    pub cond: Option<Box<Node>>,
+    pub then: Option<Box<Node>>,
+}
+
+// default node
+fn malloc_node() -> Node {
+    Node {
+        ty: NodeType::NUM,
+        lhs: None,
+        rhs: None,
+        val: 0,
+        name: String::new(),
+        expr: None,
+        stmts: Vec::new(),
+        cond: None,
+        then: None,
+    }
 }
 
 fn expect(ty: TokenType, tokens: &Vec<Token>) {
@@ -80,15 +100,11 @@ fn consume(ty: TokenType, tokens: &Vec<Token>) -> bool {
 }
 
 fn new_node(ty: NodeType, lhs: Node, rhs: Node) -> Node {
-    Node {
-        ty: ty,
-        lhs: Some(Box::new(lhs)),
-        rhs: Some(Box::new(rhs)),
-        val: 0,
-        name: String::new(),
-        expr: None,
-        stmts: Vec::new(),
-    }
+    let mut node = malloc_node();
+    node.ty = ty;
+    node.lhs = Some(Box::new(lhs));
+    node.rhs = Some(Box::new(rhs));
+    return node;
 }
 
 fn term(tokens: &Vec<Token>) -> Node {
@@ -101,28 +117,17 @@ fn term(tokens: &Vec<Token>) -> Node {
         return node;
     }
 
+    let mut node = malloc_node();
     if t.ty == TokenType::NUM {
-        return Node {
-            ty: NodeType::NUM,
-            lhs: None,
-            rhs: None,
-            val: t.val,
-            name: String::new(),
-            expr: None,
-            stmts: Vec::new(),
-        };
+        node.ty = NodeType::NUM;
+        node.val = t.val;
+        return node;
     }
 
     if t.ty == TokenType::IDENT {
-        return Node {
-            ty: NodeType::IDENT,
-            lhs: None,
-            rhs: None,
-            val: t.val,
-            name: t.name.clone(),
-            expr: None,
-            stmts: Vec::new(),
-        };
+        node.ty = NodeType::IDENT;
+        node.name = t.name.clone();
+        return node;
     }
 
     panic!(format!("number expected, but got {}", t.input));
@@ -163,55 +168,48 @@ fn assign(tokens: &Vec<Token>) -> Node {
 }
 
 pub fn stmt(tokens: &Vec<Token>) -> Node {
-    let mut node = Node {
-        ty: NodeType::COMP_STMT,
-        lhs: None,
-        rhs: None,
-        val: 0,
-        name: String::new(),
-        expr: None,
-        stmts: Vec::new(),
-    };
+    let mut node = malloc_node();
+    let t = &tokens[pos()];
+
+    match t.ty {
+        TokenType::IF => {
+            inc_pos();
+            node.ty = NodeType::IF;
+            expect(TokenType::BRA, tokens);
+            node.cond = Some(Box::new(assign(tokens)));
+            expect(TokenType::KET, tokens);
+            node.then = Some(Box::new(stmt(tokens)));
+            return node;
+        }
+        TokenType::RETURN => {
+            inc_pos();
+            node.ty = NodeType::RETURN;
+            node.expr = Some(Box::new(assign(tokens)));
+            expect(TokenType::SEMI_COLON, tokens);
+            return node;
+        }
+        _ => {
+            node.ty = NodeType::EXPR_STMT;
+            node.expr = Some(Box::new(assign(tokens)));
+            expect(TokenType::SEMI_COLON, tokens);
+            return node;
+        }
+    }
+}
+
+pub fn compaund_stmt(tokens: &Vec<Token>) -> Node {
+    let mut node = malloc_node();
+    node.ty = NodeType::COMP_STMT;
 
     loop {
         let t = &tokens[pos()];
         if t.ty == TokenType::EOF {
             return node;
         }
-
-        let e = match t.ty {
-            TokenType::RETURN => {
-                inc_pos();
-                Node {
-                    ty: NodeType::RETURN,
-
-                    lhs: None,
-                    rhs: None,
-                    val: 0,
-                    name: String::new(),
-                    expr: Some(Box::new(assign(tokens))),
-                    stmts: Vec::new(),
-                }
-            }
-            _ => {
-                Node {
-                    ty: NodeType::EXPR_STMT,
-
-                    lhs: None,
-                    rhs: None,
-                    val: 0,
-                    name: String::new(),
-                    expr: Some(Box::new(assign(tokens))),
-                    stmts: Vec::new(),
-                }
-            },
-        };
-
-        node.stmts.push(e);
-        expect(TokenType::SEMI_COLON, tokens);
+        node.stmts.push(stmt(tokens));
     }
 }
 
 pub fn parse(tokens: &Vec<Token>) -> Node {
-    return stmt(tokens);
+    return compaund_stmt(tokens);
 }

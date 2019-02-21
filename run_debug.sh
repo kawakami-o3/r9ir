@@ -7,7 +7,8 @@ set -x
 #echo 'char *c="ab";*c;' | RUST_BACKTRACE=1 cargo run -q -- > tmp.s
 #RUST_BACKTRACE=1 cargo run -q '5+20-4'
 #RUST_BACKTRACE=1 cargo run -q 'a=2; return a;'
-RUST_BACKTRACE=1 cargo run -q 'a=2; b=3+2; return a*b;'
+#RUST_BACKTRACE=1 cargo run -q 'a=2; b=3+2; return a*b;'
+RUST_BACKTRACE=1 cargo run -q 'if (0) return 2; return 3;'
 #RUST_BACKTRACE=1 cargo run -q 'return 2*3+4;'
 #RUST_BACKTRACE=1 cargo run -q '0'
 

@@ -5,15 +5,8 @@ lazy_static! {
     static ref N: Mutex<usize> = Mutex::new(0);
 }
 
-fn gen_label() -> String {
-    let mut n = N.lock().unwrap();
-    let ret = String::from(format!(".L{}", n));
-    (*n) += 1;
-    return ret;
-}
-
 pub fn gen_x86(irv: &Vec<IR>) {
-    let ret = gen_label();
+    let ret = ".Lend";
 
     println!("  push rbp");
     println!("  mov rbp, rsp");
@@ -35,6 +28,13 @@ pub fn gen_x86(irv: &Vec<IR>) {
                 println!("  mov rax, {}", regs[ir.lhs as usize]);
                 println!("  jmp {}", ret);
             }
+            IRType::LABEL => {
+                println!(".L{}:", ir.lhs);
+            }
+            IRType::UNLESS => {
+                println!("  cmp {}, 0", regs[ir.lhs as usize]);
+                println!("  je .L{}", ir.rhs);
+            }
             IRType::ALLOCA => {
                 if ir.rhs != 0 {
                     println!("  sub rsp, {}", ir.rhs);
@@ -42,10 +42,16 @@ pub fn gen_x86(irv: &Vec<IR>) {
                 println!("  mov {}, rsp", regs[ir.lhs as usize]);
             }
             IRType::LOAD => {
-                println!("  mov {}, [{}]", regs[ir.lhs as usize], regs[ir.rhs as usize]);
+                println!(
+                    "  mov {}, [{}]",
+                    regs[ir.lhs as usize], regs[ir.rhs as usize]
+                );
             }
             IRType::STORE => {
-                println!("  mov [{}], {}", regs[ir.lhs as usize], regs[ir.rhs as usize]);
+                println!(
+                    "  mov [{}], {}",
+                    regs[ir.lhs as usize], regs[ir.rhs as usize]
+                );
             }
             IRType::ADD => {
                 println!("  add {}, {}", regs[ir.lhs as usize], regs[ir.rhs as usize]);

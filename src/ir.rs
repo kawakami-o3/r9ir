@@ -21,9 +21,91 @@ lazy_static! {
     static ref CODE: Mutex<Vec<IR>> = Mutex::new(Vec::new());
     static ref REGNO: Mutex<i32> = Mutex::new(1);
     static ref BASEREG: Mutex<i32> = Mutex::new(0);
-    
-    static ref VARS: Mutex<HashMap<String,i32>> = Mutex::new(HashMap::new());
+    static ref VARS: Mutex<HashMap<String, i32>> = Mutex::new(HashMap::new());
     static ref BPOFF: Mutex<i32> = Mutex::new(0);
+    static ref LABEL: Mutex<i32> = Mutex::new(0);
+    static ref IRINFO: Mutex<Vec<IRInfo>> = Mutex::new(vec![
+        IRInfo {
+            op: IRType::ADD,
+            name: String::from("+"),
+            ty: IRInfoType::REG_REG
+        },
+        IRInfo {
+            op: IRType::SUB,
+            name: String::from("-"),
+            ty: IRInfoType::REG_REG
+        },
+        IRInfo {
+            op: IRType::MUL,
+            name: String::from("*"),
+            ty: IRInfoType::REG_REG
+        },
+        IRInfo {
+            op: IRType::DIV,
+            name: String::from("/"),
+            ty: IRInfoType::REG_REG
+        },
+        IRInfo {
+            op: IRType::IMM,
+            name: String::from("MOV"),
+            ty: IRInfoType::REG_IMM
+        },
+        IRInfo {
+            op: IRType::ADD_IMM,
+            name: String::from("ADD"),
+            ty: IRInfoType::REG_IMM
+        },
+        IRInfo {
+            op: IRType::MOV,
+            name: String::from("MOV"),
+            ty: IRInfoType::REG_REG
+        },
+        IRInfo {
+            op: IRType::LABEL,
+            name: String::new(),
+            ty: IRInfoType::LABEL
+        },
+        IRInfo {
+            op: IRType::UNLESS,
+            name: String::from("UNLESS"),
+            ty: IRInfoType::REG_LABEL
+        },
+        IRInfo {
+            op: IRType::RETURN,
+            name: String::from("RET"),
+            ty: IRInfoType::REG
+        },
+        IRInfo {
+            op: IRType::ALLOCA,
+            name: String::from("ALLOCA"),
+            ty: IRInfoType::REG_IMM
+        },
+        IRInfo {
+            op: IRType::LOAD,
+            name: String::from("LOAD"),
+            ty: IRInfoType::REG_REG
+        },
+        IRInfo {
+            op: IRType::STORE,
+            name: String::from("STORE"),
+            ty: IRInfoType::REG_REG
+        },
+        IRInfo {
+            op: IRType::KILL,
+            name: String::from("KILL"),
+            ty: IRInfoType::REG
+        },
+        IRInfo {
+            op: IRType::NOP,
+            name: String::from("NOP"),
+            ty: IRInfoType::NOARG
+        },
+        IRInfo {
+            op: IRType::NULL,
+            name: String::new(),
+            ty: IRInfoType::NULL
+        },
+    ]);
 }
 
 fn basereg() -> i32 {
@@ -36,6 +118,8 @@ pub enum IRType {
     ADD_IMM,
     MOV,
     RETURN,
+    LABEL,
+    UNLESS,
     ALLOCA,
     LOAD,
     STORE,
@@ -45,6 +129,7 @@ pub enum IRType {
     MUL,
     DIV,
     NOP,
+    NULL,
 }
 
 #[derive(Clone, Debug)]
@@ -52,6 +137,55 @@ pub struct IR {
     pub op: IRType,
     pub lhs: i32,
     pub rhs: i32,
+}
+
+#[derive(Clone, Debug)]
+pub enum IRInfoType {
+    NOARG,
+    REG,
+    LABEL,
+    REG_REG,
+    REG_IMM,
+    REG_LABEL,
+    NULL,
+}
+
+#[derive(Clone, Debug)]
+pub struct IRInfo {
+    pub op: IRType,
+    pub name: String,
+    pub ty: IRInfoType,
+}
+
+pub fn get_irinfo(ir: &IR) -> IRInfo {
+    let irinfo = IRINFO.lock().unwrap();
+    for i in 0..irinfo.len() {
+        if irinfo[i].op == ir.op {
+            return irinfo[i].clone();
+        }
+    }
+    panic!("invalid instruction");
+}
+
+fn tostr(ir: IR) -> String {
+    let info = get_irinfo(&ir);
+    return match info.ty {
+        IRInfoType::LABEL => format!("{}:", ir.lhs),
+        IRInfoType::REG => format!("{} r{}", info.name, ir.lhs),
+        IRInfoType::REG_REG => format!("{} r{}, r{}", info.name, ir.lhs, ir.rhs),
+        IRInfoType::REG_IMM => format!("{} r{}, {}", info.name, ir.lhs, ir.rhs),
+        IRInfoType::REG_LABEL => format!("{} r{}, .L{}", info.name, ir.lhs, ir.rhs),
+        IRInfoType::NOARG => format!("{}", info.name),
+        _ => {
+            panic!("unknown ir");
+        }
+    };
+}
+
+fn dump_ir(irv: Vec<IR>) {
+    for i in irv {
+        eprintln!("{}", tostr(i));
+    }
 }
 
 fn add(op: IRType, lhs: i32, rhs: i32) -> usize {
@@ -86,7 +220,7 @@ fn gen_lval(node: Node) -> i32 {
 
     let mut regno = REGNO.lock().unwrap();
     let r = *regno;
-    *regno+=1;
+    *regno += 1;
 
     let off = *vars.get(&node.name).unwrap();
     let basereg = BASEREG.lock().unwrap();
@@ -125,7 +259,7 @@ fn gen_expr(node: Node) -> i32 {
             || node.ty == NodeType::SUB
             || node.ty == NodeType::MUL
             || node.ty == NodeType::DIV,
-        "not op"
+        format!("not op: {:?}", node)
     );
 
     let lhs = gen_expr(*node.lhs.unwrap());
@@ -138,6 +272,15 @@ fn gen_expr(node: Node) -> i32 {
 
 fn gen_stmt(node: Node) {
     match node.ty {
+        NodeType::IF => {
+            let r = gen_expr(*node.cond.unwrap());
+            let mut x = LABEL.lock().unwrap();
+            *x += 1;
+            add(IRType::UNLESS, r, *x);
+            add(IRType::KILL, r, -1);
+            gen_stmt(*node.then.unwrap());
+            add(IRType::LABEL, r, -1);
+        }
         NodeType::RETURN => {
             let r = gen_expr(*node.expr.unwrap());
             add(IRType::RETURN, r, -1);
@@ -168,4 +311,3 @@ pub fn gen_ir(node: Node) -> Vec<IR> {
     code[alloca_idx].rhs = *BPOFF.lock().unwrap();
     return code.clone();
 }
-

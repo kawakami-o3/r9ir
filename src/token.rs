@@ -19,6 +19,7 @@ pub enum TokenType {
     BRA,
     KET,
     IDENT,
+    IF,
     RETURN,
     SEMI_COLON,
     EOF,
@@ -141,6 +142,7 @@ fn scan(p: &String) -> Vec<Token> {
 pub fn tokenize(p: &String) -> Vec<Token> {
     match KEYWORDS.lock() {
         Ok(mut keywords) => {
+            keywords.insert(String::from("if"), TokenType::IF);
             keywords.insert(String::from("return"), TokenType::RETURN);
         }
         _ => {}
