@@ -176,7 +176,7 @@ pub fn get_irinfo(ir: &IR) -> IRInfo {
 fn tostr(ir: IR) -> String {
     let info = get_irinfo(&ir);
     return match info.ty {
-        IRInfoType::LABEL => format!("{}:", ir.lhs),
+        IRInfoType::LABEL => format!(".L{}:", ir.lhs),
         IRInfoType::REG => format!("{} r{}", info.name, ir.lhs),
         IRInfoType::REG_REG => format!("{} r{}, r{}", info.name, ir.lhs, ir.rhs),
         IRInfoType::REG_IMM => format!("{} r{}, {}", info.name, ir.lhs, ir.rhs),
