@@ -31,6 +31,9 @@ pub fn gen_x86(irv: &Vec<IR>) {
             IRType::LABEL => {
                 println!(".L{}:", ir.lhs);
             }
+            IRType::JMP => {
+                println!("  jmp .L{}", ir.lhs);
+            }
             IRType::UNLESS => {
                 println!("  cmp {}, 0", regs[ir.lhs as usize]);
                 println!("  je .L{}", ir.rhs);

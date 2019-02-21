@@ -66,6 +66,11 @@ lazy_static! {
             ty: IRInfoType::LABEL
         },
         IRInfo {
+            op: IRType::JMP,
+            name: String::from("JMP"),
+            ty: IRInfoType::LABEL
+        },
+        IRInfo {
             op: IRType::UNLESS,
             name: String::from("UNLESS"),
             ty: IRInfoType::REG_LABEL
@@ -119,6 +124,7 @@ pub enum IRType {
     MOV,
     RETURN,
     LABEL,
+    JMP,
     UNLESS,
     ALLOCA,
     LOAD,
@@ -274,12 +280,26 @@ fn gen_stmt(node: Node) {
     match node.ty {
         NodeType::IF => {
             let r = gen_expr(*node.cond.unwrap());
-            let mut x = LABEL.lock().unwrap();
-            *x += 1;
-            add(IRType::UNLESS, r, *x);
+            let mut label = LABEL.lock().unwrap();
+            let x = *label;
+            *label += 1;
+
+            add(IRType::UNLESS, r, x);
             add(IRType::KILL, r, -1);
+
             gen_stmt(*node.then.unwrap());
-            add(IRType::LABEL, r, -1);
+
+            if node.els.is_none() {
+                add(IRType::LABEL, x, -1);
+                return;
+            }
+
+            let y = *label;
+            *label += 1;
+            add(IRType::JMP, y, -1);
+            add(IRType::LABEL, x, -1);
+            gen_stmt(*node.els.unwrap());
+            add(IRType::LABEL, y, -1);
         }
         NodeType::RETURN => {
             let r = gen_expr(*node.expr.unwrap());

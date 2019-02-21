@@ -65,6 +65,7 @@ pub struct Node {
     // "if"
     pub cond: Option<Box<Node>>,
     pub then: Option<Box<Node>>,
+    pub els: Option<Box<Node>>,
 }
 
 // default node
@@ -79,6 +80,7 @@ fn malloc_node() -> Node {
         stmts: Vec::new(),
         cond: None,
         then: None,
+        els: None,
     }
 }
 
@@ -179,6 +181,9 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             node.cond = Some(Box::new(assign(tokens)));
             expect(TokenType::KET, tokens);
             node.then = Some(Box::new(stmt(tokens)));
+            if consume(TokenType::ELSE, tokens) {
+                node.els = Some(Box::new(stmt(tokens)));
+            }
             return node;
         }
         TokenType::RETURN => {
