@@ -22,6 +22,7 @@ pub enum TokenType {
     IF,
     ELSE,
     RETURN,
+    COMMA,
     SEMI_COLON,
     EOF,
 }
@@ -44,7 +45,7 @@ fn scan(p: &String) -> Vec<Token> {
             idx += 1;
             continue;
         }
-        if "+-*/;=()".contains(c) {
+        if "+-*/;=(),".contains(c) {
             let ty = match c {
                 '+' => TokenType::ADD,
                 '-' => TokenType::SUB,
@@ -54,6 +55,7 @@ fn scan(p: &String) -> Vec<Token> {
                 '=' => TokenType::EQ,
                 '(' => TokenType::BRA,
                 ')' => TokenType::KET,
+                ',' => TokenType::COMMA,
                 _ => panic!(format!("unknown {}", c)),
             };
             let tok = Token {

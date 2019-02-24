@@ -76,6 +76,11 @@ lazy_static! {
             ty: IRInfoType::REG_LABEL
         },
         IRInfo {
+            op: IRType::CALL,
+            name: String::from("CALL"),
+            ty: IRInfoType::CALL
+        },
+        IRInfo {
             op: IRType::RETURN,
             name: String::from("RET"),
             ty: IRInfoType::REG
@@ -117,12 +122,22 @@ fn basereg() -> i32 {
     *BASEREG.lock().unwrap()
 }
 
+fn regno() -> i32 {
+    *REGNO.lock().unwrap()
+}
+
+fn inc_regno() {
+    let mut regno = REGNO.lock().unwrap();
+    *regno += 1;
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum IRType {
     IMM,
     ADD_IMM,
     MOV,
     RETURN,
+    CALL,
     LABEL,
     JMP,
     UNLESS,
@@ -143,6 +158,10 @@ pub struct IR {
     pub op: IRType,
     pub lhs: i32,
     pub rhs: i32,
+
+    pub name: String,
+    pub nargs: usize,
+    pub args: [i32; 6],
 }
 
 #[derive(Clone, Debug)]
@@ -153,6 +172,7 @@ pub enum IRInfoType {
     REG_REG,
     REG_IMM,
     REG_LABEL,
+    CALL,
     NULL,
 }
 
@@ -181,6 +201,16 @@ fn tostr(ir: IR) -> String {
         IRInfoType::REG_REG => format!("{} r{}, r{}", info.name, ir.lhs, ir.rhs),
         IRInfoType::REG_IMM => format!("{} r{}, {}", info.name, ir.lhs, ir.rhs),
         IRInfoType::REG_LABEL => format!("{} r{}, .L{}", info.name, ir.lhs, ir.rhs),
+        IRInfoType::CALL => {
+            let mut s = String::new();
+            s.push('a');
+            s.push_str(&format!("r{} = {}(", ir.name, ir.lhs));
+            for i in ir.args.iter() {
+                s.push_str(&format!(", r{}", i));
+            }
+            s.push_str(")");
+            s
+        }
         IRInfoType::NOARG => format!("{}", info.name),
         _ => {
             panic!("unknown ir");
@@ -199,6 +229,10 @@ fn add(op: IRType, lhs: i32, rhs: i32) -> usize {
         op: op,
         lhs: lhs,
         rhs: rhs,
+        
+        name: String::new(),
+        nargs: 0,
+        args: [0; 6],
     };
 
     match CODE.lock() {
@@ -249,6 +283,39 @@ fn gen_expr(node: Node) -> i32 {
     if node.ty == NodeType::IDENT {
         let r = gen_lval(node);
         add(IRType::LOAD, r, r);
+        return r;
+    }
+
+    if node.ty == NodeType::CALL {
+        let mut args = Vec::new();
+        for a in node.args.iter() {
+            args.push(gen_expr(a.clone()));
+        }
+
+        let r = regno();
+        inc_regno();
+
+        let ir_idx = add(IRType::CALL, r, -1);
+
+        let (nargs, args) = match CODE.lock() {
+            Ok(mut code) => {
+                code[ir_idx].name = node.name.clone();
+                code[ir_idx].nargs = node.args.len();
+
+                for i in 0..code[ir_idx].nargs {
+                    code[ir_idx].args[i] = args[i];
+                }
+
+                (code[ir_idx].nargs, code[ir_idx].args)
+            }
+            Err(_) => {
+                panic!();
+            }
+        };
+
+        for i in 0..nargs {
+            add(IRType::KILL, args[i], -1);
+        }
         return r;
     }
 
@@ -325,6 +392,7 @@ pub fn gen_ir(node: Node) -> Vec<IR> {
     assert!(node.ty == NodeType::COMP_STMT, "");
 
     let alloca_idx = add(IRType::ALLOCA, basereg(), -1);
+    //println!("{:?}", node);
     gen_stmt(node);
 
     let mut code = CODE.lock().unwrap();

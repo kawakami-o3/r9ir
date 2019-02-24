@@ -67,7 +67,12 @@ pub fn alloc_regs(irv: &mut Vec<IR>) {
                 ir.lhs = alloc(ir.lhs);
                 ir.rhs = alloc(ir.rhs);
             }
-
+            IRInfoType::CALL => {
+                ir.lhs = alloc(ir.lhs);
+                for i in 0..ir.nargs {
+                    ir.args[i] = alloc(ir.args[i]);
+                }
+            }
             _ => {}
         }
 

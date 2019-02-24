@@ -23,14 +23,8 @@ fn pos() -> usize {
 }
 
 fn inc_pos() {
-    match POS.lock() {
-        Ok(mut pos) => {
-            *pos += 1;
-        }
-        _ => {
-            panic!();
-        }
-    }
+    let mut pos = POS.lock().unwrap();
+    *pos += 1;
 }
 
 lazy_static! {
@@ -48,24 +42,29 @@ pub enum NodeType {
     IDENT,
     IF,
     RETURN,
+    CALL,
     COMP_STMT,
     EXPR_STMT,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Node {
     pub ty: NodeType,
     pub lhs: Option<Box<Node>>,
     pub rhs: Option<Box<Node>>,
     pub val: i32,
-    pub name: String,
     pub expr: Option<Box<Node>>,
     pub stmts: Vec<Node>,
+
+    pub name: String,
 
     // "if"
     pub cond: Option<Box<Node>>,
     pub then: Option<Box<Node>>,
     pub els: Option<Box<Node>>,
+
+    // Function call
+    pub args: Vec<Node>,
 }
 
 // default node
@@ -75,12 +74,16 @@ fn malloc_node() -> Node {
         lhs: None,
         rhs: None,
         val: 0,
-        name: String::new(),
         expr: None,
         stmts: Vec::new(),
+
+        name: String::new(),
+
         cond: None,
         then: None,
         els: None,
+
+        args: Vec::new(),
     }
 }
 
@@ -127,8 +130,23 @@ fn term(tokens: &Vec<Token>) -> Node {
     }
 
     if t.ty == TokenType::IDENT {
-        node.ty = NodeType::IDENT;
         node.name = t.name.clone();
+
+        if !consume(TokenType::BRA, tokens) {
+            node.ty = NodeType::IDENT;
+            return node;
+        }
+
+        node.ty = NodeType::CALL;
+        if consume(TokenType::KET, tokens) {
+            return node;
+        }
+
+        node.args.push(assign(tokens));
+        while consume(TokenType::COMMA, tokens) {
+            node.args.push(assign(tokens));
+        }
+        expect(TokenType::KET, tokens);
         return node;
     }
 

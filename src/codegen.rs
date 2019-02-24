@@ -28,6 +28,32 @@ pub fn gen_x86(irv: &Vec<IR>) {
                 println!("  mov rax, {}", regs[ir.lhs as usize]);
                 println!("  jmp {}", ret);
             }
+            IRType::CALL => {
+                println!("  push rbx");
+                println!("  push rbp");
+                println!("  push rsp");
+                println!("  push r12");
+                println!("  push r13");
+                println!("  push r14");
+                println!("  push r15");
+
+                let arg = vec!["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
+                for i in 0..arg.len() {
+                    println!("  mov {}, {}", arg[i], regs[ir.args[i] as usize]);
+                }
+
+                println!("  mov rax, 0");
+                println!("  call {}", ir.name);
+                println!("  mov {}, rax", regs[ir.lhs as usize]);
+
+                println!("  push r15");
+                println!("  push r14");
+                println!("  push r13");
+                println!("  push r12");
+                println!("  push rsp");
+                println!("  push rbp");
+                println!("  push rbx");
+            }
             IRType::LABEL => {
                 println!(".L{}:", ir.lhs);
             }
