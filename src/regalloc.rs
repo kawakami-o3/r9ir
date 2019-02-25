@@ -59,11 +59,11 @@ fn visit(irv: &mut Vec<IR>) {
         }
     }
 
+    let irinfo = IRINFO.lock().unwrap();
     for i in 0..irv.len() {
         let mut ir = &mut irv[i];
-        let info = get_irinfo(&ir);
 
-        match info.ty {
+        match irinfo.get(&ir.op).unwrap().ty {
             IRInfoType::REG | IRInfoType::REG_IMM | IRInfoType::REG_LABEL => {
                 ir.lhs = alloc(ir.lhs);
             }

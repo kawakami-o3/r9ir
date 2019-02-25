@@ -29,97 +29,85 @@ lazy_static! {
     // Compile AST to intermediate code that has infinite number of registers.
     // Base pointer is always assigned to r0.
 
-    static ref IRINFO: Mutex<Vec<IRInfo>> = Mutex::new(vec![
-        IRInfo {
-            op: IRType::ADD,
-            name: String::from("ADD"),
-            ty: IRInfoType::REG_REG
-        },
-        IRInfo {
-            op: IRType::SUB,
-            name: String::from("SUB"),
-            ty: IRInfoType::REG_REG
-        },
-        IRInfo {
-            op: IRType::MUL,
-            name: String::from("MUL"),
-            ty: IRInfoType::REG_REG
-        },
-        IRInfo {
-            op: IRType::DIV,
-            name: String::from("DIV"),
-            ty: IRInfoType::REG_REG
-        },
-        IRInfo {
-            op: IRType::IMM,
-            name: String::from("MOV"),
-            ty: IRInfoType::REG_IMM
-        },
-        IRInfo {
-            op: IRType::SUB_IMM,
-            name: String::from("SUB"),
-            ty: IRInfoType::REG_IMM
-        },
-        IRInfo {
-            op: IRType::MOV,
-            name: String::from("MOV"),
-            ty: IRInfoType::REG_REG
-        },
-        IRInfo {
-            op: IRType::LABEL,
-            name: String::new(),
-            ty: IRInfoType::LABEL
-        },
-        IRInfo {
-            op: IRType::JMP,
-            name: String::from("JMP"),
-            ty: IRInfoType::LABEL
-        },
-        IRInfo {
-            op: IRType::UNLESS,
-            name: String::from("UNLESS"),
-            ty: IRInfoType::REG_LABEL
-        },
-        IRInfo {
-            op: IRType::CALL,
-            name: String::from("CALL"),
-            ty: IRInfoType::CALL
-        },
-        IRInfo {
-            op: IRType::RETURN,
-            name: String::from("RET"),
-            ty: IRInfoType::REG
-        },
-        IRInfo {
-            op: IRType::LOAD,
-            name: String::from("LOAD"),
-            ty: IRInfoType::REG_REG
-        },
-        IRInfo {
-            op: IRType::STORE,
-            name: String::from("STORE"),
-            ty: IRInfoType::REG_REG
-        },
-        IRInfo {
-            op: IRType::KILL,
-            name: String::from("KILL"),
-            ty: IRInfoType::REG
-        },
-        IRInfo {
-            op: IRType::SAVE_ARGS,
-            name: String::from("SAVE_ARGS"),
-            ty: IRInfoType::IMM
-        },
-        IRInfo {
-            op: IRType::NOP,
-            name: String::from("NOP"),
-            ty: IRInfoType::NOARG
-        },
-        IRInfo {
-            op: IRType::NULL,
-            name: String::new(),
-            ty: IRInfoType::NULL },
-    ]);
+    pub static ref IRINFO: Mutex<HashMap<IRType, IRInfo>> = Mutex::new(HashMap::new());
+}
+
+
+fn init_irinfo() {
+    let mut irinfo = IRINFO.lock().unwrap();
+            
+    irinfo.insert(IRType::ADD, IRInfo {
+        name: String::from("ADD"),
+        ty: IRInfoType::REG_REG
+    });
+    irinfo.insert(IRType::SUB, IRInfo {
+        name: String::from("SUB"),
+        ty: IRInfoType::REG_REG
+    });
+    irinfo.insert(IRType::MUL, IRInfo {
+        name: String::from("MUL"),
+        ty: IRInfoType::REG_REG
+    });
+    irinfo.insert(IRType::DIV, IRInfo {
+        name: String::from("DIV"),
+        ty: IRInfoType::REG_REG
+    });
+    irinfo.insert(IRType::IMM, IRInfo {
+        name: String::from("MOV"),
+        ty: IRInfoType::REG_IMM
+    });
+    irinfo.insert(IRType::SUB_IMM, IRInfo {
+        name: String::from("SUB"),
+        ty: IRInfoType::REG_IMM
+    });
+    irinfo.insert(IRType::MOV, IRInfo {
+        name: String::from("MOV"),
+        ty: IRInfoType::REG_REG
+    });
+    irinfo.insert(IRType::LABEL, IRInfo {
+        name: String::new(),
+        ty: IRInfoType::LABEL
+    });
+    irinfo.insert(IRType::JMP, IRInfo {
+        name: String::from("JMP"),
+        ty: IRInfoType::LABEL
+    });
+    irinfo.insert(IRType::UNLESS, IRInfo {
+        name: String::from("UNLESS"),
+        ty: IRInfoType::REG_LABEL
+    });
+    irinfo.insert(IRType::CALL, IRInfo {
+        name: String::from("CALL"),
+        ty: IRInfoType::CALL
+    });
+    irinfo.insert(IRType::RETURN, IRInfo {
+        name: String::from("RET"),
+        ty: IRInfoType::REG
+    });
+    irinfo.insert(IRType::LOAD, IRInfo {
+        name: String::from("LOAD"),
+        ty: IRInfoType::REG_REG
+    });
+    irinfo.insert(IRType::STORE, IRInfo {
+        name: String::from("STORE"),
+        ty: IRInfoType::REG_REG
+    });
+    irinfo.insert(IRType::KILL, IRInfo {
+        name: String::from("KILL"),
+        ty: IRInfoType::REG
+    });
+    irinfo.insert(IRType::SAVE_ARGS, IRInfo {
+        name: String::from("SAVE_ARGS"),
+        ty: IRInfoType::IMM
+    });
+    irinfo.insert(IRType::NOP, IRInfo {
+        name: String::from("NOP"),
+        ty: IRInfoType::NOARG
+    });
+    irinfo.insert(IRType::NULL, IRInfo {
+        name: String::new(),
+        ty: IRInfoType::NULL
+    });
 }
 
 fn regno() -> i32 {
@@ -140,7 +128,7 @@ fn add_stacksize(i: i32) {
     *stacksize += i;
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum IRType {
     IMM,
     SUB_IMM,
@@ -193,23 +181,14 @@ pub enum IRInfoType {
 
 #[derive(Clone, Debug)]
 pub struct IRInfo {
-    pub op: IRType,
     pub name: String,
     pub ty: IRInfoType,
 }
 
-pub fn get_irinfo(ir: &IR) -> IRInfo {
-    let irinfo = IRINFO.lock().unwrap();
-    for i in 0..irinfo.len() {
-        if irinfo[i].op == ir.op {
-            return irinfo[i].clone();
-        }
-    }
-    panic!("invalid instruction");
-}
-
 fn tostr(ir: IR) -> String {
-    let info = get_irinfo(&ir);
+    let irinfo = IRINFO.lock().unwrap();
+    let info = irinfo.get(&ir.op).unwrap();
+
     return match info.ty {
         IRInfoType::LABEL => format!(".L{}:", ir.lhs),
         IRInfoType::IMM => format!("{} {}", ir.name, ir.lhs),
@@ -439,6 +418,8 @@ fn gen_args(nodes: Vec<Node>) {
 
 pub fn gen_ir(nodes: Vec<Node>) -> Vec<IR> {
     let mut v = Vec::new();
+
+    init_irinfo();
 
     for i in 0..nodes.len() {
         let node = nodes[i].clone();
