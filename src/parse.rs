@@ -43,6 +43,7 @@ pub enum NodeType {
     IF,
     RETURN,
     CALL,
+    FUNC,
     COMP_STMT,
     EXPR_STMT,
 }
@@ -63,12 +64,15 @@ pub struct Node {
     pub then: Option<Box<Node>>,
     pub els: Option<Box<Node>>,
 
+    // Function definition
+    pub body: Option<Box<Node>>,
+
     // Function call
     pub args: Vec<Node>,
 }
 
 // default node
-fn malloc_node() -> Node {
+fn alloc_node() -> Node {
     Node {
         ty: NodeType::NUM,
         lhs: None,
@@ -82,6 +86,8 @@ fn malloc_node() -> Node {
         cond: None,
         then: None,
         els: None,
+
+        body: None,
 
         args: Vec::new(),
     }
@@ -105,7 +111,7 @@ fn consume(ty: TokenType, tokens: &Vec<Token>) -> bool {
 }
 
 fn new_node(ty: NodeType, lhs: Node, rhs: Node) -> Node {
-    let mut node = malloc_node();
+    let mut node = alloc_node();
     node.ty = ty;
     node.lhs = Some(Box::new(lhs));
     node.rhs = Some(Box::new(rhs));
@@ -122,7 +128,7 @@ fn term(tokens: &Vec<Token>) -> Node {
         return node;
     }
 
-    let mut node = malloc_node();
+    let mut node = alloc_node();
     if t.ty == TokenType::NUM {
         node.ty = NodeType::NUM;
         node.val = t.val;
@@ -188,7 +194,7 @@ fn assign(tokens: &Vec<Token>) -> Node {
 }
 
 pub fn stmt(tokens: &Vec<Token>) -> Node {
-    let mut node = malloc_node();
+    let mut node = alloc_node();
     let t = &tokens[pos()];
 
     match t.ty {
@@ -221,18 +227,39 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
 }
 
 pub fn compaund_stmt(tokens: &Vec<Token>) -> Node {
-    let mut node = malloc_node();
+    let mut node = alloc_node();
     node.ty = NodeType::COMP_STMT;
 
-    loop {
-        let t = &tokens[pos()];
-        if t.ty == TokenType::EOF {
-            return node;
-        }
+    while !consume(TokenType::C_KET, tokens) {
         node.stmts.push(stmt(tokens));
     }
+    return node;
 }
 
-pub fn parse(tokens: &Vec<Token>) -> Node {
-    return compaund_stmt(tokens);
+fn function(tokens: &Vec<Token>) -> Node {
+    let mut node = alloc_node();
+    node.ty = NodeType::FUNC;
+
+    let t = &tokens[pos()];
+    if t.ty != TokenType::IDENT {
+        panic!(format!("function name expected, but got {}", t.input));
+    }
+    node.name = t.name.clone();
+    inc_pos();
+
+    expect(TokenType::BRA, tokens);
+    while !consume(TokenType::KET, tokens) {
+        node.args.push(term(tokens));
+    }
+    expect(TokenType::C_BRA, tokens);
+    node.body = Some(Box::new(compaund_stmt(tokens)));
+    return node;
+}
+
+pub fn parse(tokens: &Vec<Token>) -> Vec<Node> {
+    let mut v = Vec::new();
+    while tokens[pos()].ty != TokenType::EOF {
+        v.push(function(tokens));
+    }
+    return v;
 }

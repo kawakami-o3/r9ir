@@ -18,6 +18,8 @@ pub enum TokenType {
     EQ,
     BRA,
     KET,
+    C_BRA,
+    C_KET,
     IDENT,
     IF,
     ELSE,
@@ -45,7 +47,7 @@ fn scan(p: &String) -> Vec<Token> {
             idx += 1;
             continue;
         }
-        if "+-*/;=(),".contains(c) {
+        if "+-*/;=(),{}".contains(c) {
             let ty = match c {
                 '+' => TokenType::ADD,
                 '-' => TokenType::SUB,
@@ -55,6 +57,8 @@ fn scan(p: &String) -> Vec<Token> {
                 '=' => TokenType::EQ,
                 '(' => TokenType::BRA,
                 ')' => TokenType::KET,
+                '{' => TokenType::C_BRA,
+                '}' => TokenType::C_KET,
                 ',' => TokenType::COMMA,
                 _ => panic!(format!("unknown {}", c)),
             };

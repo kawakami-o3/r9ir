@@ -27,23 +27,12 @@ fn main() {
     // Token -> Node -> IR -> asm
     // token -> parse -> ir -> regalloc -> codegen
 
-    //println!("start");
     // Tokenize and parse.
     let tokens = tokenize(&argv[1]);
-    //println!("tokenize");
-    let node = parse(&tokens);
-    //println!("parse");
+    let mut fns = gen_ir(parse(&tokens));
 
-    let mut irv = gen_ir(node);
-    //println!("ir");
-    alloc_regs(&mut irv);
-    //println!("alloc");
+    alloc_regs(&mut fns);
 
-    // Print the prologue.
-    println!(".intel_syntax noprefix");
-    println!(".global main");
-    println!("main:");
-
-    gen_x86(&irv);
+    gen_x86(&fns);
     return;
 }

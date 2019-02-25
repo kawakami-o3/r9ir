@@ -113,8 +113,7 @@ lazy_static! {
         IRInfo {
             op: IRType::NULL,
             name: String::new(),
-            ty: IRInfoType::NULL
-        },
+            ty: IRInfoType::NULL },
     ]);
 }
 
@@ -129,6 +128,10 @@ fn regno() -> i32 {
 fn inc_regno() {
     let mut regno = REGNO.lock().unwrap();
     *regno += 1;
+}
+
+fn bpoff() -> i32 {
+    *BPOFF.lock().unwrap()
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -162,6 +165,9 @@ pub struct IR {
     pub name: String,
     pub nargs: usize,
     pub args: [i32; 6],
+
+    // Function
+    pub ir: Vec<IR>,
 }
 
 #[derive(Clone, Debug)]
@@ -203,8 +209,7 @@ fn tostr(ir: IR) -> String {
         IRInfoType::REG_LABEL => format!("{} r{}, .L{}", info.name, ir.lhs, ir.rhs),
         IRInfoType::CALL => {
             let mut s = String::new();
-            s.push('a');
-            s.push_str(&format!("r{} = {}(", ir.name, ir.lhs));
+            s.push_str(&format!("r{} = {}(", ir.lhs, ir.name));
             for i in ir.args.iter() {
                 s.push_str(&format!(", r{}", i));
             }
@@ -219,22 +224,34 @@ fn tostr(ir: IR) -> String {
 }
 
 fn dump_ir(irv: Vec<IR>) {
-    for i in irv {
-        eprintln!("{}", tostr(i));
+    for i in 0..irv.len() {
+        let fun = &irv[i];
+        eprintln!("{}():", fun.name);
+        for j in 0..fun.ir.len() {
+            eprintln!("{}", tostr(fun.ir[j].clone()));
+        }
     }
 }
 
-fn add(op: IRType, lhs: i32, rhs: i32) -> usize {
-    let ir = IR {
-        op: op,
-        lhs: lhs,
-        rhs: rhs,
+fn alloc_ir() -> IR {
+    return IR {
+        op: IRType::NOP,
+        lhs: 0,
+        rhs: 0,
         
         name: String::new(),
         nargs: 0,
         args: [0; 6],
-    };
 
+        ir: Vec::new(),
+    };
+}
+fn add(op: IRType, lhs: i32, rhs: i32) -> usize {
+    let mut ir = alloc_ir();
+    ir.op = op;
+    ir.lhs = lhs;
+    ir.rhs = rhs;
+        
     match CODE.lock() {
         Ok(mut code) => {
             (*code).push(ir);
@@ -388,14 +405,33 @@ fn gen_stmt(node: Node) {
     }
 }
 
-pub fn gen_ir(node: Node) -> Vec<IR> {
-    assert!(node.ty == NodeType::COMP_STMT, "");
+pub fn gen_ir(nodes: Vec<Node>) -> Vec<IR> {
+    let mut v = Vec::new();
 
-    let alloca_idx = add(IRType::ALLOCA, basereg(), -1);
-    //println!("{:?}", node);
-    gen_stmt(node);
+    for i in 0..nodes.len() {
+        let node = nodes[i].clone();
+        assert!(node.ty == NodeType::FUNC, "");
 
-    let mut code = CODE.lock().unwrap();
-    code[alloca_idx].rhs = *BPOFF.lock().unwrap();
-    return code.clone();
+        *CODE.lock().unwrap() = Vec::new();
+
+        let alloca_idx = add(IRType::ALLOCA, basereg(), -1);
+        gen_stmt(*node.body.unwrap());
+        match CODE.lock() {
+            Ok(mut code) => {
+                code[alloca_idx].rhs = bpoff();
+            }
+            Err(_) => {
+                panic!();
+            }
+        }
+        add(IRType::KILL, basereg(), -1);
+
+        let mut fun = alloc_ir();
+        fun.name = node.name.clone();
+        fun.ir = CODE.lock().unwrap().clone();
+
+        v.push(fun);
+    }
+
+    return v;
 }

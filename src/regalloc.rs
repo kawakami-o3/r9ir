@@ -3,10 +3,9 @@ use crate::*;
 
 lazy_static! {
     pub static ref REGS: Mutex<Vec<String>> = Mutex::new(vec![
-        String::from("rdi"),
-        String::from("rsi"),
         String::from("r10"),
         String::from("r11"),
+        String::from("rbx"),
         String::from("r12"),
         String::from("r13"),
         String::from("r14"),
@@ -46,19 +45,11 @@ fn kill(i: i32) {
     used[r] = false;
 }
 
-pub fn alloc_regs(irv: &mut Vec<IR>) {
-    match REG_MAP.lock() {
-        Ok(mut reg_map) => {
-            for _i in 0..irv.len() {
-                reg_map.push(-1);
-            }
-        }
-        _ => {}
-    }
-
+fn visit(irv: &mut Vec<IR>) {
     for i in 0..irv.len() {
-        let mut ir = &mut irv[i as usize];
-        let mut info = get_irinfo(ir);
+        let mut ir = &mut irv[i];
+        let info = get_irinfo(&ir);
+
         match info.ty {
             IRInfoType::REG | IRInfoType::REG_IMM | IRInfoType::REG_LABEL => {
                 ir.lhs = alloc(ir.lhs);
@@ -80,5 +71,34 @@ pub fn alloc_regs(irv: &mut Vec<IR>) {
             kill(ir.lhs);
             ir.op = IRType::NOP;
         }
+    }
+}
+
+pub fn alloc_regs(fns: &mut Vec<IR>) {
+
+    for i in 0..fns.len() {
+        let mut fun = &mut fns[i];
+        match REG_MAP.lock() {
+            Ok(mut reg_map) => {
+                *reg_map = Vec::new();
+                for _i in 0..fun.ir.len() {
+                    reg_map.push(-1);
+                }
+            }
+            _ => {
+                panic!();
+            }
+        }
+
+        match USED.lock() {
+            Ok(mut used) => {
+                *used = [false; 8].to_vec();
+            }
+            _ => {
+                panic!();
+            }
+        }
+
+        visit(&mut fun.ir);
     }
 }

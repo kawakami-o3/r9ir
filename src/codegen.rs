@@ -2,18 +2,34 @@ use crate::regalloc::*;
 use crate::*;
 
 lazy_static! {
-    static ref N: Mutex<usize> = Mutex::new(0);
+    static ref LABEL: Mutex<usize> = Mutex::new(0);
 }
 
-pub fn gen_x86(irv: &Vec<IR>) {
-    let ret = ".Lend";
+fn label() -> usize {
+    *LABEL.lock().unwrap()
+}
 
+fn inc_label() {
+    let mut label = LABEL.lock().unwrap();
+    *label += 1;
+}
+
+fn gen(fun: &IR) {
+    let ret = format!(".Lend{}", label());
+    inc_label();
+
+    println!(".global {}", fun.name);
+    println!("{}:", fun.name);
+    println!("  push r12");
+    println!("  push r13");
+    println!("  push r14");
+    println!("  push r15");
     println!("  push rbp");
     println!("  mov rbp, rsp");
 
     let regs = REGS.lock().unwrap();
-    for i in 0..irv.len() {
-        let ir = &irv[i as usize];
+    for i in 0..fun.ir.len() {
+        let ir = &fun.ir[i as usize];
         match ir.op {
             IRType::IMM => {
                 println!("  mov {}, {}", regs[ir.lhs as usize], ir.rhs);
@@ -42,17 +58,14 @@ pub fn gen_x86(irv: &Vec<IR>) {
                     println!("  mov {}, {}", arg[i], regs[ir.args[i] as usize]);
                 }
 
+                println!("  push r10");
+                println!("  push r11");
                 println!("  mov rax, 0");
                 println!("  call {}", ir.name);
-                println!("  mov {}, rax", regs[ir.lhs as usize]);
+                println!("  pop r11");
+                println!("  pop r10");
 
-                println!("  push r15");
-                println!("  push r14");
-                println!("  push r13");
-                println!("  push r12");
-                println!("  push rsp");
-                println!("  push rbp");
-                println!("  push rbx");
+                println!("  mov {}, rax", regs[ir.lhs as usize]);
             }
             IRType::LABEL => {
                 println!(".L{}:", ir.lhs);
@@ -109,5 +122,18 @@ pub fn gen_x86(irv: &Vec<IR>) {
     println!("{}:", ret);
     println!("  mov rsp, rbp");
     println!("  pop rbp");
+    println!("  pop r15");
+    println!("  pop r14");
+    println!("  pop r13");
+    println!("  pop r12");
     println!("  ret");
+}
+
+
+pub fn gen_x86(fns: &Vec<IR>) {
+    println!(".intel_syntax noprefix");
+
+    for i in 0..fns.len() {
+        gen(&fns[i]);
+    }
 }
