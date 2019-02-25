@@ -3,14 +3,14 @@
 #[macro_use]
 extern crate lazy_static;
 
-mod codegen;
-mod ir;
+mod gen_x86;
+mod gen_ir;
 mod parse;
 mod regalloc;
 mod token;
 
-use crate::codegen::*;
-use crate::ir::*;
+use crate::gen_x86::*;
+use crate::gen_ir::*;
 use crate::parse::*;
 use crate::regalloc::*;
 use crate::token::*;
@@ -25,7 +25,7 @@ fn main() {
     }
 
     // Token -> Node -> IR -> asm
-    // token -> parse -> ir -> regalloc -> codegen
+    // token -> parse -> gen_ir -> regalloc -> gen_x86
 
     // Tokenize and parse.
     let tokens = tokenize(&argv[1]);

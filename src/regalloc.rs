@@ -1,4 +1,4 @@
-use crate::ir::*;
+use crate::gen_ir::*;
 use crate::*;
 
 lazy_static! {
