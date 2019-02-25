@@ -23,7 +23,7 @@ lazy_static! {
     static ref VARS: Mutex<HashMap<String, i32>> = Mutex::new(HashMap::new());
 
     static ref REGNO: Mutex<i32> = Mutex::new(1);
-    static ref STACKSIZE: Mutex<i32> = Mutex::new(8);
+    static ref STACKSIZE: Mutex<i32> = Mutex::new(0);
     static ref LABEL: Mutex<i32> = Mutex::new(0);
 
     // Compile AST to intermediate code that has infinite number of registers.
@@ -56,8 +56,8 @@ lazy_static! {
             ty: IRInfoType::REG_IMM
         },
         IRInfo {
-            op: IRType::ADD_IMM,
-            name: String::from("ADD"),
+            op: IRType::SUB_IMM,
+            name: String::from("SUB"),
             ty: IRInfoType::REG_IMM
         },
         IRInfo {
@@ -106,6 +106,11 @@ lazy_static! {
             ty: IRInfoType::REG
         },
         IRInfo {
+            op: IRType::SAVE_ARGS,
+            name: String::from("SAVE_ARGS"),
+            ty: IRInfoType::IMM
+        },
+        IRInfo {
             op: IRType::NOP,
             name: String::from("NOP"),
             ty: IRInfoType::NOARG
@@ -138,7 +143,7 @@ fn add_stacksize(i: i32) {
 #[derive(Clone, Debug, PartialEq)]
 pub enum IRType {
     IMM,
-    ADD_IMM,
+    SUB_IMM,
     MOV,
     RETURN,
     CALL,
@@ -149,6 +154,7 @@ pub enum IRType {
     LOAD,
     STORE,
     KILL,
+    SAVE_ARGS,
     ADD,
     SUB,
     MUL,
@@ -176,6 +182,7 @@ pub struct IR {
 pub enum IRInfoType {
     NOARG,
     REG,
+    IMM,
     LABEL,
     REG_REG,
     REG_IMM,
@@ -205,6 +212,7 @@ fn tostr(ir: IR) -> String {
     let info = get_irinfo(&ir);
     return match info.ty {
         IRInfoType::LABEL => format!(".L{}:", ir.lhs),
+        IRInfoType::IMM => format!("{} {}", ir.name, ir.lhs),
         IRInfoType::REG => format!("{} r{}", info.name, ir.lhs),
         IRInfoType::REG_REG => format!("{} r{}, r{}", info.name, ir.lhs, ir.rhs),
         IRInfoType::REG_IMM => format!("{} r{}, {}", info.name, ir.lhs, ir.rhs),
@@ -273,8 +281,8 @@ fn gen_lval(node: Node) -> i32 {
 
     let mut vars = VARS.lock().unwrap();
     if None == vars.get(&node.name) {
-        (*vars).insert(node.name.clone(), stacksize());
         add_stacksize(8);
+        (*vars).insert(node.name.clone(), stacksize());
     }
 
     let r = regno();
@@ -283,7 +291,7 @@ fn gen_lval(node: Node) -> i32 {
     let off = *vars.get(&node.name).unwrap();
 
     add(IRType::MOV, r, 0);
-    add(IRType::ADD_IMM, r, -off);
+    add(IRType::SUB_IMM, r, off);
     return r;
 }
 
@@ -405,6 +413,30 @@ fn gen_stmt(node: Node) {
     }
 }
 
+fn gen_args(nodes: Vec<Node>) {
+    if nodes.len() == 0 {
+        return;
+    }
+
+    add(IRType::SAVE_ARGS, nodes.len() as i32, -1);
+    for i in 0..nodes.len() {
+        let node = &nodes[i];
+        if node.ty != NodeType::IDENT {
+            panic!("bad parameter");
+        }
+
+        add_stacksize(8);
+        match VARS.lock() {
+            Ok(mut vars) => {
+                (*vars).insert(node.name.clone(), stacksize());
+            }
+            Err(_) => {
+                panic!();
+            }
+        }
+    }
+}
+
 pub fn gen_ir(nodes: Vec<Node>) -> Vec<IR> {
     let mut v = Vec::new();
 
@@ -414,6 +446,7 @@ pub fn gen_ir(nodes: Vec<Node>) -> Vec<IR> {
 
         *CODE.lock().unwrap() = Vec::new();
 
+        gen_args(node.args);
         gen_stmt(*node.body.unwrap());
 
         let mut fun = alloc_ir();

@@ -5,6 +5,8 @@ lazy_static! {
     static ref LABEL: Mutex<usize> = Mutex::new(0);
 }
 
+const ARGREG: [&'static str; 6] = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
+
 fn label() -> usize {
     *LABEL.lock().unwrap()
 }
@@ -35,8 +37,8 @@ fn gen(fun: &IR) {
             IRType::IMM => {
                 println!("  mov {}, {}", regs[ir.lhs as usize], ir.rhs);
             }
-            IRType::ADD_IMM => {
-                println!("  add {}, {}", regs[ir.lhs as usize], ir.rhs);
+            IRType::SUB_IMM => {
+                println!("  sub {}, {}", regs[ir.lhs as usize], ir.rhs);
             }
             IRType::MOV => {
                 println!("  mov {}, {}", regs[ir.lhs as usize], regs[ir.rhs as usize]);
@@ -46,17 +48,8 @@ fn gen(fun: &IR) {
                 println!("  jmp {}", ret);
             }
             IRType::CALL => {
-                println!("  push rbx");
-                println!("  push rbp");
-                println!("  push rsp");
-                println!("  push r12");
-                println!("  push r13");
-                println!("  push r14");
-                println!("  push r15");
-
-                let arg = vec!["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
-                for i in 0..arg.len() {
-                    println!("  mov {}, {}", arg[i], regs[ir.args[i] as usize]);
+                for i in 0..ir.nargs {
+                    println!("  mov {}, {}", ARGREG[i], regs[ir.args[i] as usize]);
                 }
 
                 println!("  push r10");
@@ -89,6 +82,11 @@ fn gen(fun: &IR) {
                     "  mov [{}], {}",
                     regs[ir.lhs as usize], regs[ir.rhs as usize]
                 );
+            }
+            IRType::SAVE_ARGS => {
+                for i in 0..ir.lhs {
+                    println!("  mov [rbp-{}], {}", (i+1)*8, ARGREG[i as usize]);
+                }
             }
             IRType::ADD => {
                 println!("  add {}, {}", regs[ir.lhs as usize], regs[ir.rhs as usize]);

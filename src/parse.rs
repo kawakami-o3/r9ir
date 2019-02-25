@@ -248,9 +248,14 @@ fn function(tokens: &Vec<Token>) -> Node {
     inc_pos();
 
     expect(TokenType::BRA, tokens);
-    while !consume(TokenType::KET, tokens) {
+    if !consume(TokenType::KET, tokens) {
         node.args.push(term(tokens));
+        while consume(TokenType::COMMA, tokens) {
+            node.args.push(term(tokens));
+        }
+        expect(TokenType::KET, tokens);
     }
+
     expect(TokenType::C_BRA, tokens);
     node.body = Some(Box::new(compaund_stmt(tokens)));
     return node;
