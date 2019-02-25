@@ -19,30 +19,35 @@ fn to_ir_type(node_type: &NodeType) -> IRType {
 
 lazy_static! {
     static ref CODE: Mutex<Vec<IR>> = Mutex::new(Vec::new());
-    static ref REGNO: Mutex<i32> = Mutex::new(1);
-    static ref BASEREG: Mutex<i32> = Mutex::new(0);
+
     static ref VARS: Mutex<HashMap<String, i32>> = Mutex::new(HashMap::new());
-    static ref BPOFF: Mutex<i32> = Mutex::new(0);
+
+    static ref REGNO: Mutex<i32> = Mutex::new(1);
+    static ref STACKSIZE: Mutex<i32> = Mutex::new(8);
     static ref LABEL: Mutex<i32> = Mutex::new(0);
+
+    // Compile AST to intermediate code that has infinite number of registers.
+    // Base pointer is always assigned to r0.
+
     static ref IRINFO: Mutex<Vec<IRInfo>> = Mutex::new(vec![
         IRInfo {
             op: IRType::ADD,
-            name: String::from("+"),
+            name: String::from("ADD"),
             ty: IRInfoType::REG_REG
         },
         IRInfo {
             op: IRType::SUB,
-            name: String::from("-"),
+            name: String::from("SUB"),
             ty: IRInfoType::REG_REG
         },
         IRInfo {
             op: IRType::MUL,
-            name: String::from("*"),
+            name: String::from("MUL"),
             ty: IRInfoType::REG_REG
         },
         IRInfo {
             op: IRType::DIV,
-            name: String::from("/"),
+            name: String::from("DIV"),
             ty: IRInfoType::REG_REG
         },
         IRInfo {
@@ -86,11 +91,6 @@ lazy_static! {
             ty: IRInfoType::REG
         },
         IRInfo {
-            op: IRType::ALLOCA,
-            name: String::from("ALLOCA"),
-            ty: IRInfoType::REG_IMM
-        },
-        IRInfo {
             op: IRType::LOAD,
             name: String::from("LOAD"),
             ty: IRInfoType::REG_REG
@@ -117,10 +117,6 @@ lazy_static! {
     ]);
 }
 
-fn basereg() -> i32 {
-    *BASEREG.lock().unwrap()
-}
-
 fn regno() -> i32 {
     *REGNO.lock().unwrap()
 }
@@ -130,8 +126,13 @@ fn inc_regno() {
     *regno += 1;
 }
 
-fn bpoff() -> i32 {
-    *BPOFF.lock().unwrap()
+fn stacksize() -> i32 {
+    *STACKSIZE.lock().unwrap()
+}
+
+fn add_stacksize(i: i32) {
+    let mut stacksize = STACKSIZE.lock().unwrap();
+    *stacksize += i;
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -167,6 +168,7 @@ pub struct IR {
     pub args: [i32; 6],
 
     // Function
+    pub stacksize: i32,
     pub ir: Vec<IR>,
 }
 
@@ -243,6 +245,7 @@ fn alloc_ir() -> IR {
         nargs: 0,
         args: [0; 6],
 
+        stacksize: 0,
         ir: Vec::new(),
     };
 }
@@ -270,20 +273,17 @@ fn gen_lval(node: Node) -> i32 {
 
     let mut vars = VARS.lock().unwrap();
     if None == vars.get(&node.name) {
-        let mut bpoff = BPOFF.lock().unwrap();
-        (*vars).insert(node.name.clone(), *bpoff);
-        *bpoff += 8;
+        (*vars).insert(node.name.clone(), stacksize());
+        add_stacksize(8);
     }
 
-    let mut regno = REGNO.lock().unwrap();
-    let r = *regno;
-    *regno += 1;
+    let r = regno();
+    inc_regno();
 
     let off = *vars.get(&node.name).unwrap();
-    let basereg = BASEREG.lock().unwrap();
 
-    add(IRType::MOV, r, *basereg);
-    add(IRType::ADD_IMM, r, off);
+    add(IRType::MOV, r, 0);
+    add(IRType::ADD_IMM, r, -off);
     return r;
 }
 
@@ -414,20 +414,11 @@ pub fn gen_ir(nodes: Vec<Node>) -> Vec<IR> {
 
         *CODE.lock().unwrap() = Vec::new();
 
-        let alloca_idx = add(IRType::ALLOCA, basereg(), -1);
         gen_stmt(*node.body.unwrap());
-        match CODE.lock() {
-            Ok(mut code) => {
-                code[alloca_idx].rhs = bpoff();
-            }
-            Err(_) => {
-                panic!();
-            }
-        }
-        add(IRType::KILL, basereg(), -1);
 
         let mut fun = alloc_ir();
         fun.name = node.name.clone();
+        fun.stacksize = stacksize();
         fun.ir = CODE.lock().unwrap().clone();
 
         v.push(fun);

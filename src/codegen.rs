@@ -20,12 +20,13 @@ fn gen(fun: &IR) {
 
     println!(".global {}", fun.name);
     println!("{}:", fun.name);
+    println!("  push rbp");
+    println!("  mov rbp, rsp");
+    println!("  sub rsp, {}", fun.stacksize);
     println!("  push r12");
     println!("  push r13");
     println!("  push r14");
     println!("  push r15");
-    println!("  push rbp");
-    println!("  mov rbp, rsp");
 
     let regs = REGS.lock().unwrap();
     for i in 0..fun.ir.len() {
@@ -77,12 +78,6 @@ fn gen(fun: &IR) {
                 println!("  cmp {}, 0", regs[ir.lhs as usize]);
                 println!("  je .L{}", ir.rhs);
             }
-            IRType::ALLOCA => {
-                if ir.rhs != 0 {
-                    println!("  sub rsp, {}", ir.rhs);
-                }
-                println!("  mov {}, rsp", regs[ir.lhs as usize]);
-            }
             IRType::LOAD => {
                 println!(
                     "  mov {}, [{}]",
@@ -118,14 +113,13 @@ fn gen(fun: &IR) {
             }
         }
     }
-
     println!("{}:", ret);
-    println!("  mov rsp, rbp");
-    println!("  pop rbp");
     println!("  pop r15");
     println!("  pop r14");
     println!("  pop r13");
     println!("  pop r12");
+    println!("  mov rsp, rbp");
+    println!("  pop rbp");
     println!("  ret");
 }
 

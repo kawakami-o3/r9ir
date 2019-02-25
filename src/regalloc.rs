@@ -3,6 +3,7 @@ use crate::*;
 
 lazy_static! {
     pub static ref REGS: Mutex<Vec<String>> = Mutex::new(vec![
+        String::from("rbp"),
         String::from("r10"),
         String::from("r11"),
         String::from("rbx"),
@@ -11,7 +12,7 @@ lazy_static! {
         String::from("r14"),
         String::from("r15"),
     ]);
-    static ref USED: Mutex<Vec<bool>> = Mutex::new([false; 8].to_vec());
+    static ref USED: Mutex<Vec<bool>> = Mutex::new(Vec::new());
     static ref REG_MAP: Mutex<Vec<i32>> = Mutex::new(Vec::new());
 }
 
@@ -31,8 +32,8 @@ fn alloc(ir_reg: i32) -> i32 {
         if used[i] {
             continue;
         }
-        used[i] = true;
         reg_map[ir_reg as usize] = i as i32;
+        used[i] = true;
         return i as i32;
     }
     panic!("register exhausted");
@@ -46,6 +47,18 @@ fn kill(i: i32) {
 }
 
 fn visit(irv: &mut Vec<IR>) {
+    // r0 is a reserved register that is always mapped to rbp.
+
+    match (REG_MAP.lock(), USED.lock()) {
+        (Ok(mut reg_map), Ok(mut used)) => {
+            reg_map[0] = 0;
+            used[0] = true;
+        }
+        _ => {
+            panic!();
+        }
+    }
+
     for i in 0..irv.len() {
         let mut ir = &mut irv[i];
         let info = get_irinfo(&ir);
@@ -78,21 +91,17 @@ pub fn alloc_regs(fns: &mut Vec<IR>) {
 
     for i in 0..fns.len() {
         let mut fun = &mut fns[i];
-        match REG_MAP.lock() {
-            Ok(mut reg_map) => {
+        match (REG_MAP.lock(), USED.lock(), REGS.lock()) {
+            (Ok(mut reg_map), Ok(mut used), Ok(regs)) => {
                 *reg_map = Vec::new();
                 for _i in 0..fun.ir.len() {
                     reg_map.push(-1);
                 }
-            }
-            _ => {
-                panic!();
-            }
-        }
 
-        match USED.lock() {
-            Ok(mut used) => {
-                *used = [false; 8].to_vec();
+                *used = Vec::new();
+                for _i in 0..regs.len() {
+                    used.push(false);
+                }
             }
             _ => {
                 panic!();
