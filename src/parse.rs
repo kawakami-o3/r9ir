@@ -44,6 +44,7 @@ pub enum NodeType {
     LT,
     IDENT,
     IF,
+    FOR,
     LOGOR,
     LOGAND,
     RETURN,
@@ -64,12 +65,13 @@ pub struct Node {
 
     pub name: String,
 
-    // "if"
+    // "if" (cond) then "else els
+    // "for" (init; cond; inc) body
     pub cond: Option<Box<Node>>,
     pub then: Option<Box<Node>>,
     pub els: Option<Box<Node>>,
-
-    // Function definition
+    pub init: Option<Box<Node>>,
+    pub inc: Option<Box<Node>>,
     pub body: Option<Box<Node>>,
 
     // Function call
@@ -91,7 +93,8 @@ fn alloc_node() -> Node {
         cond: None,
         then: None,
         els: None,
-
+        init: None,
+        inc: None,
         body: None,
 
         args: Vec::new(),
@@ -253,6 +256,19 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             if consume(TokenType::ELSE, tokens) {
                 node.els = Some(Box::new(stmt(tokens)));
             }
+            return node;
+        }
+        TokenType::FOR => {
+            inc_pos();
+            node.ty = NodeType::FOR;
+            expect(TokenType::BRA, tokens);
+            node.init = Some(Box::new(assign(tokens)));
+            expect(TokenType::SEMI_COLON, tokens);
+            node.cond = Some(Box::new(assign(tokens)));
+            expect(TokenType::SEMI_COLON, tokens);
+            node.inc = Some(Box::new(assign(tokens)));
+            expect(TokenType::KET, tokens);
+            node.body = Some(Box::new(stmt(tokens)));
             return node;
         }
         TokenType::RETURN => {

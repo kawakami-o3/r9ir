@@ -2,23 +2,25 @@
 #![allow(non_camel_case_types)]
 
 use std::cmp;
-use std::collections::HashMap;
 use std::sync::Mutex;
 
 lazy_static! {
-    static ref KEYWORDS: Mutex<HashMap<String, TokenType>> = Mutex::new(HashMap::new());
     static ref SYMBOLS: Mutex<Vec<Symbol>> = Mutex::new(Vec::new());
 }
 
 fn init_symbols() {
     let mut symbols = SYMBOLS.lock().unwrap();
 
-    symbols.push(Symbol { name: String::from("&&"), ty: TokenType::LOGAND });
-    symbols.push(Symbol { name: String::from("||"), ty: TokenType::LOGOR });
+    symbols.push(Symbol { name: "else", ty: TokenType::ELSE });
+    symbols.push(Symbol { name: "for", ty: TokenType::FOR });
+    symbols.push(Symbol { name: "if", ty: TokenType::IF });
+    symbols.push(Symbol { name: "return", ty: TokenType::RETURN });
+    symbols.push(Symbol { name: "&&", ty: TokenType::LOGAND });
+    symbols.push(Symbol { name: "||", ty: TokenType::LOGOR });
 }
 
 struct Symbol {
-    name: String,
+    name: &'static str,
     ty: TokenType,
 }
 
@@ -38,6 +40,7 @@ pub enum TokenType {
     C_KET,
     IDENT,
     IF,
+    FOR,
     ELSE,
     LOGOR,
     LOGAND,
@@ -107,8 +110,8 @@ fn scan(p: &String) -> Vec<Token> {
                     tokens.push(Token{
                         ty: s.ty,
                         val: 0,
-                        name: s.name.clone(),
-                        input: s.name.clone(),
+                        name: String::from(s.name),
+                        input: String::from(s.name),
                     });
 
                     idx += s.name.len();
@@ -135,14 +138,8 @@ fn scan(p: &String) -> Vec<Token> {
                 }
             }
 
-            let keywords = KEYWORDS.lock().unwrap();
-            let ty = match keywords.get(&s) {
-                Some(ty) => *ty,
-                None => TokenType::IDENT,
-            };
-
             let tok = Token {
-                ty: ty,
+                ty: TokenType::IDENT,
                 val: 0,
                 name: s.clone(),
                 input: s.clone(),
@@ -193,15 +190,5 @@ fn scan(p: &String) -> Vec<Token> {
 
 pub fn tokenize(p: &String) -> Vec<Token> {
     init_symbols();
-
-    match KEYWORDS.lock() {
-        Ok(mut keywords) => {
-            keywords.insert(String::from("if"), TokenType::IF);
-            keywords.insert(String::from("else"), TokenType::ELSE);
-            keywords.insert(String::from("return"), TokenType::RETURN);
-        }
-        _ => {}
-    }
-
     return scan(p);
 }

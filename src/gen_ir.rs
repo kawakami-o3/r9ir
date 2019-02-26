@@ -413,9 +413,8 @@ fn gen_stmt(node: Node) {
     match node.ty {
         NodeType::IF => {
             let r = gen_expr(*node.cond.unwrap());
-            let mut label = LABEL.lock().unwrap();
-            let x = *label;
-            *label += 1;
+            let x = label();
+            inc_label();
 
             add(IRType::UNLESS, r, x);
             add(IRType::KILL, r, -1);
@@ -427,11 +426,27 @@ fn gen_stmt(node: Node) {
                 return;
             }
 
-            let y = *label;
-            *label += 1;
+            let y = label();
+            inc_label();
             add(IRType::JMP, y, -1);
             add(IRType::LABEL, x, -1);
             gen_stmt(*node.els.unwrap());
+            add(IRType::LABEL, y, -1);
+        }
+        NodeType::FOR => {
+            let x = label();
+            inc_label();
+            let y = label();
+            inc_label();
+
+            add(IRType::KILL, gen_expr(*node.init.unwrap()), -1);
+            add(IRType::LABEL, x, -1);
+            let r = gen_expr(*node.cond.unwrap());
+            add(IRType::UNLESS, r, y);
+            add(IRType::KILL, r, -1);
+            gen_stmt(*node.body.unwrap());
+            add(IRType::KILL, gen_expr(*node.inc.unwrap()), -1);
+            add(IRType::JMP, x, -1);
             add(IRType::LABEL, y, -1);
         }
         NodeType::RETURN => {
