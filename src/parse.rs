@@ -11,6 +11,8 @@ fn to_node_type(ty: &TokenType) -> NodeType {
         TokenType::SUB => NodeType::SUB,
         TokenType::MUL => NodeType::MUL,
         TokenType::DIV => NodeType::DIV,
+        TokenType::LOGOR => NodeType::LOGOR,
+        TokenType::LOGAND => NodeType::LOGAND,
         _ => {
             panic!(format!("unknown TokenType {:?}", ty));
         }
@@ -41,6 +43,8 @@ pub enum NodeType {
     EQ,
     IDENT,
     IF,
+    LOGOR,
+    LOGAND,
     RETURN,
     CALL,
     FUNC,
@@ -163,32 +167,54 @@ fn mul(tokens: &Vec<Token>) -> Node {
     let mut lhs = term(tokens);
     loop {
         let t = &tokens[pos()];
-        let op = &t.ty;
-        if *op != TokenType::MUL && *op != TokenType::DIV {
+        if t.ty != TokenType::MUL && t.ty != TokenType::DIV {
             return lhs;
         }
         inc_pos();
-        lhs = new_node(to_node_type(op), lhs, term(tokens));
+        lhs = new_node(to_node_type(&t.ty), lhs, term(tokens));
     }
 }
 
-fn expr(tokens: &Vec<Token>) -> Node {
+fn add(tokens: &Vec<Token>) -> Node {
     let mut lhs = mul(tokens);
     loop {
         let t = &tokens[pos()];
-        let op = &t.ty;
-        if *op != TokenType::ADD && *op != TokenType::SUB {
+        if t.ty != TokenType::ADD && t.ty != TokenType::SUB {
             return lhs;
         }
         inc_pos();
-        lhs = new_node(to_node_type(op), lhs, mul(tokens));
+        lhs = new_node(to_node_type(&t.ty), lhs, mul(tokens));
+    }
+}
+
+fn logand(tokens: &Vec<Token>) -> Node {
+    let mut lhs = add(tokens);
+    loop {
+        let t = &tokens[pos()];
+        if t.ty != TokenType::LOGAND {
+            return lhs;
+        }
+        inc_pos();
+        lhs = new_node(to_node_type(&t.ty), lhs, add(tokens));
+    }
+}
+
+fn logor(tokens: &Vec<Token>) -> Node {
+    let mut lhs = logand(tokens);
+    loop {
+        let t = &tokens[pos()];
+        if t.ty != TokenType::LOGOR {
+            return lhs;
+        }
+        inc_pos();
+        lhs = new_node(to_node_type(&t.ty), lhs, logand(tokens));
     }
 }
 
 fn assign(tokens: &Vec<Token>) -> Node {
-    let lhs = expr(tokens);
+    let lhs = logor(tokens);
     if consume(TokenType::EQ, tokens) {
-        return new_node(NodeType::EQ, lhs, expr(tokens));
+        return new_node(NodeType::EQ, lhs, logor(tokens));
     }
     return lhs;
 }

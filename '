@@ -1,7 +1,6 @@
 // tokenizer
 #![allow(non_camel_case_types)]
 
-use std::cmp;
 use std::collections::HashMap;
 use std::sync::Mutex;
 
@@ -14,7 +13,7 @@ fn init_symbols() {
     let mut symbols = SYMBOLS.lock().unwrap();
 
     symbols.push(Symbol { name: String::from("&&"), ty: TokenType::LOGAND });
-    symbols.push(Symbol { name: String::from("||"), ty: TokenType::LOGOR });
+    symbols.push(Symbol { name: String::from("||"), ty: TokenType::LOGAND });
 }
 
 struct Symbol {
@@ -95,20 +94,11 @@ fn scan(p: &String) -> Vec<Token> {
         match SYMBOLS.lock() {
             Ok(symbols) => {
                 for s in symbols.iter() {
-                    let bs = &char_bytes[idx..cmp::min(idx+s.name.len(), char_bytes.len())];
+                    let name = s.name.clone();
+                    let bs = &char_bytes[idx..cmp::min(name.len(), char_bytes.len())];
                     if s.name.as_bytes() != bs {
                         continue;
                     }
-
-                    tokens.push(Token{
-                        ty: s.ty,
-                        val: 0,
-                        name: s.name.clone(),
-                        input: s.name.clone(),
-                    });
-
-                    idx += s.name.len();
-                    continue 'outer;
                 }
             }
             Err(_) => {
@@ -188,8 +178,6 @@ fn scan(p: &String) -> Vec<Token> {
 }
 
 pub fn tokenize(p: &String) -> Vec<Token> {
-    init_symbols();
-
     match KEYWORDS.lock() {
         Ok(mut keywords) => {
             keywords.insert(String::from("if"), TokenType::IF);

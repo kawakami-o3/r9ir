@@ -35,18 +35,14 @@ lazy_static! {
 
 fn init_irinfo() {
     let mut irinfo = IRINFO.lock().unwrap();
-            
+
     irinfo.insert(IRType::ADD, IRInfo {
         name: String::from("ADD"),
         ty: IRInfoType::REG_REG
     });
-    irinfo.insert(IRType::SUB, IRInfo {
-        name: String::from("SUB"),
-        ty: IRInfoType::REG_REG
-    });
-    irinfo.insert(IRType::MUL, IRInfo {
-        name: String::from("MUL"),
-        ty: IRInfoType::REG_REG
+    irinfo.insert(IRType::CALL, IRInfo {
+        name: String::from("CALL"),
+        ty: IRInfoType::CALL
     });
     irinfo.insert(IRType::DIV, IRInfo {
         name: String::from("DIV"),
@@ -56,58 +52,71 @@ fn init_irinfo() {
         name: String::from("MOV"),
         ty: IRInfoType::REG_IMM
     });
-    irinfo.insert(IRType::SUB_IMM, IRInfo {
-        name: String::from("SUB"),
-        ty: IRInfoType::REG_IMM
+    irinfo.insert(IRType::JMP, IRInfo {
+        name: String::from("JMP"),
+        ty: IRInfoType::JMP
     });
-    irinfo.insert(IRType::MOV, IRInfo {
-        name: String::from("MOV"),
-        ty: IRInfoType::REG_REG
+    irinfo.insert(IRType::KILL, IRInfo {
+        name: String::from("KILL"),
+        ty: IRInfoType::REG
     });
     irinfo.insert(IRType::LABEL, IRInfo {
         name: String::new(),
         ty: IRInfoType::LABEL
     });
-    irinfo.insert(IRType::JMP, IRInfo {
-        name: String::from("JMP"),
-        ty: IRInfoType::LABEL
-    });
-    irinfo.insert(IRType::UNLESS, IRInfo {
-        name: String::from("UNLESS"),
-        ty: IRInfoType::REG_LABEL
-    });
-    irinfo.insert(IRType::CALL, IRInfo {
-        name: String::from("CALL"),
-        ty: IRInfoType::CALL
-    });
-    irinfo.insert(IRType::RETURN, IRInfo {
-        name: String::from("RET"),
-        ty: IRInfoType::REG
-    });
     irinfo.insert(IRType::LOAD, IRInfo {
         name: String::from("LOAD"),
         ty: IRInfoType::REG_REG
     });
-    irinfo.insert(IRType::STORE, IRInfo {
-        name: String::from("STORE"),
+    irinfo.insert(IRType::MOV, IRInfo {
+        name: String::from("MOV"),
         ty: IRInfoType::REG_REG
     });
-    irinfo.insert(IRType::KILL, IRInfo {
-        name: String::from("KILL"),
+    irinfo.insert(IRType::MUL, IRInfo {
+        name: String::from("MUL"),
+        ty: IRInfoType::REG_REG
+    });
+    irinfo.insert(IRType::NOP, IRInfo {
+        name: String::from("NOP"),
+        ty: IRInfoType::NOARG
+    });
+    irinfo.insert(IRType::RETURN, IRInfo {
+        name: String::from("RET"),
         ty: IRInfoType::REG
     });
     irinfo.insert(IRType::SAVE_ARGS, IRInfo {
         name: String::from("SAVE_ARGS"),
         ty: IRInfoType::IMM
     });
-    irinfo.insert(IRType::NOP, IRInfo {
-        name: String::from("NOP"),
-        ty: IRInfoType::NOARG
+    irinfo.insert(IRType::STORE, IRInfo {
+        name: String::from("STORE"),
+        ty: IRInfoType::REG_REG
+    });
+    irinfo.insert(IRType::SUB, IRInfo {
+        name: String::from("SUB"),
+        ty: IRInfoType::REG_REG
+    });
+    irinfo.insert(IRType::SUB_IMM, IRInfo {
+        name: String::from("SUB"),
+        ty: IRInfoType::REG_IMM
+    });
+    irinfo.insert(IRType::UNLESS, IRInfo {
+        name: String::from("UNLESS"),
+        ty: IRInfoType::REG_LABEL
     });
     irinfo.insert(IRType::NULL, IRInfo {
         name: String::new(),
         ty: IRInfoType::NULL
     });
+}
+
+fn label() -> i32 {
+    *LABEL.lock().unwrap()
+}
+
+fn inc_label() {
+    let mut label = LABEL.lock().unwrap();
+    *label += 1;
 }
 
 fn regno() -> i32 {
@@ -171,6 +180,7 @@ pub enum IRInfoType {
     NOARG,
     REG,
     IMM,
+    JMP,
     LABEL,
     REG_REG,
     REG_IMM,
@@ -191,21 +201,21 @@ fn tostr(ir: IR) -> String {
 
     return match info.ty {
         IRInfoType::LABEL => format!(".L{}:", ir.lhs),
-        IRInfoType::IMM => format!("{} {}", ir.name, ir.lhs),
-        IRInfoType::REG => format!("{} r{}", info.name, ir.lhs),
-        IRInfoType::REG_REG => format!("{} r{}, r{}", info.name, ir.lhs, ir.rhs),
-        IRInfoType::REG_IMM => format!("{} r{}, {}", info.name, ir.lhs, ir.rhs),
-        IRInfoType::REG_LABEL => format!("{} r{}, .L{}", info.name, ir.lhs, ir.rhs),
+        IRInfoType::IMM => format!("  {} {}", ir.name, ir.lhs),
+        IRInfoType::REG => format!("  {} r{}", info.name, ir.lhs),
+        IRInfoType::REG_REG => format!("  {} r{}, r{}", info.name, ir.lhs, ir.rhs),
+        IRInfoType::REG_IMM => format!("  {} r{}, {}", info.name, ir.lhs, ir.rhs),
+        IRInfoType::REG_LABEL => format!("  {} r{}, .L{}", info.name, ir.lhs, ir.rhs),
         IRInfoType::CALL => {
             let mut s = String::new();
-            s.push_str(&format!("r{} = {}(", ir.lhs, ir.name));
+            s.push_str(&format!("  r{} = {}(", ir.lhs, ir.name));
             for i in ir.args.iter() {
                 s.push_str(&format!(", r{}", i));
             }
             s.push_str(")");
             s
         }
-        IRInfoType::NOARG => format!("{}", info.name),
+        IRInfoType::NOARG => format!("  {}", info.name),
         _ => {
             panic!("unknown ir");
         }
@@ -275,60 +285,97 @@ fn gen_lval(node: Node) -> i32 {
 }
 
 fn gen_expr(node: Node) -> i32 {
-    if node.ty == NodeType::NUM {
-        let mut regno = REGNO.lock().unwrap();
-
-        let r = *regno;
-        *regno += 1;
-        add(IRType::IMM, r, node.val);
-        return r;
-    }
-
-    if node.ty == NodeType::IDENT {
-        let r = gen_lval(node);
-        add(IRType::LOAD, r, r);
-        return r;
-    }
-
-    if node.ty == NodeType::CALL {
-        let mut args = Vec::new();
-        for a in node.args.iter() {
-            args.push(gen_expr(a.clone()));
+    match node.ty {
+        NodeType::NUM => {
+            let r = regno();
+            inc_regno();
+            add(IRType::IMM, r, node.val);
+            return r;
         }
 
-        let r = regno();
-        inc_regno();
+        NodeType::LOGAND => {
+            let x = label();
+            inc_label();
 
-        let ir_idx = add(IRType::CALL, r, -1);
+            let r1 = gen_expr(*node.lhs.unwrap());
+            add(IRType::UNLESS, r1, x);
+            let r2 = gen_expr(*node.rhs.unwrap());
+            add(IRType::MOV, r1, r2);
+            add(IRType::KILL, r2, -1);
+            add(IRType::UNLESS, r1, x);
+            add(IRType::IMM, r1, 1);
+            add(IRType::LABEL, x, -1);
+            return r1;
+        }
 
-        let (nargs, args) = match CODE.lock() {
-            Ok(mut code) => {
-                code[ir_idx].name = node.name.clone();
-                code[ir_idx].nargs = node.args.len();
+        NodeType::LOGOR => {
+            let x = label();
+            inc_label();
+            let y = label();
+            inc_label();
 
-                for i in 0..code[ir_idx].nargs {
-                    code[ir_idx].args[i] = args[i];
+            let r1 = gen_expr(*node.lhs.unwrap());
+            add(IRType::UNLESS, r1, x);
+            add(IRType::IMM, r1, 1);
+            add(IRType::JMP, y, -1);
+            add(IRType::LABEL, x, -1);
+
+            let r2 = gen_expr(*node.rhs.unwrap());
+            add(IRType::MOV, r1, r2);
+            add(IRType::KILL, r2, -1);
+            add(IRType::UNLESS, r1, y);
+            add(IRType::IMM, r1, 1);
+            add(IRType::LABEL, y, -1);
+            return r1
+        }
+
+        NodeType::IDENT => {
+            let r = gen_lval(node);
+            add(IRType::LOAD, r, r);
+            return r;
+        }
+
+        NodeType::CALL => {
+            let mut args = Vec::new();
+            for a in node.args.iter() {
+                args.push(gen_expr(a.clone()));
+            }
+
+            let r = regno();
+            inc_regno();
+
+            let ir_idx = add(IRType::CALL, r, -1);
+
+            let (nargs, args) = match CODE.lock() {
+                Ok(mut code) => {
+                    code[ir_idx].name = node.name.clone();
+                    code[ir_idx].nargs = node.args.len();
+
+                    for i in 0..code[ir_idx].nargs {
+                        code[ir_idx].args[i] = args[i];
+                    }
+
+                    (code[ir_idx].nargs, code[ir_idx].args)
                 }
+                Err(_) => {
+                    panic!();
+                }
+            };
 
-                (code[ir_idx].nargs, code[ir_idx].args)
+            for i in 0..nargs {
+                add(IRType::KILL, args[i], -1);
             }
-            Err(_) => {
-                panic!();
-            }
-        };
-
-        for i in 0..nargs {
-            add(IRType::KILL, args[i], -1);
+            return r;
         }
-        return r;
-    }
 
-    if node.ty == NodeType::EQ {
-        let rhs = gen_expr(*node.rhs.unwrap());
-        let lhs = gen_lval(*node.lhs.unwrap());
-        add(IRType::STORE, lhs, rhs);
-        add(IRType::KILL, rhs, -1);
-        return lhs;
+        NodeType::EQ => {
+            let rhs = gen_expr(*node.rhs.unwrap());
+            let lhs = gen_lval(*node.lhs.unwrap());
+            add(IRType::STORE, lhs, rhs);
+            add(IRType::KILL, rhs, -1);
+            return lhs;
+        }
+        _ => {}
     }
 
     assert!(

@@ -7,8 +7,9 @@ run() {
 
 #run 'return 5+20-4;'
 #run 'return plus(2, 3);'
+run 'main() { return 1; }'
 #run 'main() { return 2*3+4; }'
-run 'one() { return 1; } main() { return one(); }'
+#run 'one() { return 1; } main() { return one(); }'
 
 
 #cat tmp.s
