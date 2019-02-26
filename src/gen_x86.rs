@@ -30,7 +30,7 @@ fn gen(fun: &IR) {
     println!("  push r14");
     println!("  push r15");
 
-    let regs = REGS.lock().unwrap();
+    //let regs = REGS.lock().unwrap();
     for i in 0..fun.ir.len() {
         let ir = &fun.ir[i as usize];
         match ir.op {
@@ -63,6 +63,11 @@ fn gen(fun: &IR) {
             }
             IRType::LABEL => {
                 println!(".L{}:", ir.lhs);
+            }
+            IRType::LT => {
+                println!("  cmp {}, {}", regs[ir.lhs as usize], regs[ir.rhs as usize]);
+                println!("  setl {}", regs8[ir.lhs as usize]);
+                println!("  movzb {}, {}", regs[ir.lhs as usize], regs8[ir.lhs as usize]);
             }
             IRType::JMP => {
                 println!("  jmp .L{}", ir.lhs);

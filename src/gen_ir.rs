@@ -37,75 +37,79 @@ fn init_irinfo() {
     let mut irinfo = IRINFO.lock().unwrap();
 
     irinfo.insert(IRType::ADD, IRInfo {
-        name: String::from("ADD"),
+        name: "ADD",
         ty: IRInfoType::REG_REG
     });
     irinfo.insert(IRType::CALL, IRInfo {
-        name: String::from("CALL"),
+        name: "CALL",
         ty: IRInfoType::CALL
     });
     irinfo.insert(IRType::DIV, IRInfo {
-        name: String::from("DIV"),
+        name: "DIV",
         ty: IRInfoType::REG_REG
     });
     irinfo.insert(IRType::IMM, IRInfo {
-        name: String::from("MOV"),
+        name: "MOV",
         ty: IRInfoType::REG_IMM
     });
     irinfo.insert(IRType::JMP, IRInfo {
-        name: String::from("JMP"),
+        name: "JMP",
         ty: IRInfoType::JMP
     });
     irinfo.insert(IRType::KILL, IRInfo {
-        name: String::from("KILL"),
+        name: "KILL",
         ty: IRInfoType::REG
     });
     irinfo.insert(IRType::LABEL, IRInfo {
-        name: String::new(),
+        name: "",
         ty: IRInfoType::LABEL
     });
+    irinfo.insert(IRType::LT, IRInfo {
+        name: "LT",
+        ty: IRInfoType::REG_REG
+    });
     irinfo.insert(IRType::LOAD, IRInfo {
-        name: String::from("LOAD"),
+        name: "LOAD",
         ty: IRInfoType::REG_REG
     });
     irinfo.insert(IRType::MOV, IRInfo {
-        name: String::from("MOV"),
+        name: "MOV",
         ty: IRInfoType::REG_REG
     });
     irinfo.insert(IRType::MUL, IRInfo {
-        name: String::from("MUL"),
+        name: "MUL",
         ty: IRInfoType::REG_REG
     });
     irinfo.insert(IRType::NOP, IRInfo {
-        name: String::from("NOP"),
+        name: "NOP",
         ty: IRInfoType::NOARG
     });
     irinfo.insert(IRType::RETURN, IRInfo {
-        name: String::from("RET"),
+        name: "RET",
         ty: IRInfoType::REG
     });
     irinfo.insert(IRType::SAVE_ARGS, IRInfo {
-        name: String::from("SAVE_ARGS"),
+        name: "SAVE_ARGS",
         ty: IRInfoType::IMM
     });
     irinfo.insert(IRType::STORE, IRInfo {
-        name: String::from("STORE"),
+        name: "STORE",
         ty: IRInfoType::REG_REG
     });
     irinfo.insert(IRType::SUB, IRInfo {
-        name: String::from("SUB"),
+        name: "SUB",
         ty: IRInfoType::REG_REG
     });
     irinfo.insert(IRType::SUB_IMM, IRInfo {
-        name: String::from("SUB"),
+        name: "SUB",
         ty: IRInfoType::REG_IMM
     });
     irinfo.insert(IRType::UNLESS, IRInfo {
-        name: String::from("UNLESS"),
+        name: "UNLESS",
         ty: IRInfoType::REG_LABEL
     });
     irinfo.insert(IRType::NULL, IRInfo {
-        name: String::new(),
+        name: "",
         ty: IRInfoType::NULL
     });
 }
@@ -145,6 +149,7 @@ pub enum IRType {
     RETURN,
     CALL,
     LABEL,
+    LT,
     JMP,
     UNLESS,
     ALLOCA,
@@ -191,7 +196,7 @@ pub enum IRInfoType {
 
 #[derive(Clone, Debug)]
 pub struct IRInfo {
-    pub name: String,
+    pub name: &'static str,
     pub ty: IRInfoType,
 }
 
@@ -282,6 +287,14 @@ fn gen_lval(node: Node) -> i32 {
     add(IRType::MOV, r, 0);
     add(IRType::SUB_IMM, r, off);
     return r;
+}
+
+fn gen_binop(ty: IRType, lhs: Node, rhs: Node) -> i32 {
+    let r1 = gen_expr(lhs);
+    let r2 = gen_expr(rhs);
+    add(ty, r1, r2);
+    add(IRType::KILL, r2, -1);
+    return r1;
 }
 
 fn gen_expr(node: Node) -> i32 {
@@ -375,23 +388,25 @@ fn gen_expr(node: Node) -> i32 {
             add(IRType::KILL, rhs, -1);
             return lhs;
         }
-        _ => {}
+        NodeType::ADD => {
+            return gen_binop(IRType::ADD, *node.lhs.unwrap(), *node.rhs.unwrap());
+        }
+        NodeType::SUB => {
+            return gen_binop(IRType::SUB, *node.lhs.unwrap(), *node.rhs.unwrap());
+        }
+        NodeType::MUL => {
+            return gen_binop(IRType::MUL, *node.lhs.unwrap(), *node.rhs.unwrap());
+        }
+        NodeType::DIV => {
+            return gen_binop(IRType::DIV, *node.lhs.unwrap(), *node.rhs.unwrap());
+        }
+        NodeType::LT => {
+            return gen_binop(IRType::LT, *node.lhs.unwrap(), *node.rhs.unwrap());
+        }
+        _ => {
+            panic!("unknown AST type");
+        }
     }
-
-    assert!(
-        node.ty == NodeType::ADD
-            || node.ty == NodeType::SUB
-            || node.ty == NodeType::MUL
-            || node.ty == NodeType::DIV,
-        format!("not op: {:?}", node)
-    );
-
-    let lhs = gen_expr(*node.lhs.unwrap());
-    let rhs = gen_expr(*node.rhs.unwrap());
-
-    add(to_ir_type(&node.ty), lhs, rhs);
-    add(IRType::KILL, rhs, -1);
-    return lhs;
 }
 
 fn gen_stmt(node: Node) {

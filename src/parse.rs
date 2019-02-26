@@ -41,6 +41,7 @@ pub enum NodeType {
     MUL,
     DIV,
     EQ,
+    LT,
     IDENT,
     IF,
     LOGOR,
@@ -187,15 +188,33 @@ fn add(tokens: &Vec<Token>) -> Node {
     }
 }
 
-fn logand(tokens: &Vec<Token>) -> Node {
+fn rel(tokens: &Vec<Token>) -> Node {
     let mut lhs = add(tokens);
+    loop {
+        let t = &tokens[pos()];
+        if t.ty == TokenType::LT {
+            inc_pos();
+            lhs = new_node(NodeType::LT, lhs, add(tokens));
+            continue;
+        }
+        if t.ty == TokenType::GT {
+            inc_pos();
+            lhs = new_node(NodeType::LT, add(tokens), lhs);
+            continue;
+        }
+        return lhs;
+    }
+}
+
+fn logand(tokens: &Vec<Token>) -> Node {
+    let mut lhs = rel(tokens);
     loop {
         let t = &tokens[pos()];
         if t.ty != TokenType::LOGAND {
             return lhs;
         }
         inc_pos();
-        lhs = new_node(to_node_type(&t.ty), lhs, add(tokens));
+        lhs = new_node(to_node_type(&t.ty), lhs, rel(tokens));
     }
 }
 

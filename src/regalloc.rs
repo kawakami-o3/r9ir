@@ -1,20 +1,15 @@
+#![allow(non_upper_case_globals)]
+
 use crate::gen_ir::*;
 use crate::*;
 
 lazy_static! {
-    pub static ref REGS: Mutex<Vec<String>> = Mutex::new(vec![
-        String::from("rbp"),
-        String::from("r10"),
-        String::from("r11"),
-        String::from("rbx"),
-        String::from("r12"),
-        String::from("r13"),
-        String::from("r14"),
-        String::from("r15"),
-    ]);
     static ref USED: Mutex<Vec<bool>> = Mutex::new(Vec::new());
     static ref REG_MAP: Mutex<Vec<i32>> = Mutex::new(Vec::new());
 }
+
+pub const regs: [&'static str; 8] = ["rbp", "r10", "r11", "rbx", "r12", "r13", "r14", "r15"];
+pub const regs8: [&'static str; 8] = ["rbl", "r10b", "r11b", "bl", "r12b", "r13b", "r14b", "r15b"];
 
 // Code generator
 
@@ -26,7 +21,6 @@ fn alloc(ir_reg: i32) -> i32 {
         return r;
     }
 
-    let regs = REGS.lock().unwrap();
     let mut used = USED.lock().unwrap();
     for i in 0..regs.len() {
         if used[i] {
@@ -91,8 +85,8 @@ pub fn alloc_regs(fns: &mut Vec<IR>) {
 
     for i in 0..fns.len() {
         let mut fun = &mut fns[i];
-        match (REG_MAP.lock(), USED.lock(), REGS.lock()) {
-            (Ok(mut reg_map), Ok(mut used), Ok(regs)) => {
+        match (REG_MAP.lock(), USED.lock()) {
+            (Ok(mut reg_map), Ok(mut used)) => {
                 *reg_map = Vec::new();
                 for _i in 0..fun.ir.len() {
                     reg_map.push(-1);

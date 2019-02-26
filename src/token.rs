@@ -30,6 +30,8 @@ pub enum TokenType {
     MUL,
     DIV,
     EQ,
+    LT,
+    GT,
     BRA,
     KET,
     C_BRA,
@@ -63,7 +65,7 @@ fn scan(p: &String) -> Vec<Token> {
             idx += 1;
             continue;
         }
-        if "+-*/;=(),{}".contains(c) {
+        if "+-*/;=(),{}<>".contains(c) {
             let ty = match c {
                 '+' => TokenType::ADD,
                 '-' => TokenType::SUB,
@@ -71,6 +73,8 @@ fn scan(p: &String) -> Vec<Token> {
                 '/' => TokenType::DIV,
                 ';' => TokenType::SEMI_COLON,
                 '=' => TokenType::EQ,
+                '<' => TokenType::LT,
+                '>' => TokenType::GT,
                 '(' => TokenType::BRA,
                 ')' => TokenType::KET,
                 '{' => TokenType::C_BRA,
