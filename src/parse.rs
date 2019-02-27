@@ -278,6 +278,14 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             expect(TokenType::SEMI_COLON, tokens);
             return node;
         }
+        TokenType::C_BRA => {
+            inc_pos();
+            node.ty = NodeType::COMP_STMT;
+            while !consume(TokenType::C_KET, tokens) {
+                node.stmts.push(stmt(tokens));
+            }
+            return node;
+        }
         _ => {
             node.ty = NodeType::EXPR_STMT;
             node.expr = Some(Box::new(assign(tokens)));
