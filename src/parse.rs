@@ -43,6 +43,7 @@ pub enum NodeType {
     EQ,
     LT,
     IDENT,
+    VARDEF,
     IF,
     FOR,
     LOGOR,
@@ -246,6 +247,19 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
     let t = &tokens[pos()];
 
     match t.ty {
+        TokenType::INT => {
+            inc_pos();
+            node.ty = NodeType::VARDEF;
+
+            let t = &tokens[pos()];
+            if t.ty != TokenType::IDENT {
+                panic!("variable name expected, but got {}", t.input);
+            }
+            node.name = t.name.clone();
+            inc_pos();
+            expect(TokenType::SEMI_COLON, tokens);
+            return node;
+        }
         TokenType::IF => {
             inc_pos();
             node.ty = NodeType::IF;
@@ -309,9 +323,15 @@ fn function(tokens: &Vec<Token>) -> Node {
     let mut node = alloc_node();
     node.ty = NodeType::FUNC;
 
-    let t = &tokens[pos()];
+    let mut t = &tokens[pos()];
+    if t.ty != TokenType::INT {
+        panic!("function return type expected, but got {}", t.input);
+    }
+    inc_pos();
+
+    t = &tokens[pos()];
     if t.ty != TokenType::IDENT {
-        panic!(format!("function name expected, but got {}", t.input));
+        panic!("function name expected, but got {}", t.input);
     }
     node.name = t.name.clone();
     inc_pos();

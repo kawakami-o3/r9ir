@@ -7,10 +7,10 @@ run() {
 
 #run 'return 5+20-4;'
 #run 'return plus(2, 3);'
-#run 'main() { return 1; }'
+run 'int main() { return 1; }'
 #run 'main() { return 2*3+4; }'
 #run 'one() { return 1; } main() { return one(); }'
-run 'main() { sum=0; for (i=10; i<15; i=i+1) sum = sum + i; return sum;}'
+#run 'main() { sum=0; for (i=10; i<15; i=i+1) sum = sum + i; return sum;}'
 
 #cat tmp.s
 

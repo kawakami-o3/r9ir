@@ -273,10 +273,9 @@ fn gen_lval(node: Node) -> i32 {
         panic!("not an lvaue");
     }
 
-    let mut vars = VARS.lock().unwrap();
+    let vars = VARS.lock().unwrap();
     if None == vars.get(&node.name) {
-        add_stacksize(8);
-        (*vars).insert(node.name.clone(), stacksize());
+        panic!("undefined variable: {}", node.name);
     }
 
     let r = regno();
@@ -410,6 +409,13 @@ fn gen_expr(node: Node) -> i32 {
 }
 
 fn gen_stmt(node: Node) {
+    if node.ty == NodeType::VARDEF {
+        let mut vars = VARS.lock().unwrap();
+        add_stacksize(8);
+        (*vars).insert(node.name.clone(), stacksize());
+        return;
+    }
+
     match node.ty {
         NodeType::IF => {
             let r = gen_expr(*node.cond.unwrap());
