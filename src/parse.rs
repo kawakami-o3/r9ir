@@ -119,6 +119,11 @@ fn consume(ty: TokenType, tokens: &Vec<Token>) -> bool {
     return true;
 }
 
+fn is_typename(tokens: &Vec<Token>) -> bool {
+    let t = &tokens[pos()];
+    return t.ty == TokenType::INT;
+}
+
 fn new_node(ty: NodeType, lhs: Node, rhs: Node) -> Node {
     let mut node = alloc_node();
     node.ty = ty;
@@ -242,28 +247,40 @@ fn assign(tokens: &Vec<Token>) -> Node {
     return lhs;
 }
 
+fn decl(tokens: &Vec<Token>) -> Node {
+    let mut node = alloc_node();
+    node.ty = NodeType::VARDEF;
+    inc_pos();
+
+    let t = &tokens[pos()];
+    if t.ty != TokenType::IDENT {
+        panic!("variable name expected, but got {}", t.input);
+    }
+    node.name = t.name.clone();
+    inc_pos();
+
+    if consume(TokenType::EQ, tokens) {
+        node.init = Some(Box::new(assign(tokens)));
+    }
+    expect(TokenType::SEMI_COLON, tokens);
+    return node;
+}
+
+fn expr_stmt(tokens: &Vec<Token>) -> Node {
+    let mut node = alloc_node();
+    node.ty = NodeType::EXPR_STMT;
+    node.expr = Some(Box::new(assign(tokens)));
+    expect(TokenType::SEMI_COLON, tokens);
+    return node;
+}
+
 pub fn stmt(tokens: &Vec<Token>) -> Node {
     let mut node = alloc_node();
     let t = &tokens[pos()];
 
     match t.ty {
         TokenType::INT => {
-            inc_pos();
-            node.ty = NodeType::VARDEF;
-
-            let t = &tokens[pos()];
-            if t.ty != TokenType::IDENT {
-                panic!("variable name expected, but got {}", t.input);
-            }
-            node.name = t.name.clone();
-            inc_pos();
-
-            if consume(TokenType::EQ, tokens) {
-                node.init = Some(Box::new(assign(tokens)));
-            }
-
-            expect(TokenType::SEMI_COLON, tokens);
-            return node;
+            return decl(tokens);
         }
         TokenType::IF => {
             inc_pos();
@@ -281,8 +298,11 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             inc_pos();
             node.ty = NodeType::FOR;
             expect(TokenType::BRA, tokens);
-            node.init = Some(Box::new(assign(tokens)));
-            expect(TokenType::SEMI_COLON, tokens);
+            if is_typename(tokens) {
+                node.init = Some(Box::new(decl(tokens)));
+            } else {
+                node.init = Some(Box::new(expr_stmt(tokens)));
+            }
             node.cond = Some(Box::new(assign(tokens)));
             expect(TokenType::SEMI_COLON, tokens);
             node.inc = Some(Box::new(assign(tokens)));
@@ -306,10 +326,7 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             return node;
         }
         _ => {
-            node.ty = NodeType::EXPR_STMT;
-            node.expr = Some(Box::new(assign(tokens)));
-            expect(TokenType::SEMI_COLON, tokens);
-            return node;
+            return expr_stmt(tokens);
         }
     }
 }

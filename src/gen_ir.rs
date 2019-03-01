@@ -464,7 +464,7 @@ fn gen_stmt(node: Node) {
             let y = label();
             inc_label();
 
-            add(IRType::KILL, gen_expr(*node.init.unwrap()), -1);
+            gen_stmt(*node.init.unwrap());
             add(IRType::LABEL, x, -1);
             let r = gen_expr(*node.cond.unwrap());
             add(IRType::UNLESS, r, y);
