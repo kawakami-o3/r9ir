@@ -257,6 +257,11 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             }
             node.name = t.name.clone();
             inc_pos();
+
+            if consume(TokenType::EQ, tokens) {
+                node.init = Some(Box::new(assign(tokens)));
+            }
+
             expect(TokenType::SEMI_COLON, tokens);
             return node;
         }

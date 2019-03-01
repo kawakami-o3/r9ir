@@ -410,9 +410,28 @@ fn gen_expr(node: Node) -> i32 {
 
 fn gen_stmt(node: Node) {
     if node.ty == NodeType::VARDEF {
-        let mut vars = VARS.lock().unwrap();
-        add_stacksize(8);
-        (*vars).insert(node.name.clone(), stacksize());
+        match VARS.lock() {
+            Ok(mut vars) => {
+                add_stacksize(8);
+                (*vars).insert(node.name.clone(), stacksize());
+            }
+            Err(_) => {
+                panic!();
+            }
+        }
+
+        if node.init.is_none() {
+            return;
+        }
+
+        let rhs = gen_expr(*node.init.unwrap());
+        let lhs = regno();
+        inc_regno();
+        add(IRType::MOV, lhs, 0);
+        add(IRType::SUB_IMM, lhs, stacksize());
+        add(IRType::STORE, lhs, rhs);
+        add(IRType::KILL, lhs, -1);
+        add(IRType::KILL, rhs, -1);
         return;
     }
 

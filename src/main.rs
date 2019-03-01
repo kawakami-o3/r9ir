@@ -28,10 +28,16 @@ fn main() {
     // token -> parse -> gen_ir -> regalloc -> gen_x86
 
     // Tokenize and parse.
+    //eprintln!("start");
     let tokens = tokenize(&argv[1]);
-    let mut fns = gen_ir(parse(&tokens));
+    //eprintln!("tokenize");
+    let node = parse(&tokens);
+    //eprintln!("parse");
+    let mut fns = gen_ir(node);
+    //eprintln!("gen_ir");
 
     alloc_regs(&mut fns);
+    //eprintln!("alloc_regs");
 
     gen_x86(&fns);
     return;
