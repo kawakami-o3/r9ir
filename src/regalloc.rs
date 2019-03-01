@@ -33,13 +33,6 @@ fn alloc(ir_reg: i32) -> i32 {
     panic!("register exhausted");
 }
 
-fn kill(i: i32) {
-    let mut used = USED.lock().unwrap();
-    let r = i as usize;
-    assert!(used[r]);
-    used[r] = false;
-}
-
 fn visit(irv: &mut Vec<IR>) {
     // r0 is a reserved register that is always mapped to rbp.
 
@@ -75,7 +68,9 @@ fn visit(irv: &mut Vec<IR>) {
         }
 
         if ir.op == IRType::KILL {
-            kill(ir.lhs);
+            let mut used = USED.lock().unwrap();
+            assert!(used[ir.lhs as usize]);
+            used[ir.lhs as usize] = false;
             ir.op = IRType::NOP;
         }
     }
