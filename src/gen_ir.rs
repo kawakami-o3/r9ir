@@ -20,10 +20,7 @@ fn to_ir_type(node_type: &NodeType) -> IRType {
 lazy_static! {
     static ref CODE: Mutex<Vec<IR>> = Mutex::new(Vec::new());
 
-    static ref VARS: Mutex<HashMap<String, i32>> = Mutex::new(HashMap::new());
-
     static ref REGNO: Mutex<i32> = Mutex::new(1);
-    static ref STACKSIZE: Mutex<i32> = Mutex::new(0);
     static ref LABEL: Mutex<i32> = Mutex::new(0);
 
     // Compile AST to intermediate code that has infinite number of registers.
@@ -127,18 +124,19 @@ fn regno() -> i32 {
     *REGNO.lock().unwrap()
 }
 
+fn init_regno() {
+    let mut regno = REGNO.lock().unwrap();
+    *regno = 1;
+}
+
 fn inc_regno() {
     let mut regno = REGNO.lock().unwrap();
     *regno += 1;
 }
 
-fn stacksize() -> i32 {
-    *STACKSIZE.lock().unwrap()
-}
-
-fn add_stacksize(i: i32) {
-    let mut stacksize = STACKSIZE.lock().unwrap();
-    *stacksize += i;
+fn init_code() {
+    let mut code = CODE.lock().unwrap();
+    *code = Vec::new();
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -269,22 +267,13 @@ fn add(op: IRType, lhs: i32, rhs: i32) -> usize {
 }
 
 fn gen_lval(node: Node) -> i32 {
-    if node.ty != NodeType::IDENT {
-        panic!("not an lvaue");
+    if node.ty != NodeType::LVAR {
+        panic!("not an lvalue: {:?} ({})", node.ty, node.name);
     }
-
-    let vars = VARS.lock().unwrap();
-    if None == vars.get(&node.name) {
-        panic!("undefined variable: {}", node.name);
-    }
-
     let r = regno();
     inc_regno();
-
-    let off = *vars.get(&node.name).unwrap();
-
     add(IRType::MOV, r, 0);
-    add(IRType::SUB_IMM, r, off);
+    add(IRType::SUB_IMM, r, node.offset);
     return r;
 }
 
@@ -341,7 +330,7 @@ fn gen_expr(node: Node) -> i32 {
             return r1
         }
 
-        NodeType::IDENT => {
+        NodeType::LVAR => {
             let r = gen_lval(node);
             add(IRType::LOAD, r, r);
             return r;
@@ -403,23 +392,13 @@ fn gen_expr(node: Node) -> i32 {
             return gen_binop(IRType::LT, *node.lhs.unwrap(), *node.rhs.unwrap());
         }
         _ => {
-            panic!("unknown AST type");
+            panic!("unknown AST type {:?}", node);
         }
     }
 }
 
 fn gen_stmt(node: Node) {
     if node.ty == NodeType::VARDEF {
-        match VARS.lock() {
-            Ok(mut vars) => {
-                add_stacksize(8);
-                (*vars).insert(node.name.clone(), stacksize());
-            }
-            Err(_) => {
-                panic!();
-            }
-        }
-
         if node.init.is_none() {
             return;
         }
@@ -428,7 +407,7 @@ fn gen_stmt(node: Node) {
         let lhs = regno();
         inc_regno();
         add(IRType::MOV, lhs, 0);
-        add(IRType::SUB_IMM, lhs, stacksize());
+        add(IRType::SUB_IMM, lhs, node.offset);
         add(IRType::STORE, lhs, rhs);
         add(IRType::KILL, lhs, -1);
         add(IRType::KILL, rhs, -1);
@@ -501,30 +480,6 @@ fn gen_stmt(node: Node) {
     }
 }
 
-fn gen_args(nodes: Vec<Node>) {
-    if nodes.len() == 0 {
-        return;
-    }
-
-    add(IRType::SAVE_ARGS, nodes.len() as i32, -1);
-    for i in 0..nodes.len() {
-        let node = &nodes[i];
-        if node.ty != NodeType::IDENT {
-            panic!("bad parameter");
-        }
-
-        add_stacksize(8);
-        match VARS.lock() {
-            Ok(mut vars) => {
-                (*vars).insert(node.name.clone(), stacksize());
-            }
-            Err(_) => {
-                panic!();
-            }
-        }
-    }
-}
-
 pub fn gen_ir(nodes: Vec<Node>) -> Vec<IR> {
     let mut v = Vec::new();
 
@@ -534,14 +489,17 @@ pub fn gen_ir(nodes: Vec<Node>) -> Vec<IR> {
         let node = nodes[i].clone();
         assert!(node.ty == NodeType::FUNC, "");
 
-        *CODE.lock().unwrap() = Vec::new();
+        init_code();
+        init_regno();
 
-        gen_args(node.args);
+        if node.args.len() > 0 {
+            add(IRType::SAVE_ARGS, node.args.len() as i32, -1);
+        }
         gen_stmt(*node.body.unwrap());
 
         let mut fun = alloc_ir();
         fun.name = node.name.clone();
-        fun.stacksize = stacksize();
+        fun.stacksize = node.stacksize;
         fun.ir = CODE.lock().unwrap().clone();
 
         v.push(fun);

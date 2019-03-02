@@ -44,6 +44,7 @@ pub enum NodeType {
     LT,
     IDENT,
     VARDEF,
+    LVAR,
     IF,
     FOR,
     LOGOR,
@@ -75,6 +76,12 @@ pub struct Node {
     pub inc: Option<Box<Node>>,
     pub body: Option<Box<Node>>,
 
+    // Function definition
+    pub stacksize: i32,
+    
+    // Local variable
+    pub offset: i32,
+
     // Function call
     pub args: Vec<Node>,
 }
@@ -97,6 +104,10 @@ fn alloc_node() -> Node {
         init: None,
         inc: None,
         body: None,
+
+        stacksize: 0,
+
+        offset: 0,
 
         args: Vec::new(),
     }
@@ -266,6 +277,20 @@ fn decl(tokens: &Vec<Token>) -> Node {
     return node;
 }
 
+fn param(tokens: &Vec<Token>) -> Node {
+    let mut node = alloc_node();
+    node.ty = NodeType::VARDEF;
+    inc_pos();
+
+    let t = &tokens[pos()];
+    if t.ty != TokenType::IDENT {
+        panic!("parameter name expected, but got {}", t.input);
+    }
+    node.name = t.name.clone();
+    inc_pos();
+    return node;
+}
+
 fn expr_stmt(tokens: &Vec<Token>) -> Node {
     let mut node = alloc_node();
     node.ty = NodeType::EXPR_STMT;
@@ -360,9 +385,9 @@ fn function(tokens: &Vec<Token>) -> Node {
 
     expect(TokenType::BRA, tokens);
     if !consume(TokenType::KET, tokens) {
-        node.args.push(term(tokens));
+        node.args.push(param(tokens));
         while consume(TokenType::COMMA, tokens) {
-            node.args.push(term(tokens));
+            node.args.push(param(tokens));
         }
         expect(TokenType::KET, tokens);
     }

@@ -7,12 +7,14 @@ mod gen_x86;
 mod gen_ir;
 mod parse;
 mod regalloc;
+mod sema;
 mod token;
 
 use crate::gen_x86::*;
 use crate::gen_ir::*;
 use crate::parse::*;
 use crate::regalloc::*;
+use crate::sema::*;
 use crate::token::*;
 use std::env;
 use std::sync::Mutex;
@@ -31,9 +33,11 @@ fn main() {
     //eprintln!("start");
     let tokens = tokenize(&argv[1]);
     //eprintln!("tokenize");
-    let node = parse(&tokens);
+    //let nodes_tmp = parse(&tokens);
+    let mut nodes = parse(&tokens);
     //eprintln!("parse");
-    let mut fns = gen_ir(node);
+    sema(&mut nodes);
+    let mut fns = gen_ir(nodes);
     //eprintln!("gen_ir");
 
     alloc_regs(&mut fns);
