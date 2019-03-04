@@ -4,8 +4,14 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 lazy_static! {
-    static ref VARS: Mutex<HashMap<String, i32>> = Mutex::new(HashMap::new());
+    static ref VARS: Mutex<HashMap<String, Var>> = Mutex::new(HashMap::new());
     static ref STACKSIZE: Mutex<i32> = Mutex::new(0);
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct Var {
+    ty: Type,
+    offset: i32,
 }
 
 #[allow(dead_code)]
@@ -18,16 +24,12 @@ fn print_vars() {
     }
 }
 
-fn vars_get(name: & String) -> i32 {
-    let vars = VARS.lock().unwrap();
-    return *vars.get(name).unwrap();
-}
-
-fn vars_put(name: String, stacksize: i32) {
+fn vars_put(name: String, var: Var) {
     let mut vars = VARS.lock().unwrap();
-    vars.insert(name, stacksize);
+    vars.insert(name, var);
 }
 
+#[allow(dead_code)]
 fn vars_exist(name: & String) -> bool {
     let vars = VARS.lock().unwrap();
     return None != vars.get(name);
@@ -59,74 +61,42 @@ macro_rules! walk_some {
 }
 
 fn walk(node: &mut Node) {
-    match node.ty {
+    match node.op {
         NodeType::NUM => { }
         NodeType::IDENT => {
-            if !vars_exist(&node.name) {
-                panic!("undefined variable: {}", node.name);
+            match VARS.lock().unwrap().get(&node.name) {
+                None => {
+                    panic!("undefined variable: {}", node.name);
+                }
+                Some(var) => {
+                    node.ty = var.ty.clone();
+                    node.op = NodeType::LVAR;
+                    node.offset = var.offset;
+                }
             }
-
-            node.ty = NodeType::LVAR;
-            node.offset = vars_get(&node.name);
         }
         NodeType::VARDEF => {
             add_stacksize(8);
-            vars_put(node.name.clone(), stacksize());
-
             node.offset = stacksize();
-            match &mut node.init {
-                Some(init) => {
-                    walk(init);
-                }
-                None => {}
-            }
+
+            let var = Var {
+                ty: node.ty.clone(),
+                offset: stacksize(),
+            };
+            vars_put(node.name.clone(), var.clone());
+
+            walk_some!(node.init);
         }
         NodeType::IF => {
-             match &mut node.cond {
-                Some(cond) => {
-                    walk(cond);
-                }
-                None => {}
-             }
-             match &mut node.then {
-                Some(then) => {
-                    walk(then);
-                }
-                None => {}
-             }
-             match &mut node.els {
-                Some(els) => {
-                    walk(els);
-                }
-                None => {}
-             }
+            walk_some!(node.cond);
+            walk_some!(node.then);
+            walk_some!(node.els);
         }
         NodeType::FOR => {
-            match &mut node.init {
-                Some(init) => {
-                    walk(init);
-                }
-                None => {}
-            }
-            match &mut node.cond {
-                Some(cond) => {
-                    walk(cond);
-                }
-                None => {}
-            }
-
-            match &mut node.inc {
-                Some(inc) => {
-                    walk(inc);
-                }
-                None => {}
-            }
-            match &mut node.body {
-                Some(body) => {
-                    walk(body);
-                }
-                None => {}
-            }
+            walk_some!(node.init);
+            walk_some!(node.cond);
+            walk_some!(node.inc);
+            walk_some!(node.body);
         }
         NodeType::ADD |
             NodeType::SUB |
@@ -136,34 +106,24 @@ fn walk(node: &mut Node) {
             NodeType::LT |
             NodeType::LOGAND |
             NodeType::LOGOR => {
-                match &mut node.lhs {
-                    Some(lhs) => {
-                        walk(lhs);
+                walk_some!(node.lhs);
+                walk_some!(node.rhs);
+
+                match node.lhs {
+                    Some(ref lhs) => {
+                        node.ty = lhs.ty.clone();
                     }
-                    None => {}
-                }
-                match &mut node.rhs {
-                    Some(rhs) => {
-                        walk(rhs);
-                    }
-                    None => {}
+                    None => { }
                 }
             }
-        NodeType::RETURN => {
-            /*
-            match &mut node.expr {
-                Some(expr) => {
-                    walk(expr);
-                }
-                None => {}
-            }
-            */
+        NodeType::RETURN | NodeType::DEREF => {
             walk_some!(node.expr);
         }
         NodeType::CALL => {
             for n in &mut node.args {
                 walk(n);
             }
+            node.ty = int_ty();
         }
         NodeType::FUNC => {
             for n in &mut node.args {
@@ -187,7 +147,7 @@ fn walk(node: &mut Node) {
 
 pub fn sema(nodes: &mut Vec<Node>) {
     for node in nodes.iter_mut() {
-        assert!(node.ty == NodeType::FUNC);
+        assert!(node.op == NodeType::FUNC);
 
         init_stacksize();
         walk(node);

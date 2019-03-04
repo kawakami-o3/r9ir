@@ -267,7 +267,7 @@ fn add(op: IRType, lhs: i32, rhs: i32) -> usize {
 }
 
 fn gen_lval(node: Node) -> i32 {
-    if node.ty != NodeType::LVAR {
+    if node.op != NodeType::LVAR {
         panic!("not an lvalue: {:?} ({})", node.ty, node.name);
     }
     let r = regno();
@@ -286,7 +286,7 @@ fn gen_binop(ty: IRType, lhs: Node, rhs: Node) -> i32 {
 }
 
 fn gen_expr(node: Node) -> i32 {
-    match node.ty {
+    match node.op {
         NodeType::NUM => {
             let r = regno();
             inc_regno();
@@ -369,6 +369,12 @@ fn gen_expr(node: Node) -> i32 {
             return r;
         }
 
+        NodeType::DEREF => {
+            let r = gen_expr(*node.expr.unwrap());
+            add(IRType::LOAD, r, r);
+            return r;
+        }
+
         NodeType::EQ => {
             let rhs = gen_expr(*node.rhs.unwrap());
             let lhs = gen_lval(*node.lhs.unwrap());
@@ -398,7 +404,7 @@ fn gen_expr(node: Node) -> i32 {
 }
 
 fn gen_stmt(node: Node) {
-    if node.ty == NodeType::VARDEF {
+    if node.op == NodeType::VARDEF {
         if node.init.is_none() {
             return;
         }
@@ -414,7 +420,7 @@ fn gen_stmt(node: Node) {
         return;
     }
 
-    match node.ty {
+    match node.op {
         NodeType::IF => {
             let cond = *node.cond.unwrap();
             let then = *node.then.unwrap();
@@ -487,7 +493,7 @@ pub fn gen_ir(nodes: Vec<Node>) -> Vec<IR> {
 
     for i in 0..nodes.len() {
         let node = nodes[i].clone();
-        assert!(node.ty == NodeType::FUNC, "");
+        assert!(node.op == NodeType::FUNC, "");
 
         init_code();
         init_regno();

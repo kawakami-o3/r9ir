@@ -27,7 +27,7 @@ fn main() {
     }
 
     // Token -> Node -> IR -> asm
-    // token -> parse -> gen_ir -> regalloc -> gen_x86
+    // token -> parse -> sema -> gen_ir -> regalloc -> gen_x86
 
     // Tokenize and parse.
     //eprintln!("start");

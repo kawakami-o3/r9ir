@@ -47,6 +47,7 @@ pub enum NodeType {
     LVAR,
     IF,
     FOR,
+    DEREF,
     LOGOR,
     LOGAND,
     RETURN,
@@ -56,9 +57,35 @@ pub enum NodeType {
     EXPR_STMT,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum CType {
+    INT,
+    PTR,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Type {
+    pub ty: CType,
+    pub ptr_of: Option<Box<Type>>,
+}
+
+fn alloc_type() -> Type {
+    Type {
+        ty: CType::INT,
+        ptr_of: None,
+    } 
+}
+
+pub fn int_ty() -> Type {
+    let mut ty = alloc_type();
+    ty.ty = CType::INT;
+    return ty
+}
+
 #[derive(Clone, Debug)]
 pub struct Node {
-    pub ty: NodeType,
+    pub op: NodeType,
+    pub ty: Type,
     pub lhs: Option<Box<Node>>,
     pub rhs: Option<Box<Node>>,
     pub val: i32,
@@ -89,7 +116,8 @@ pub struct Node {
 // default node
 fn alloc_node() -> Node {
     Node {
-        ty: NodeType::NUM,
+        op: NodeType::NUM,
+        ty: int_ty(),
         lhs: None,
         rhs: None,
         val: 0,
@@ -111,6 +139,13 @@ fn alloc_node() -> Node {
 
         args: Vec::new(),
     }
+}
+
+fn ptr_of(base: Type) -> Type {
+    let mut ty = alloc_type();
+    ty.ty = CType::PTR;
+    ty.ptr_of = Some(Box::new(base));
+    return ty;
 }
 
 fn expect(ty: TokenType, tokens: &Vec<Token>) {
@@ -135,9 +170,9 @@ fn is_typename(tokens: &Vec<Token>) -> bool {
     return t.ty == TokenType::INT;
 }
 
-fn new_node(ty: NodeType, lhs: Node, rhs: Node) -> Node {
+fn new_node(op: NodeType, lhs: Node, rhs: Node) -> Node {
     let mut node = alloc_node();
-    node.ty = ty;
+    node.op = op;
     node.lhs = Some(Box::new(lhs));
     node.rhs = Some(Box::new(rhs));
     return node;
@@ -155,7 +190,8 @@ fn term(tokens: &Vec<Token>) -> Node {
 
     let mut node = alloc_node();
     if t.ty == TokenType::NUM {
-        node.ty = NodeType::NUM;
+        node.ty = int_ty();
+        node.op = NodeType::NUM;
         node.val = t.val;
         return node;
     }
@@ -164,11 +200,11 @@ fn term(tokens: &Vec<Token>) -> Node {
         node.name = t.name.clone();
 
         if !consume(TokenType::BRA, tokens) {
-            node.ty = NodeType::IDENT;
+            node.op = NodeType::IDENT;
             return node;
         }
 
-        node.ty = NodeType::CALL;
+        node.op = NodeType::CALL;
         if consume(TokenType::KET, tokens) {
             return node;
         }
@@ -184,15 +220,25 @@ fn term(tokens: &Vec<Token>) -> Node {
     panic!(format!("number expected, but got {}", t.input));
 }
 
+fn unary(tokens: &Vec<Token>) -> Node {
+    if consume(TokenType::MUL, tokens) {
+        let mut node = alloc_node();
+        node.op = NodeType::DEREF;
+        node.expr = Some(Box::new(mul(tokens)));
+        return node;
+    }
+    return term(tokens);
+}
+
 fn mul(tokens: &Vec<Token>) -> Node {
-    let mut lhs = term(tokens);
+    let mut lhs = unary(tokens);
     loop {
         let t = &tokens[pos()];
         if t.ty != TokenType::MUL && t.ty != TokenType::DIV {
             return lhs;
         }
         inc_pos();
-        lhs = new_node(to_node_type(&t.ty), lhs, term(tokens));
+        lhs = new_node(to_node_type(&t.ty), lhs, unary(tokens));
     }
 }
 
@@ -258,10 +304,24 @@ fn assign(tokens: &Vec<Token>) -> Node {
     return lhs;
 }
 
+fn do_type(tokens: &Vec<Token>) -> Type {
+    let t = &tokens[pos()];
+    if t.ty != TokenType::INT {
+        panic!("typename expected, but got {}", t.input);
+    }
+    inc_pos();
+
+    let mut ty = int_ty();
+    while consume(TokenType::MUL, tokens) {
+        ty = ptr_of(ty);
+    }
+    return ty;
+}
+
 fn decl(tokens: &Vec<Token>) -> Node {
     let mut node = alloc_node();
-    node.ty = NodeType::VARDEF;
-    inc_pos();
+    node.op = NodeType::VARDEF;
+    node.ty = do_type(tokens);
 
     let t = &tokens[pos()];
     if t.ty != TokenType::IDENT {
@@ -279,8 +339,8 @@ fn decl(tokens: &Vec<Token>) -> Node {
 
 fn param(tokens: &Vec<Token>) -> Node {
     let mut node = alloc_node();
-    node.ty = NodeType::VARDEF;
-    inc_pos();
+    node.op = NodeType::VARDEF;
+    node.ty = do_type(tokens);
 
     let t = &tokens[pos()];
     if t.ty != TokenType::IDENT {
@@ -293,7 +353,7 @@ fn param(tokens: &Vec<Token>) -> Node {
 
 fn expr_stmt(tokens: &Vec<Token>) -> Node {
     let mut node = alloc_node();
-    node.ty = NodeType::EXPR_STMT;
+    node.op = NodeType::EXPR_STMT;
     node.expr = Some(Box::new(assign(tokens)));
     expect(TokenType::SEMI_COLON, tokens);
     return node;
@@ -309,7 +369,7 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
         }
         TokenType::IF => {
             inc_pos();
-            node.ty = NodeType::IF;
+            node.op = NodeType::IF;
             expect(TokenType::BRA, tokens);
             node.cond = Some(Box::new(assign(tokens)));
             expect(TokenType::KET, tokens);
@@ -321,7 +381,7 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
         }
         TokenType::FOR => {
             inc_pos();
-            node.ty = NodeType::FOR;
+            node.op = NodeType::FOR;
             expect(TokenType::BRA, tokens);
             if is_typename(tokens) {
                 node.init = Some(Box::new(decl(tokens)));
@@ -337,14 +397,14 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
         }
         TokenType::RETURN => {
             inc_pos();
-            node.ty = NodeType::RETURN;
+            node.op = NodeType::RETURN;
             node.expr = Some(Box::new(assign(tokens)));
             expect(TokenType::SEMI_COLON, tokens);
             return node;
         }
         TokenType::C_BRA => {
             inc_pos();
-            node.ty = NodeType::COMP_STMT;
+            node.op = NodeType::COMP_STMT;
             while !consume(TokenType::C_KET, tokens) {
                 node.stmts.push(stmt(tokens));
             }
@@ -358,7 +418,7 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
 
 pub fn compaund_stmt(tokens: &Vec<Token>) -> Node {
     let mut node = alloc_node();
-    node.ty = NodeType::COMP_STMT;
+    node.op = NodeType::COMP_STMT;
 
     while !consume(TokenType::C_KET, tokens) {
         node.stmts.push(stmt(tokens));
@@ -368,7 +428,7 @@ pub fn compaund_stmt(tokens: &Vec<Token>) -> Node {
 
 fn function(tokens: &Vec<Token>) -> Node {
     let mut node = alloc_node();
-    node.ty = NodeType::FUNC;
+    node.op = NodeType::FUNC;
 
     let mut t = &tokens[pos()];
     if t.ty != TokenType::INT {
