@@ -1,6 +1,7 @@
 
 use crate::parse::*;
 use std::collections::HashMap;
+use std::mem;
 use std::sync::Mutex;
 
 lazy_static! {
@@ -47,6 +48,26 @@ fn init_stacksize() {
 fn add_stacksize(i: i32) {
     let mut stacksize = STACKSIZE.lock().unwrap();
     *stacksize += i;
+}
+
+pub fn size_of(ty: Type) -> i32 {
+    if ty.ty == CType::INT {
+        return 4;
+    }
+    assert!(ty.ty == CType::PTR);
+    return 8;
+}
+
+/*
+fn swap(p: *mut Node, q: *mut Node) {
+    unsafe {
+        ptr::swap(p, q);
+    }
+}
+*/
+
+fn swap(p: &mut Node, q: &mut Node) {
+    mem::swap(p, q);
 }
 
 macro_rules! walk_some {
@@ -98,9 +119,37 @@ fn walk(node: &mut Node) {
             walk_some!(node.inc);
             walk_some!(node.body);
         }
-        NodeType::ADD |
-            NodeType::SUB |
-            NodeType::MUL |
+        NodeType::ADD | NodeType::SUB => {
+            walk_some!(node.lhs);
+            walk_some!(node.rhs);
+
+            match (&mut node.lhs, &mut node.rhs) {
+                (Some(ref mut lhs), Some(ref mut rhs)) => {
+                    if rhs.ty.ty == CType::PTR {
+                        swap(lhs, rhs);
+                    }
+                }
+                _ => {}
+            }
+            match node.rhs {
+                Some(ref rhs) => {
+                    if rhs.ty.ty == CType::PTR {
+                        panic!("'pointer {:?} pointer' is not defined", node.op);
+                    }
+                }
+                None => {
+                }
+            }
+
+            match node.lhs {
+                Some(ref lhs) => {
+                    node.ty = lhs.ty.clone();
+                }
+                None => { }
+            }
+
+        }
+        NodeType::MUL |
             NodeType::DIV |
             NodeType::EQ |
             NodeType::LT |
@@ -116,7 +165,20 @@ fn walk(node: &mut Node) {
                     None => { }
                 }
             }
-        NodeType::RETURN | NodeType::DEREF => {
+        NodeType::DEREF => {
+            walk_some!(node.expr);
+            match &mut node.expr {
+                Some(ref expr) => {
+                    if expr.ty.ty != CType::PTR {
+                        panic!("operand must be a pointer");
+                    }
+                }
+                None => {}
+            }
+
+            node.ty = *node.clone().expr.unwrap().ty.ptr_of.unwrap();
+        }
+        NodeType::RETURN => {
             walk_some!(node.expr);
         }
         NodeType::CALL => {

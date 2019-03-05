@@ -13,7 +13,10 @@ run() {
 #run 'int mul(int a, int b) { return a * b; } int main() { return mul(2, 3); }'
 #run 'int add(int a, int b, int c, int d, int e, int f) { return a+b+c+d+e+f; } int main() { return add(1,2,3,4,5,6); }'
 
-run 'int main() { int *p = alloc(42); return *p; }'
+#run 'int main() { int *p = alloc1(3, 5); return *p + *(p + 1); }'
+#run 'int main() { int *p = alloc2(2, 7); return *p + *(p - 1); }'
+run 'int main() { int **p = alloc_ptr_ptr(2); return **p; }'
+
 
 
 #cat tmp.s

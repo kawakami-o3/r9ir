@@ -132,7 +132,7 @@ fn scan(p: &String) -> Vec<Token> {
             idx += 1;
             while idx < char_bytes.len() {
                 let d = char::from(char_bytes[idx]);
-                if d.is_alphabetic() || d.is_digit(10) || c == '_' {
+                if d.is_alphabetic() || d.is_digit(10) || d == '_' {
                     s.push(d);
                     idx += 1;
                 } else {

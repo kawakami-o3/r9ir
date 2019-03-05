@@ -2,6 +2,7 @@
 #![allow(dead_code, non_camel_case_types)]
 
 use crate::parse::*;
+use crate::sema::size_of;
 use std::collections::HashMap;
 use std::sync::Mutex;
 
@@ -111,11 +112,11 @@ fn init_irinfo() {
     });
 }
 
-fn label() -> i32 {
+fn nlabel() -> i32 {
     *LABEL.lock().unwrap()
 }
 
-fn inc_label() {
+fn inc_nlabel() {
     let mut label = LABEL.lock().unwrap();
     *label += 1;
 }
@@ -266,6 +267,14 @@ fn add(op: IRType, lhs: i32, rhs: i32) -> usize {
     }
 }
 
+fn kill(r: i32) {
+    add(IRType::KILL, r, -1);
+}
+
+fn label(x: i32) {
+    add(IRType::LABEL, x, -1);
+}
+
 fn gen_lval(node: Node) -> i32 {
     if node.op != NodeType::LVAR {
         panic!("not an lvalue: {:?} ({})", node.ty, node.name);
@@ -295,8 +304,8 @@ fn gen_expr(node: Node) -> i32 {
         }
 
         NodeType::LOGAND => {
-            let x = label();
-            inc_label();
+            let x = nlabel();
+            inc_nlabel();
 
             let r1 = gen_expr(*node.lhs.unwrap());
             add(IRType::UNLESS, r1, x);
@@ -310,10 +319,10 @@ fn gen_expr(node: Node) -> i32 {
         }
 
         NodeType::LOGOR => {
-            let x = label();
-            inc_label();
-            let y = label();
-            inc_label();
+            let x = nlabel();
+            inc_nlabel();
+            let y = nlabel();
+            inc_nlabel();
 
             let r1 = gen_expr(*node.lhs.unwrap());
             add(IRType::UNLESS, r1, x);
@@ -382,11 +391,41 @@ fn gen_expr(node: Node) -> i32 {
             add(IRType::KILL, rhs, -1);
             return lhs;
         }
-        NodeType::ADD => {
-            return gen_binop(IRType::ADD, *node.lhs.unwrap(), *node.rhs.unwrap());
-        }
-        NodeType::SUB => {
-            return gen_binop(IRType::SUB, *node.lhs.unwrap(), *node.rhs.unwrap());
+        NodeType::ADD | NodeType::SUB => {
+            let insn = match node.op {
+                NodeType::ADD => IRType::ADD,
+                NodeType::SUB => IRType::SUB,
+                _ => {
+                    panic!();
+                }
+            };
+            match node.lhs {
+                Some(ref lhs) => {
+                    if lhs.ty.ty != CType::PTR {
+                        return gen_binop(insn, *lhs.clone(), *node.rhs.unwrap());
+                    }
+                }
+                None => {}
+            }
+
+            let rhs = gen_expr(*node.rhs.unwrap());
+            let r = regno();
+            inc_regno();
+            match node.lhs {
+                Some(ref lhs) => {
+                    add(IRType::IMM, r, size_of(*lhs.clone().ty.ptr_of.unwrap()));
+                }
+                None => {}
+            }
+            add(IRType::MUL, rhs, r);
+            kill(r);
+
+            let lhs = gen_expr(*node.lhs.unwrap());
+            add(insn, lhs, rhs);
+            kill(rhs);
+
+            return lhs;
+            //return gen_binop(IRType::SUB, *node.lhs.unwrap(), *node.rhs.unwrap());
         }
         NodeType::MUL => {
             return gen_binop(IRType::MUL, *node.lhs.unwrap(), *node.rhs.unwrap());
@@ -425,10 +464,10 @@ fn gen_stmt(node: Node) {
             let cond = *node.cond.unwrap();
             let then = *node.then.unwrap();
             if !node.els.is_none() {
-                let x = label();
-                inc_label();
-                let y = label();
-                inc_label();
+                let x = nlabel();
+                inc_nlabel();
+                let y = nlabel();
+                inc_nlabel();
                 let r = gen_expr(cond.clone());
                 add(IRType::UNLESS, r, x);
                 add(IRType::KILL, r, -1);
@@ -439,8 +478,8 @@ fn gen_stmt(node: Node) {
                 add(IRType::LABEL, y, -1);
             }
 
-            let x = label();
-            inc_label();
+            let x = nlabel();
+            inc_nlabel();
             let r = gen_expr(cond);
 
             add(IRType::UNLESS, r, x);
@@ -451,10 +490,10 @@ fn gen_stmt(node: Node) {
             add(IRType::LABEL, x, -1);
         }
         NodeType::FOR => {
-            let x = label();
-            inc_label();
-            let y = label();
-            inc_label();
+            let x = nlabel();
+            inc_nlabel();
+            let y = nlabel();
+            inc_nlabel();
 
             gen_stmt(*node.init.unwrap());
             add(IRType::LABEL, x, -1);
