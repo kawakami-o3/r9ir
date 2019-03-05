@@ -172,6 +172,10 @@ fn walk(node: &mut Node, decay: bool) {
                     None => { }
                 }
             }
+        NodeType::ADDR => {
+            walk_some!(node.expr, true);
+            node.ty = ptr_of(node.clone().expr.unwrap().ty);
+        }
         NodeType::DEREF => {
             walk_some!(node.expr, true);
             match &mut node.expr {

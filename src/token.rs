@@ -41,6 +41,7 @@ pub enum TokenType {
     C_KET,
     S_BRA,
     S_KET,
+    AMP,
     IDENT,
     INT,
     IF,
@@ -73,37 +74,6 @@ pub fn tokenize(p: &String) -> Vec<Token> {
             idx += 1;
             continue;
         }
-        if "+-*/;=(),{}<>[]".contains(c) {
-            let ty = match c {
-                '+' => TokenType::ADD,
-                '-' => TokenType::SUB,
-                '*' => TokenType::MUL,
-                '/' => TokenType::DIV,
-                ';' => TokenType::SEMI_COLON,
-                '=' => TokenType::EQ,
-                '<' => TokenType::LT,
-                '>' => TokenType::GT,
-                ',' => TokenType::COMMA,
-                '(' => TokenType::BRA,
-                ')' => TokenType::KET,
-                '{' => TokenType::C_BRA,
-                '}' => TokenType::C_KET,
-                '[' => TokenType::S_BRA,
-                ']' => TokenType::S_KET,
-                _ => panic!(format!("unknown {}", c)),
-            };
-            let tok = Token {
-                ty: ty,
-                val: 0,
-                name: String::new(),
-                input: format!("{}", c),
-            };
-
-            tokens.push(tok);
-
-            idx += 1;
-            continue;
-        }
 
         // Multi-letter token
         match SYMBOLS.lock() {
@@ -128,6 +98,40 @@ pub fn tokenize(p: &String) -> Vec<Token> {
             Err(_) => {
                 panic!();
             }
+        }
+
+        // Single-letter token
+        if "+-*/;=(),{}<>[]&".contains(c) {
+            let ty = match c {
+                '+' => TokenType::ADD,
+                '-' => TokenType::SUB,
+                '*' => TokenType::MUL,
+                '/' => TokenType::DIV,
+                ';' => TokenType::SEMI_COLON,
+                '=' => TokenType::EQ,
+                '<' => TokenType::LT,
+                '>' => TokenType::GT,
+                ',' => TokenType::COMMA,
+                '(' => TokenType::BRA,
+                ')' => TokenType::KET,
+                '{' => TokenType::C_BRA,
+                '}' => TokenType::C_KET,
+                '[' => TokenType::S_BRA,
+                ']' => TokenType::S_KET,
+                '&' => TokenType::AMP,
+                _ => panic!(format!("unknown {}", c)),
+            };
+            let tok = Token {
+                ty: ty,
+                val: 0,
+                name: String::new(),
+                input: format!("{}", c),
+            };
+
+            tokens.push(tok);
+
+            idx += 1;
+            continue;
         }
 
         // Identifier

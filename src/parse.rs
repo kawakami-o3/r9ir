@@ -227,6 +227,12 @@ fn unary(tokens: &Vec<Token>) -> Node {
         node.expr = Some(Box::new(mul(tokens)));
         return node;
     }
+    if consume(TokenType::AMP, tokens) {
+        let mut node = alloc_node();
+        node.op = NodeType::ADDR;
+        node.expr = Some(Box::new(mul(tokens)));
+        return node;
+    }
     return term(tokens);
 }
 
