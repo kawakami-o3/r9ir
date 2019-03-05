@@ -21,7 +21,7 @@ fn to_ir_type(node_type: &NodeType) -> IRType {
 lazy_static! {
     static ref CODE: Mutex<Vec<IR>> = Mutex::new(Vec::new());
 
-    static ref REGNO: Mutex<i32> = Mutex::new(1);
+    static ref NREG: Mutex<i32> = Mutex::new(1);
     static ref LABEL: Mutex<i32> = Mutex::new(0);
 
     // Compile AST to intermediate code that has infinite number of registers.
@@ -121,18 +121,18 @@ fn inc_nlabel() {
     *label += 1;
 }
 
-fn regno() -> i32 {
-    *REGNO.lock().unwrap()
+fn nreg() -> i32 {
+    *NREG.lock().unwrap()
 }
 
-fn init_regno() {
-    let mut regno = REGNO.lock().unwrap();
-    *regno = 1;
+fn init_nreg() {
+    let mut nreg = NREG.lock().unwrap();
+    *nreg = 1;
 }
 
-fn inc_regno() {
-    let mut regno = REGNO.lock().unwrap();
-    *regno += 1;
+fn inc_nreg() {
+    let mut nreg = NREG.lock().unwrap();
+    *nreg += 1;
 }
 
 fn init_code() {
@@ -279,8 +279,8 @@ fn gen_lval(node: Node) -> i32 {
     if node.op != NodeType::LVAR {
         panic!("not an lvalue: {:?} ({})", node.ty, node.name);
     }
-    let r = regno();
-    inc_regno();
+    let r = nreg();
+    inc_nreg();
     add(IRType::MOV, r, 0);
     add(IRType::SUB_IMM, r, node.offset);
     return r;
@@ -297,8 +297,8 @@ fn gen_binop(ty: IRType, lhs: Node, rhs: Node) -> i32 {
 fn gen_expr(node: Node) -> i32 {
     match node.op {
         NodeType::NUM => {
-            let r = regno();
-            inc_regno();
+            let r = nreg();
+            inc_nreg();
             add(IRType::IMM, r, node.val);
             return r;
         }
@@ -351,8 +351,8 @@ fn gen_expr(node: Node) -> i32 {
                 args.push(gen_expr(a.clone()));
             }
 
-            let r = regno();
-            inc_regno();
+            let r = nreg();
+            inc_nreg();
 
             let ir_idx = add(IRType::CALL, r, -1);
 
@@ -409,8 +409,8 @@ fn gen_expr(node: Node) -> i32 {
             }
 
             let rhs = gen_expr(*node.rhs.unwrap());
-            let r = regno();
-            inc_regno();
+            let r = nreg();
+            inc_nreg();
             match node.lhs {
                 Some(ref lhs) => {
                     add(IRType::IMM, r, size_of(*lhs.clone().ty.ptr_of.unwrap()));
@@ -449,8 +449,8 @@ fn gen_stmt(node: Node) {
         }
 
         let rhs = gen_expr(*node.init.unwrap());
-        let lhs = regno();
-        inc_regno();
+        let lhs = nreg();
+        inc_nreg();
         add(IRType::MOV, lhs, 0);
         add(IRType::SUB_IMM, lhs, node.offset);
         add(IRType::STORE, lhs, rhs);
@@ -535,7 +535,7 @@ pub fn gen_ir(nodes: Vec<Node>) -> Vec<IR> {
         assert!(node.op == NodeType::FUNC, "");
 
         init_code();
-        init_regno();
+        init_nreg();
 
         if node.args.len() > 0 {
             add(IRType::SAVE_ARGS, node.args.len() as i32, -1);
