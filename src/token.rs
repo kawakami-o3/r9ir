@@ -60,7 +60,8 @@ pub struct Token {
     pub input: String,
 }
 
-fn scan(p: &String) -> Vec<Token> {
+pub fn tokenize(p: &String) -> Vec<Token> {
+    init_symbols();
     let mut tokens = Vec::new();
     let char_bytes = p.as_bytes();
     let mut idx = 0;
@@ -190,7 +191,3 @@ fn scan(p: &String) -> Vec<Token> {
     return tokens;
 }
 
-pub fn tokenize(p: &String) -> Vec<Token> {
-    init_symbols();
-    return scan(p);
-}
