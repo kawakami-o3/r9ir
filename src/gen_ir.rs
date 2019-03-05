@@ -2,7 +2,7 @@
 #![allow(dead_code, non_camel_case_types)]
 
 use crate::parse::*;
-use crate::sema::size_of;
+use crate::util::size_of;
 use std::collections::HashMap;
 use std::sync::Mutex;
 
@@ -66,8 +66,12 @@ fn init_irinfo() {
         name: "LT",
         ty: IRInfoType::REG_REG
     });
-    irinfo.insert(IRType::LOAD, IRInfo {
-        name: "LOAD",
+    irinfo.insert(IRType::LOAD32, IRInfo {
+        name: "LOAD32",
+        ty: IRInfoType::REG_REG
+    });
+    irinfo.insert(IRType::LOAD64, IRInfo {
+        name: "LOAD64",
         ty: IRInfoType::REG_REG
     });
     irinfo.insert(IRType::MOV, IRInfo {
@@ -86,13 +90,21 @@ fn init_irinfo() {
         name: "RET",
         ty: IRInfoType::REG
     });
-    irinfo.insert(IRType::SAVE_ARGS, IRInfo {
-        name: "SAVE_ARGS",
-        ty: IRInfoType::IMM
-    });
-    irinfo.insert(IRType::STORE, IRInfo {
-        name: "STORE",
+    irinfo.insert(IRType::STORE32, IRInfo {
+        name: "STORE32",
         ty: IRInfoType::REG_REG
+    });
+    irinfo.insert(IRType::STORE64, IRInfo {
+        name: "STORE64",
+        ty: IRInfoType::REG_REG
+    });
+    irinfo.insert(IRType::STORE32_ARG, IRInfo {
+        name: "STORE32_ARG",
+        ty: IRInfoType::IMM_IMM
+    });
+    irinfo.insert(IRType::STORE64_ARG, IRInfo {
+        name: "STORE64_ARG",
+        ty: IRInfoType::IMM_IMM
     });
     irinfo.insert(IRType::SUB, IRInfo {
         name: "SUB",
@@ -151,11 +163,13 @@ pub enum IRType {
     LT,
     JMP,
     UNLESS,
-    ALLOCA,
-    LOAD,
-    STORE,
+    LOAD32,
+    LOAD64,
+    STORE32,
+    STORE64,
+    STORE32_ARG,
+    STORE64_ARG,
     KILL,
-    SAVE_ARGS,
     ADD,
     SUB,
     MUL,
@@ -188,6 +202,7 @@ pub enum IRInfoType {
     LABEL,
     REG_REG,
     REG_IMM,
+    IMM_IMM,
     REG_LABEL,
     CALL,
     NULL,
@@ -209,6 +224,7 @@ fn tostr(ir: IR) -> String {
         IRInfoType::REG => format!("  {} r{}", info.name, ir.lhs),
         IRInfoType::REG_REG => format!("  {} r{}, r{}", info.name, ir.lhs, ir.rhs),
         IRInfoType::REG_IMM => format!("  {} r{}, {}", info.name, ir.lhs, ir.rhs),
+        IRInfoType::IMM_IMM => format!("  {} {}, {}", info.name, ir.lhs, ir.rhs),
         IRInfoType::REG_LABEL => format!("  {} r{}, .L{}", info.name, ir.lhs, ir.rhs),
         IRInfoType::CALL => {
             let mut s = String::new();
@@ -276,14 +292,19 @@ fn label(x: i32) {
 }
 
 fn gen_lval(node: Node) -> i32 {
-    if node.op != NodeType::LVAR {
-        panic!("not an lvalue: {:?} ({})", node.ty, node.name);
+    if node.op == NodeType::DEREF {
+        return gen_expr(*node.expr.unwrap());
     }
-    let r = nreg();
-    inc_nreg();
-    add(IRType::MOV, r, 0);
-    add(IRType::SUB_IMM, r, node.offset);
-    return r;
+
+    if node.op == NodeType::LVAR {
+        let r = nreg();
+        inc_nreg();
+        add(IRType::MOV, r, 0);
+        add(IRType::SUB_IMM, r, node.offset);
+        return r;
+    }
+
+    panic!("not an lvalue: {:?} ({})", node.ty, node.name);
 }
 
 fn gen_binop(ty: IRType, lhs: Node, rhs: Node) -> i32 {
@@ -340,8 +361,12 @@ fn gen_expr(node: Node) -> i32 {
         }
 
         NodeType::LVAR => {
-            let r = gen_lval(node);
-            add(IRType::LOAD, r, r);
+            let r = gen_lval(node.clone());
+            if node.ty.ty == CType::PTR {
+                add(IRType::LOAD64, r, r);
+            } else {
+                add(IRType::LOAD32, r, r);
+            }
             return r;
         }
 
@@ -378,16 +403,24 @@ fn gen_expr(node: Node) -> i32 {
             return r;
         }
 
+        NodeType::ADDR => {
+            return gen_lval(*node.expr.unwrap());
+        }
+
         NodeType::DEREF => {
             let r = gen_expr(*node.expr.unwrap());
-            add(IRType::LOAD, r, r);
+            add(IRType::LOAD64, r, r);
             return r;
         }
 
         NodeType::EQ => {
-            let rhs = gen_expr(*node.rhs.unwrap());
-            let lhs = gen_lval(*node.lhs.unwrap());
-            add(IRType::STORE, lhs, rhs);
+            let rhs = gen_expr(*node.clone().rhs.unwrap());
+            let lhs = gen_lval(*node.clone().lhs.unwrap());
+            if node.lhs.unwrap().ty.ty == CType::PTR {
+                add(IRType::STORE64, lhs, rhs);
+            } else {
+                add(IRType::STORE32, lhs, rhs);
+            }
             add(IRType::KILL, rhs, -1);
             return lhs;
         }
@@ -453,7 +486,11 @@ fn gen_stmt(node: Node) {
         inc_nreg();
         add(IRType::MOV, lhs, 0);
         add(IRType::SUB_IMM, lhs, node.offset);
-        add(IRType::STORE, lhs, rhs);
+        if node.ty.ty == CType::PTR {
+            add(IRType::STORE64, lhs, rhs);
+        } else {
+            add(IRType::STORE32, lhs, rhs);
+        }
         add(IRType::KILL, lhs, -1);
         add(IRType::KILL, rhs, -1);
         return;
@@ -537,8 +574,15 @@ pub fn gen_ir(nodes: Vec<Node>) -> Vec<IR> {
         init_code();
         init_nreg();
 
-        if node.args.len() > 0 {
-            add(IRType::SAVE_ARGS, node.args.len() as i32, -1);
+        for i in 0..node.args.len() {
+            let arg = &node.args[i];
+
+            let op = if arg.ty.ty == CType::PTR {
+                IRType::STORE64_ARG
+            } else {
+                IRType::STORE32_ARG
+            };
+            add(op, arg.offset, i as i32);
         }
         gen_stmt(*node.body.unwrap());
 

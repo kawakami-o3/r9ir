@@ -10,6 +10,7 @@ lazy_static! {
 
 pub const regs: [&'static str; 8] = ["rbp", "r10", "r11", "rbx", "r12", "r13", "r14", "r15"];
 pub const regs8: [&'static str; 8] = ["rbl", "r10b", "r11b", "bl", "r12b", "r13b", "r14b", "r15b"];
+pub const regs32: [&'static str; 8] = ["ebp", "r10d", "r11d", "ebx", "r12d", "r13d", "r14d", "r15d"];
 
 // Code generator
 

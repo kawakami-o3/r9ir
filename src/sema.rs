@@ -1,5 +1,6 @@
 
 use crate::parse::*;
+use crate::util::*;
 use std::collections::HashMap;
 use std::mem;
 use std::sync::Mutex;
@@ -50,38 +51,33 @@ fn add_stacksize(i: i32) {
     *stacksize += i;
 }
 
-pub fn size_of(ty: Type) -> i32 {
-    if ty.ty == CType::INT {
-        return 4;
-    }
-    assert!(ty.ty == CType::PTR);
-    return 8;
-}
-
-/*
-fn swap(p: *mut Node, q: *mut Node) {
-    unsafe {
-        ptr::swap(p, q);
-    }
-}
-*/
-
 fn swap(p: &mut Node, q: &mut Node) {
     mem::swap(p, q);
 }
 
+fn addr_of(base: Node, ty: Type) -> Node {
+    let mut node = alloc_node();
+    node.op = NodeType::ADDR;
+    node.ty = ptr_of(ty);
+
+    let mut copy = alloc_node();
+    mem::replace(&mut copy, base);
+    node.expr = Some(Box::new(copy));
+    return node;
+}
+
 macro_rules! walk_some {
-    ($opt:expr) => {
+    ($opt:expr, $decay:expr) => {
         match &mut $opt {
             Some(n) => {
-                walk(n);
+                walk(n, $decay);
             }
             None => {}
         };
     };
 }
 
-fn walk(node: &mut Node) {
+fn walk(node: &mut Node, decay: bool) {
     match node.op {
         NodeType::NUM => { }
         NodeType::IDENT => {
@@ -90,14 +86,21 @@ fn walk(node: &mut Node) {
                     panic!("undefined variable: {}", node.name);
                 }
                 Some(var) => {
-                    node.ty = var.ty.clone();
+                    //node.ty = var.ty.clone();
                     node.op = NodeType::LVAR;
                     node.offset = var.offset;
+
+                    if decay && var.ty.ty == CType::ARY {
+                        let node_tmp = node.clone();
+                        mem::replace(node, addr_of(node_tmp, *var.clone().ty.ary_of.unwrap()));
+                    } else {
+                        node.ty = var.clone().ty;
+                    }
                 }
             }
         }
         NodeType::VARDEF => {
-            add_stacksize(8);
+            add_stacksize(size_of(node.clone().ty));
             node.offset = stacksize();
 
             let var = Var {
@@ -106,22 +109,22 @@ fn walk(node: &mut Node) {
             };
             vars_put(node.name.clone(), var.clone());
 
-            walk_some!(node.init);
+            walk_some!(node.init, true);
         }
         NodeType::IF => {
-            walk_some!(node.cond);
-            walk_some!(node.then);
-            walk_some!(node.els);
+            walk_some!(node.cond, true);
+            walk_some!(node.then, true);
+            walk_some!(node.els, true);
         }
         NodeType::FOR => {
-            walk_some!(node.init);
-            walk_some!(node.cond);
-            walk_some!(node.inc);
-            walk_some!(node.body);
+            walk_some!(node.init, true);
+            walk_some!(node.cond, true);
+            walk_some!(node.inc, true);
+            walk_some!(node.body, true);
         }
         NodeType::ADD | NodeType::SUB => {
-            walk_some!(node.lhs);
-            walk_some!(node.rhs);
+            walk_some!(node.lhs, true);
+            walk_some!(node.rhs, true);
 
             match (&mut node.lhs, &mut node.rhs) {
                 (Some(ref mut lhs), Some(ref mut rhs)) => {
@@ -149,14 +152,18 @@ fn walk(node: &mut Node) {
             }
 
         }
+        NodeType::EQ => {
+            walk_some!(node.lhs, false);
+            walk_some!(node.rhs, true);
+            node.ty = node.clone().lhs.unwrap().ty;
+        }
         NodeType::MUL |
             NodeType::DIV |
-            NodeType::EQ |
             NodeType::LT |
             NodeType::LOGAND |
             NodeType::LOGOR => {
-                walk_some!(node.lhs);
-                walk_some!(node.rhs);
+                walk_some!(node.lhs, true);
+                walk_some!(node.rhs, true);
 
                 match node.lhs {
                     Some(ref lhs) => {
@@ -166,7 +173,7 @@ fn walk(node: &mut Node) {
                 }
             }
         NodeType::DEREF => {
-            walk_some!(node.expr);
+            walk_some!(node.expr, true);
             match &mut node.expr {
                 Some(ref expr) => {
                     if expr.ty.ty != CType::PTR {
@@ -179,27 +186,27 @@ fn walk(node: &mut Node) {
             node.ty = *node.clone().expr.unwrap().ty.ptr_of.unwrap();
         }
         NodeType::RETURN => {
-            walk_some!(node.expr);
+            walk_some!(node.expr, true);
         }
         NodeType::CALL => {
             for n in &mut node.args {
-                walk(n);
+                walk(n, true);
             }
             node.ty = int_ty();
         }
         NodeType::FUNC => {
             for n in &mut node.args {
-                walk(n);
+                walk(n, true);
             }
-            walk_some!(node.body);
+            walk_some!(node.body, true);
         }
         NodeType::COMP_STMT => {
             for n in &mut node.stmts {
-                walk(n);
+                walk(n, true);
             }
         }
         NodeType::EXPR_STMT => {
-            walk_some!(node.expr);
+            walk_some!(node.expr, true);
         }
         _ => {
             panic!("unknown node type");
@@ -212,7 +219,7 @@ pub fn sema(nodes: &mut Vec<Node>) {
         assert!(node.op == NodeType::FUNC);
 
         init_stacksize();
-        walk(node);
+        walk(node, true);
         node.stacksize = stacksize();
     }
 }

@@ -1,3 +1,5 @@
+#![allow(non_upper_case_globals)]
+
 use crate::regalloc::*;
 use crate::*;
 
@@ -5,7 +7,8 @@ lazy_static! {
     static ref LABEL: Mutex<usize> = Mutex::new(0);
 }
 
-const ARGREG: [&'static str; 6] = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
+const argreg32: [&'static str; 6] = ["edi", "esi", "edx", "ecx", "r8d", "r9d"];
+const argreg64: [&'static str; 6] = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
 
 fn label() -> usize {
     *LABEL.lock().unwrap()
@@ -30,7 +33,6 @@ fn gen(fun: &IR) {
     println!("  push r14");
     println!("  push r15");
 
-    //let regs = REGS.lock().unwrap();
     for i in 0..fun.ir.len() {
         let ir = &fun.ir[i as usize];
         match ir.op {
@@ -49,7 +51,7 @@ fn gen(fun: &IR) {
             }
             IRType::CALL => {
                 for i in 0..ir.nargs {
-                    println!("  mov {}, {}", ARGREG[i], regs[ir.args[i] as usize]);
+                    println!("  mov {}, {}", argreg64[i], regs[ir.args[i] as usize]);
                 }
 
                 println!("  push r10");
@@ -76,22 +78,35 @@ fn gen(fun: &IR) {
                 println!("  cmp {}, 0", regs[ir.lhs as usize]);
                 println!("  je .L{}", ir.rhs);
             }
-            IRType::LOAD => {
+            IRType::LOAD32 => {
+                println!(
+                    "  mov {}, [{}]",
+                    regs32[ir.lhs as usize], regs[ir.rhs as usize]
+                );
+            }
+            IRType::LOAD64 => {
                 println!(
                     "  mov {}, [{}]",
                     regs[ir.lhs as usize], regs[ir.rhs as usize]
                 );
             }
-            IRType::STORE => {
+            IRType::STORE32 => {
+                println!(
+                    "  mov [{}], {}",
+                    regs[ir.lhs as usize], regs32[ir.rhs as usize]
+                );
+            }
+            IRType::STORE64 => {
                 println!(
                     "  mov [{}], {}",
                     regs[ir.lhs as usize], regs[ir.rhs as usize]
                 );
             }
-            IRType::SAVE_ARGS => {
-                for i in 0..ir.lhs {
-                    println!("  mov [rbp-{}], {}", (i+1)*8, ARGREG[i as usize]);
-                }
+            IRType::STORE32_ARG => {
+                println!("  mov [rbp-{}], {}", ir.lhs, argreg32[ir.rhs as usize]);
+            }
+            IRType::STORE64_ARG => {
+                println!("  mov [rbp-{}], {}", ir.lhs, argreg64[ir.rhs as usize]);
             }
             IRType::ADD => {
                 println!("  add {}, {}", regs[ir.lhs as usize], regs[ir.rhs as usize]);

@@ -9,6 +9,7 @@ mod parse;
 mod regalloc;
 mod sema;
 mod token;
+mod util;
 
 use crate::gen_x86::*;
 use crate::gen_ir::*;

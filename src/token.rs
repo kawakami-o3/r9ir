@@ -39,6 +39,8 @@ pub enum TokenType {
     KET,
     C_BRA,
     C_KET,
+    S_BRA,
+    S_KET,
     IDENT,
     INT,
     IF,
@@ -71,7 +73,7 @@ pub fn tokenize(p: &String) -> Vec<Token> {
             idx += 1;
             continue;
         }
-        if "+-*/;=(),{}<>".contains(c) {
+        if "+-*/;=(),{}<>[]".contains(c) {
             let ty = match c {
                 '+' => TokenType::ADD,
                 '-' => TokenType::SUB,
@@ -81,11 +83,13 @@ pub fn tokenize(p: &String) -> Vec<Token> {
                 '=' => TokenType::EQ,
                 '<' => TokenType::LT,
                 '>' => TokenType::GT,
+                ',' => TokenType::COMMA,
                 '(' => TokenType::BRA,
                 ')' => TokenType::KET,
                 '{' => TokenType::C_BRA,
                 '}' => TokenType::C_KET,
-                ',' => TokenType::COMMA,
+                '[' => TokenType::S_BRA,
+                ']' => TokenType::S_KET,
                 _ => panic!(format!("unknown {}", c)),
             };
             let tok = Token {

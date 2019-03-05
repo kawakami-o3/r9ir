@@ -3,6 +3,7 @@
 #![allow(non_camel_case_types)]
 
 use crate::token::*;
+use crate::util::*;
 use std::sync::Mutex;
 
 fn to_node_type(ty: &TokenType) -> NodeType {
@@ -47,6 +48,7 @@ pub enum NodeType {
     LVAR,
     IF,
     FOR,
+    ADDR,
     DEREF,
     LOGOR,
     LOGAND,
@@ -61,18 +63,23 @@ pub enum NodeType {
 pub enum CType {
     INT,
     PTR,
+    ARY,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Type {
     pub ty: CType,
     pub ptr_of: Option<Box<Type>>,
+    pub ary_of: Option<Box<Type>>,
+    pub len: i32,
 }
 
-fn alloc_type() -> Type {
+pub fn alloc_type() -> Type {
     Type {
         ty: CType::INT,
         ptr_of: None,
+        ary_of: None,
+        len: 0,
     } 
 }
 
@@ -114,7 +121,7 @@ pub struct Node {
 }
 
 // default node
-fn alloc_node() -> Node {
+pub fn alloc_node() -> Node {
     Node {
         op: NodeType::NUM,
         ty: int_ty(),
@@ -139,13 +146,6 @@ fn alloc_node() -> Node {
 
         args: Vec::new(),
     }
-}
-
-fn ptr_of(base: Type) -> Type {
-    let mut ty = alloc_type();
-    ty.ty = CType::PTR;
-    ty.ptr_of = Some(Box::new(base));
-    return ty;
 }
 
 fn expect(ty: TokenType, tokens: &Vec<Token>) {
@@ -321,8 +321,11 @@ fn do_type(tokens: &Vec<Token>) -> Type {
 fn decl(tokens: &Vec<Token>) -> Node {
     let mut node = alloc_node();
     node.op = NodeType::VARDEF;
+
+    // Read the first half of type name (e.g. `int *`).
     node.ty = do_type(tokens);
 
+    // Read an identifier.
     let t = &tokens[pos()];
     if t.ty != TokenType::IDENT {
         panic!("variable name expected, but got {}", t.input);
@@ -330,6 +333,23 @@ fn decl(tokens: &Vec<Token>) -> Node {
     node.name = t.name.clone();
     inc_pos();
 
+
+    // Read the second half of type name (e.g. `[3][5]`).
+    let mut ary_size = Vec::new();
+    while consume(TokenType::S_BRA, tokens) {
+        let len = term(tokens);
+        if len.op != NodeType::NUM {
+            panic!("number expected");
+        }
+
+        ary_size.push(len);
+        expect(TokenType::S_KET, tokens);
+    }
+    for len in ary_size.iter() {
+        node.ty = ary_of(node.ty, len.val);
+    }
+
+    // Read an initializer.
     if consume(TokenType::EQ, tokens) {
         node.init = Some(Box::new(assign(tokens)));
     }
