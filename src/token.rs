@@ -11,6 +11,7 @@ lazy_static! {
 fn init_symbols() {
     let mut symbols = SYMBOLS.lock().unwrap();
 
+    symbols.push(Symbol { name: "char", ty: TokenType::CHAR });
     symbols.push(Symbol { name: "else", ty: TokenType::ELSE });
     symbols.push(Symbol { name: "for", ty: TokenType::FOR });
     symbols.push(Symbol { name: "if", ty: TokenType::IF });
@@ -45,6 +46,7 @@ pub enum TokenType {
     AMP,
     IDENT,
     INT,
+    CHAR,
     IF,
     FOR,
     ELSE,

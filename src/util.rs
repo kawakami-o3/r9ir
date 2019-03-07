@@ -18,13 +18,14 @@ pub fn ary_of(base: Type, len: i32) -> Type {
 }
 
 pub fn size_of(ty: Type) -> i32 {
-    if ty.ty == CType::INT {
-        return 4;
+    match ty.ty {
+        CType::CHAR => 1,
+        CType::INT => 4,
+        CType::PTR => 8,
+        _ => {
+            assert!(ty.ty == CType::ARY);
+            size_of(*ty.ary_of.unwrap()) * ty.len
+        }
     }
-    if ty.ty == CType::ARY {
-        return size_of(*ty.ary_of.unwrap()) * ty.len;
-    }
-    assert!(ty.ty == CType::PTR);
-    return 8;
 }
 

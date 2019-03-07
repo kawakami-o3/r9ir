@@ -63,6 +63,7 @@ pub enum NodeType {
 #[derive(Clone, Debug, PartialEq)]
 pub enum CType {
     INT,
+    CHAR,
     PTR,
     ARY,
 }
@@ -87,6 +88,12 @@ pub fn alloc_type() -> Type {
 pub fn int_ty() -> Type {
     let mut ty = alloc_type();
     ty.ty = CType::INT;
+    return ty
+}
+
+fn char_ty() -> Type {
+    let mut ty = alloc_type();
+    ty.ty = CType::CHAR;
     return ty
 }
 
@@ -166,9 +173,19 @@ fn consume(ty: TokenType, tokens: &Vec<Token>) -> bool {
     return true;
 }
 
-fn is_typename(tokens: &Vec<Token>) -> bool {
+fn get_type(tokens: &Vec<Token>) -> Option<Type> {
     let t = &tokens[pos()];
-    return t.ty == TokenType::INT;
+    match t.ty {
+        TokenType::INT => {
+            return Some(int_ty());
+        }
+        TokenType::CHAR => {
+            return Some(char_ty());
+        }
+        _ => {
+            None
+        }
+    }
 }
 
 fn new_binop(op: NodeType, lhs: Node, rhs: Node) -> Node {
@@ -326,12 +343,13 @@ fn assign(tokens: &Vec<Token>) -> Node {
 
 fn do_type(tokens: &Vec<Token>) -> Type {
     let t = &tokens[pos()];
-    if t.ty != TokenType::INT {
+    let ty_opt = get_type(tokens);
+    if ty_opt.is_none() {
         panic!("typename expected, but got {}", t.input);
     }
+    let mut ty = ty_opt.unwrap();
     inc_pos();
 
-    let mut ty = int_ty();
     while consume(TokenType::MUL, tokens) {
         ty = ptr_of(ty);
     }
@@ -406,7 +424,7 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
     let t = &tokens[pos()];
 
     match t.ty {
-        TokenType::INT => {
+        TokenType::INT | TokenType::CHAR => {
             return decl(tokens);
         }
         TokenType::IF => {
@@ -425,7 +443,7 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             inc_pos();
             node.op = NodeType::FOR;
             expect(TokenType::BRA, tokens);
-            if is_typename(tokens) {
+            if get_type(tokens).is_some() {
                 node.init = Some(Box::new(decl(tokens)));
             } else {
                 node.init = Some(Box::new(expr_stmt(tokens)));

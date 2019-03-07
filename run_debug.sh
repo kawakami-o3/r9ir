@@ -19,7 +19,9 @@ run() {
 
 #run 'int main() { int ary[2]; *ary=1; *(ary+1)=2; return *ary + *(ary+1);}'
 
-run 'int main() { int x[4]; return sizeof x; }'
+#run 'int main() { int x[4]; return sizeof x; }'
+
+run 'int main() { char x; return sizeof(x); }'
 
 #cat tmp.s
 

@@ -66,6 +66,10 @@ fn init_irinfo() {
         name: "LT",
         ty: IRInfoType::REG_REG
     });
+    irinfo.insert(IRType::LOAD8, IRInfo {
+        name: "LOAD8",
+        ty: IRInfoType::REG_REG
+    });
     irinfo.insert(IRType::LOAD32, IRInfo {
         name: "LOAD32",
         ty: IRInfoType::REG_REG
@@ -90,6 +94,10 @@ fn init_irinfo() {
         name: "RET",
         ty: IRInfoType::REG
     });
+    irinfo.insert(IRType::STORE8, IRInfo {
+        name: "STORE8",
+        ty: IRInfoType::REG_REG
+    });
     irinfo.insert(IRType::STORE32, IRInfo {
         name: "STORE32",
         ty: IRInfoType::REG_REG
@@ -97,6 +105,10 @@ fn init_irinfo() {
     irinfo.insert(IRType::STORE64, IRInfo {
         name: "STORE64",
         ty: IRInfoType::REG_REG
+    });
+    irinfo.insert(IRType::STORE8_ARG, IRInfo {
+        name: "STORE8_ARG",
+        ty: IRInfoType::IMM_IMM
     });
     irinfo.insert(IRType::STORE32_ARG, IRInfo {
         name: "STORE32_ARG",
@@ -163,10 +175,13 @@ pub enum IRType {
     LT,
     JMP,
     UNLESS,
+    LOAD8,
     LOAD32,
     LOAD64,
+    STORE8,
     STORE32,
     STORE64,
+    STORE8_ARG,
     STORE32_ARG,
     STORE64_ARG,
     KILL,
@@ -362,10 +377,12 @@ fn gen_expr(node: Node) -> i32 {
 
         NodeType::LVAR => {
             let r = gen_lval(node.clone());
-            if node.ty.ty == CType::PTR {
-                add(IRType::LOAD64, r, r);
-            } else {
+            if node.ty.ty == CType::CHAR {
+                add(IRType::LOAD8, r, r);
+            } else if node.ty.ty == CType::INT {
                 add(IRType::LOAD32, r, r);
+            } else {
+                add(IRType::LOAD64, r, r);
             }
             return r;
         }
@@ -486,10 +503,12 @@ fn gen_stmt(node: Node) {
         inc_nreg();
         add(IRType::MOV, lhs, 0);
         add(IRType::SUB_IMM, lhs, node.offset);
-        if node.ty.ty == CType::PTR {
-            add(IRType::STORE64, lhs, rhs);
-        } else {
+        if node.ty.ty == CType::CHAR {
+            add(IRType::STORE8, lhs, rhs);
+        } else if node.ty.ty == CType::INT {
             add(IRType::STORE32, lhs, rhs);
+        } else {
+            add(IRType::STORE64, lhs, rhs);
         }
         add(IRType::KILL, lhs, -1);
         add(IRType::KILL, rhs, -1);
@@ -577,12 +596,13 @@ pub fn gen_ir(nodes: Vec<Node>) -> Vec<IR> {
         for i in 0..node.args.len() {
             let arg = &node.args[i];
 
-            let op = if arg.ty.ty == CType::PTR {
-                IRType::STORE64_ARG
+            if arg.ty.ty == CType::CHAR {
+                add(IRType::STORE8_ARG, arg.offset, i as i32);
+            } else if arg.ty.ty == CType::INT {
+                add(IRType::STORE32_ARG, arg.offset, i as i32);
             } else {
-                IRType::STORE32_ARG
-            };
-            add(op, arg.offset, i as i32);
+                add(IRType::STORE64_ARG, arg.offset, i as i32);
+            }
         }
         gen_stmt(*node.body.unwrap());
 

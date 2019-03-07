@@ -7,6 +7,7 @@ lazy_static! {
     static ref LABEL: Mutex<usize> = Mutex::new(0);
 }
 
+const argreg8: [&'static str; 6] = ["dil", "sil", "dl", "cl", "r8b", "r9b"];
 const argreg32: [&'static str; 6] = ["edi", "esi", "edx", "ecx", "r8d", "r9d"];
 const argreg64: [&'static str; 6] = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
 
@@ -78,6 +79,12 @@ fn gen(fun: &IR) {
                 println!("  cmp {}, 0", regs[ir.lhs as usize]);
                 println!("  je .L{}", ir.rhs);
             }
+            IRType::LOAD8 => {
+                println!(
+                    "  mov {}, [{}]",
+                    regs8[ir.lhs as usize], regs[ir.rhs as usize]
+                );
+            }
             IRType::LOAD32 => {
                 println!(
                     "  mov {}, [{}]",
@@ -88,6 +95,12 @@ fn gen(fun: &IR) {
                 println!(
                     "  mov {}, [{}]",
                     regs[ir.lhs as usize], regs[ir.rhs as usize]
+                );
+            }
+            IRType::STORE8 => {
+                println!(
+                    "  mov [{}], {}",
+                    regs[ir.lhs as usize], regs8[ir.rhs as usize]
                 );
             }
             IRType::STORE32 => {
@@ -101,6 +114,9 @@ fn gen(fun: &IR) {
                     "  mov [{}], {}",
                     regs[ir.lhs as usize], regs[ir.rhs as usize]
                 );
+            }
+            IRType::STORE8_ARG => {
+                println!("  mov [rbp-{}], {}", ir.lhs, argreg8[ir.rhs as usize]);
             }
             IRType::STORE32_ARG => {
                 println!("  mov [rbp-{}], {}", ir.lhs, argreg32[ir.rhs as usize]);
