@@ -171,11 +171,18 @@ fn is_typename(tokens: &Vec<Token>) -> bool {
     return t.ty == TokenType::INT;
 }
 
-fn new_node(op: NodeType, lhs: Node, rhs: Node) -> Node {
+fn new_binop(op: NodeType, lhs: Node, rhs: Node) -> Node {
     let mut node = alloc_node();
     node.op = op;
     node.lhs = Some(Box::new(lhs));
     node.rhs = Some(Box::new(rhs));
+    return node;
+}
+
+fn new_expr(op: NodeType, expr: Node) -> Node {
+    let mut node = alloc_node();
+    node.op = op;
+    node.expr = Some(Box::new(expr));
     return node;
 }
 
@@ -224,10 +231,7 @@ fn primary(tokens: &Vec<Token>) -> Node {
 fn postfix(tokens: &Vec<Token>) -> Node {
     let mut lhs = primary(tokens);
     while consume(TokenType::S_BRA, tokens) {
-        let mut node = alloc_node();
-        node.op = NodeType::DEREF;
-        node.expr = Some(Box::new(new_node(NodeType::ADD, lhs, primary(tokens))));
-        lhs = node;
+        lhs = new_expr(NodeType::DEREF, new_binop(NodeType::ADD, lhs, primary(tokens)));
         expect(TokenType::S_KET, tokens);
     }
     return lhs;
@@ -235,22 +239,13 @@ fn postfix(tokens: &Vec<Token>) -> Node {
 
 fn unary(tokens: &Vec<Token>) -> Node {
     if consume(TokenType::MUL, tokens) {
-        let mut node = alloc_node();
-        node.op = NodeType::DEREF;
-        node.expr = Some(Box::new(mul(tokens)));
-        return node;
+        return new_expr(NodeType::DEREF, mul(tokens));
     }
     if consume(TokenType::AMP, tokens) {
-        let mut node = alloc_node();
-        node.op = NodeType::ADDR;
-        node.expr = Some(Box::new(mul(tokens)));
-        return node;
+        return new_expr(NodeType::ADDR, mul(tokens));
     }
     if consume(TokenType::SIZEOF, tokens) {
-        let mut node = alloc_node();
-        node.op = NodeType::SIZEOF;
-        node.expr = Some(Box::new(unary(tokens)));
-        return node;
+        return new_expr(NodeType::SIZEOF, unary(tokens));
     }
     return postfix(tokens);
 }
@@ -263,7 +258,7 @@ fn mul(tokens: &Vec<Token>) -> Node {
             return lhs;
         }
         inc_pos();
-        lhs = new_node(to_node_type(&t.ty), lhs, unary(tokens));
+        lhs = new_binop(to_node_type(&t.ty), lhs, unary(tokens));
     }
 }
 
@@ -275,7 +270,7 @@ fn add(tokens: &Vec<Token>) -> Node {
             return lhs;
         }
         inc_pos();
-        lhs = new_node(to_node_type(&t.ty), lhs, mul(tokens));
+        lhs = new_binop(to_node_type(&t.ty), lhs, mul(tokens));
     }
 }
 
@@ -285,12 +280,12 @@ fn rel(tokens: &Vec<Token>) -> Node {
         let t = &tokens[pos()];
         if t.ty == TokenType::LT {
             inc_pos();
-            lhs = new_node(NodeType::LT, lhs, add(tokens));
+            lhs = new_binop(NodeType::LT, lhs, add(tokens));
             continue;
         }
         if t.ty == TokenType::GT {
             inc_pos();
-            lhs = new_node(NodeType::LT, add(tokens), lhs);
+            lhs = new_binop(NodeType::LT, add(tokens), lhs);
             continue;
         }
         return lhs;
@@ -305,7 +300,7 @@ fn logand(tokens: &Vec<Token>) -> Node {
             return lhs;
         }
         inc_pos();
-        lhs = new_node(to_node_type(&t.ty), lhs, rel(tokens));
+        lhs = new_binop(to_node_type(&t.ty), lhs, rel(tokens));
     }
 }
 
@@ -317,14 +312,14 @@ fn logor(tokens: &Vec<Token>) -> Node {
             return lhs;
         }
         inc_pos();
-        lhs = new_node(to_node_type(&t.ty), lhs, logand(tokens));
+        lhs = new_binop(to_node_type(&t.ty), lhs, logand(tokens));
     }
 }
 
 fn assign(tokens: &Vec<Token>) -> Node {
     let lhs = logor(tokens);
     if consume(TokenType::EQ, tokens) {
-        return new_node(NodeType::EQ, lhs, logor(tokens));
+        return new_binop(NodeType::EQ, lhs, logor(tokens));
     }
     return lhs;
 }
@@ -401,9 +396,7 @@ fn param(tokens: &Vec<Token>) -> Node {
 }
 
 fn expr_stmt(tokens: &Vec<Token>) -> Node {
-    let mut node = alloc_node();
-    node.op = NodeType::EXPR_STMT;
-    node.expr = Some(Box::new(assign(tokens)));
+    let node = new_expr(NodeType::EXPR_STMT, assign(tokens));
     expect(TokenType::SEMI_COLON, tokens);
     return node;
 }
