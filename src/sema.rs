@@ -60,42 +60,30 @@ fn addr_of(base: Node, ty: Type) -> Node {
     node.op = NodeType::ADDR;
     node.ty = ptr_of(ty);
 
-    let mut copy = alloc_node();
-    mem::replace(&mut copy, base);
-    node.expr = Some(Box::new(copy));
+    node.expr = Some(Box::new(base));
     return node;
 }
 
-macro_rules! walk_some {
-    ($opt:expr, $decay:expr) => {
-        match &mut $opt {
-            Some(n) => {
-                walk(n, $decay);
-            }
-            None => {}
-        };
-    };
-}
-
-fn walk(node: &mut Node, decay: bool) {
+fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
     match node.op {
-        NodeType::NUM => { }
+        NodeType::NUM => {
+            return node;
+        }
         NodeType::IDENT => {
             match VARS.lock().unwrap().get(&node.name) {
                 None => {
                     panic!("undefined variable: {}", node.name);
                 }
                 Some(var) => {
-                    //node.ty = var.ty.clone();
                     node.op = NodeType::LVAR;
                     node.offset = var.offset;
 
                     if decay && var.ty.ty == CType::ARY {
-                        let node_tmp = node.clone();
-                        mem::replace(node, addr_of(node_tmp, *var.clone().ty.ary_of.unwrap()));
-                    } else {
-                        node.ty = var.clone().ty;
+                        *node = addr_of(node.clone(), *var.clone().ty.ary_of.unwrap());
+                        return node;
                     }
+                    node.ty = var.clone().ty;
+                    return node;
                 }
             }
         }
@@ -109,22 +97,34 @@ fn walk(node: &mut Node, decay: bool) {
             };
             vars_put(node.name.clone(), var.clone());
 
-            walk_some!(node.init, true);
+            match node.init {
+                Some(_) => {
+                    node.init = Some(Box::new(walk(&mut *node.clone().init.unwrap(), true).clone()));
+                    //node.init = Some(Box::new(walk(&mut e, true).clone()));
+                }
+                None => { }
+            }
+            return node;
         }
         NodeType::IF => {
-            walk_some!(node.cond, true);
-            walk_some!(node.then, true);
-            walk_some!(node.els, true);
+            node.cond = Some(Box::new(walk(&mut *node.clone().cond.unwrap(), true).clone()));
+            node.then = Some(Box::new(walk(&mut *node.clone().then.unwrap(), true).clone()));
+
+            if node.els.is_some() {
+                node.els = Some(Box::new(walk(&mut *node.clone().els.unwrap(), true).clone()));
+            }
+            return node;
         }
         NodeType::FOR => {
-            walk_some!(node.init, true);
-            walk_some!(node.cond, true);
-            walk_some!(node.inc, true);
-            walk_some!(node.body, true);
+            node.init = Some(Box::new(walk(&mut *node.clone().init.unwrap(), true).clone()));
+            node.cond = Some(Box::new(walk(&mut *node.clone().cond.unwrap(), true).clone()));
+            node.inc = Some(Box::new(walk(&mut *node.clone().inc.unwrap(), true).clone()));
+            node.body = Some(Box::new(walk(&mut *node.clone().body.unwrap(), true).clone()));
+            return node;
         }
         NodeType::ADD | NodeType::SUB => {
-            walk_some!(node.lhs, true);
-            walk_some!(node.rhs, true);
+            node.lhs = Some(Box::new(walk(&mut *node.clone().lhs.unwrap(), true).clone()));
+            node.rhs = Some(Box::new(walk(&mut *node.clone().rhs.unwrap(), true).clone()));
 
             match (&mut node.lhs, &mut node.rhs) {
                 (Some(ref mut lhs), Some(ref mut rhs)) => {
@@ -151,19 +151,21 @@ fn walk(node: &mut Node, decay: bool) {
                 None => { }
             }
 
+            return node;
         }
         NodeType::EQ => {
-            walk_some!(node.lhs, false);
-            walk_some!(node.rhs, true);
+            node.lhs = Some(Box::new(walk(&mut *node.clone().lhs.unwrap(), false).clone()));
+            node.rhs = Some(Box::new(walk(&mut *node.clone().rhs.unwrap(), true).clone()));
             node.ty = node.clone().lhs.unwrap().ty;
+            return node;
         }
         NodeType::MUL |
             NodeType::DIV |
             NodeType::LT |
             NodeType::LOGAND |
             NodeType::LOGOR => {
-                walk_some!(node.lhs, true);
-                walk_some!(node.rhs, true);
+                node.lhs = Some(Box::new(walk(&mut *node.clone().lhs.unwrap(), true).clone()));
+                node.rhs = Some(Box::new(walk(&mut *node.clone().rhs.unwrap(), true).clone()));
 
                 match node.lhs {
                     Some(ref lhs) => {
@@ -171,13 +173,15 @@ fn walk(node: &mut Node, decay: bool) {
                     }
                     None => { }
                 }
+                return node;
             }
         NodeType::ADDR => {
-            walk_some!(node.expr, true);
+            node.expr = Some(Box::new(walk(&mut *node.clone().expr.unwrap(), true).clone()));
             node.ty = ptr_of(node.clone().expr.unwrap().ty);
+            return node;
         }
         NodeType::DEREF => {
-            walk_some!(node.expr, true);
+            node.expr = Some(Box::new(walk(&mut *node.clone().expr.unwrap(), true).clone()));
             match &mut node.expr {
                 Some(ref expr) => {
                     if expr.ty.ty != CType::PTR {
@@ -188,29 +192,35 @@ fn walk(node: &mut Node, decay: bool) {
             }
 
             node.ty = *node.clone().expr.unwrap().ty.ptr_of.unwrap();
+            return node;
         }
         NodeType::RETURN => {
-            walk_some!(node.expr, true);
+            node.expr = Some(Box::new(walk(&mut *node.clone().expr.unwrap(), true).clone()));
+            return node;
         }
         NodeType::CALL => {
-            for n in &mut node.args {
-                walk(n, true);
+            for i in 0..node.args.len() {
+                node.args[i] = walk(&mut node.args[i], true).clone();
             }
             node.ty = int_ty();
+            return node;
         }
         NodeType::FUNC => {
-            for n in &mut node.args {
-                walk(n, true);
+            for i in 0..node.args.len() {
+                node.args[i] = walk(&mut node.args[i], true).clone();
             }
-            walk_some!(node.body, true);
+            node.body = Some(Box::new(walk(&mut *node.clone().body.unwrap(), true).clone()));
+            return node;
         }
         NodeType::COMP_STMT => {
-            for n in &mut node.stmts {
-                walk(n, true);
+            for i in 0..node.stmts.len() {
+                node.stmts[i] = walk(&mut node.stmts[i], true).clone();
             }
+            return node;
         }
         NodeType::EXPR_STMT => {
-            walk_some!(node.expr, true);
+            node.expr = Some(Box::new(walk(&mut *node.clone().expr.unwrap(), true).clone()));
+            return node;
         }
         _ => {
             panic!("unknown node type");
