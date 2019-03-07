@@ -53,6 +53,7 @@ pub enum NodeType {
     LOGOR,
     LOGAND,
     RETURN,
+    SIZEOF,
     CALL,
     FUNC,
     COMP_STMT,
@@ -231,6 +232,12 @@ fn unary(tokens: &Vec<Token>) -> Node {
         let mut node = alloc_node();
         node.op = NodeType::ADDR;
         node.expr = Some(Box::new(mul(tokens)));
+        return node;
+    }
+    if consume(TokenType::SIZEOF, tokens) {
+        let mut node = alloc_node();
+        node.op = NodeType::SIZEOF;
+        node.expr = Some(Box::new(unary(tokens)));
         return node;
     }
     return term(tokens);

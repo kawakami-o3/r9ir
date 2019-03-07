@@ -198,6 +198,17 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
             node.expr = Some(Box::new(walk(&mut *node.clone().expr.unwrap(), true).clone()));
             return node;
         }
+        NodeType::SIZEOF => {
+            let mut nexpr = *node.clone().expr.unwrap();
+            let expr = walk(&mut nexpr, false);
+            let val = size_of(expr.clone().ty);
+
+            *node = alloc_node();
+            node.op = NodeType::NUM;
+            node.ty = int_ty();
+            node.val = val;
+            return node;
+        }
         NodeType::CALL => {
             for i in 0..node.args.len() {
                 node.args[i] = walk(&mut node.args[i], true).clone();

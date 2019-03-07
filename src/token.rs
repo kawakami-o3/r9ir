@@ -16,6 +16,7 @@ fn init_symbols() {
     symbols.push(Symbol { name: "if", ty: TokenType::IF });
     symbols.push(Symbol { name: "int", ty: TokenType::INT });
     symbols.push(Symbol { name: "return", ty: TokenType::RETURN });
+    symbols.push(Symbol { name: "sizeof", ty: TokenType::SIZEOF });
     symbols.push(Symbol { name: "&&", ty: TokenType::LOGAND });
     symbols.push(Symbol { name: "||", ty: TokenType::LOGOR });
 }
@@ -50,9 +51,10 @@ pub enum TokenType {
     LOGOR,
     LOGAND,
     RETURN,
+    SIZEOF,
+    EOF,
     COMMA,
     SEMI_COLON,
-    EOF,
 }
 
 #[derive(Debug)]
