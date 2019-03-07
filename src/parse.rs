@@ -179,7 +179,7 @@ fn new_node(op: NodeType, lhs: Node, rhs: Node) -> Node {
     return node;
 }
 
-fn term(tokens: &Vec<Token>) -> Node {
+fn primary(tokens: &Vec<Token>) -> Node {
     let t = &tokens[pos()];
     inc_pos();
 
@@ -221,6 +221,18 @@ fn term(tokens: &Vec<Token>) -> Node {
     panic!(format!("number expected, but got {}", t.input));
 }
 
+fn postfix(tokens: &Vec<Token>) -> Node {
+    let mut lhs = primary(tokens);
+    while consume(TokenType::S_BRA, tokens) {
+        let mut node = alloc_node();
+        node.op = NodeType::DEREF;
+        node.expr = Some(Box::new(new_node(NodeType::ADD, lhs, primary(tokens))));
+        lhs = node;
+        expect(TokenType::S_KET, tokens);
+    }
+    return lhs;
+}
+
 fn unary(tokens: &Vec<Token>) -> Node {
     if consume(TokenType::MUL, tokens) {
         let mut node = alloc_node();
@@ -240,7 +252,7 @@ fn unary(tokens: &Vec<Token>) -> Node {
         node.expr = Some(Box::new(unary(tokens)));
         return node;
     }
-    return term(tokens);
+    return postfix(tokens);
 }
 
 fn mul(tokens: &Vec<Token>) -> Node {
@@ -331,6 +343,22 @@ fn do_type(tokens: &Vec<Token>) -> Type {
     return ty;
 }
 
+fn read_array<'a>(ty: &'a mut Type, tokens: &Vec<Token>) -> &'a Type {
+    let mut v = Vec::new();
+    while consume(TokenType::S_BRA, tokens) {
+        let len = primary(tokens);
+        if len.op != NodeType::NUM {
+            panic!("number expected");
+        }
+        v.push(len);
+        expect(TokenType::S_KET, tokens);
+    }
+    for len in v.iter() {
+        *ty = ary_of(ty.clone(), len.val);
+    }
+    return ty;
+}
+
 fn decl(tokens: &Vec<Token>) -> Node {
     let mut node = alloc_node();
     node.op = NodeType::VARDEF;
@@ -348,19 +376,7 @@ fn decl(tokens: &Vec<Token>) -> Node {
 
 
     // Read the second half of type name (e.g. `[3][5]`).
-    let mut ary_size = Vec::new();
-    while consume(TokenType::S_BRA, tokens) {
-        let len = term(tokens);
-        if len.op != NodeType::NUM {
-            panic!("number expected");
-        }
-
-        ary_size.push(len);
-        expect(TokenType::S_KET, tokens);
-    }
-    for len in ary_size.iter() {
-        node.ty = ary_of(node.ty, len.val);
-    }
+    node.ty = read_array(&mut node.ty, tokens).clone();
 
     // Read an initializer.
     if consume(TokenType::EQ, tokens) {
