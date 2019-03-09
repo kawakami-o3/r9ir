@@ -16,12 +16,11 @@ run() {
 #run 'int main() { int *p = alloc1(3, 5); return *p + *(p + 1); }'
 #run 'int main() { int *p = alloc2(2, 7); return *p + *(p - 1); }'
 #run 'int main() { int **p = alloc_ptr_ptr(2); return **p; }'
-
 #run 'int main() { int ary[2]; *ary=1; *(ary+1)=2; return *ary + *(ary+1);}'
-
 #run 'int main() { int x[4]; return sizeof x; }'
+#run 'int main() { char x; return sizeof(x); }'
 
-run 'int main() { char x; return sizeof(x); }'
+run 'int main() { char *p = "abc"; return p[0]; }'
 
 #cat tmp.s
 

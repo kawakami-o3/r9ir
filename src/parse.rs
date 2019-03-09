@@ -123,7 +123,7 @@ pub struct Node {
 
     // Function definition
     pub stacksize: i32,
-    pub strings: Vec<Box<Node>>,
+    pub strings: Vec<Node>,
     
     // Local variable
     pub offset: i32,
@@ -231,6 +231,7 @@ fn primary(tokens: &Vec<Token>) -> Node {
         node.ty = ary_of(char_ty(), t.str_cnt.len() as i32);
         node.op = NodeType::STR;
         node.str_cnt = t.str_cnt.clone();
+        return node;
     }
 
     if t.ty == TokenType::IDENT {

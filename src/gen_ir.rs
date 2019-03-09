@@ -210,7 +210,7 @@ pub struct IR {
 
     // Function struct fields in 9cc
     pub stacksize: i32,
-    pub strings: Vec<Box<Node>>,
+    pub strings: Vec<Node>,
     pub ir: Vec<IR>,
 }
 

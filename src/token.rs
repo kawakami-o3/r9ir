@@ -69,6 +69,16 @@ pub struct Token {
     pub input: String,
 }
 
+fn new_token(ty: TokenType) -> Token {
+    Token{
+        ty: ty,
+        val: 0,
+        str_cnt: String::new(),
+        name: String::new(),
+        input: String::new(),
+    }
+}
+
 pub fn tokenize(p: &String) -> Vec<Token> {
     init_symbols();
     let mut tokens = Vec::new();
@@ -78,6 +88,25 @@ pub fn tokenize(p: &String) -> Vec<Token> {
         let c: char = char::from(char_bytes[idx]);
         if c.is_whitespace() {
             idx += 1;
+            continue;
+        }
+
+        // String literal
+        if c == '"' {
+            let mut t = new_token(TokenType::STR);
+            idx += 1;
+
+            let mut len = 0;
+            while (idx+len) < p.len() && char::from(char_bytes[idx+len]) != '"' {
+                len += 1;
+            }
+            if (idx+len) >= p.len() {
+                panic!("premature end of input");
+            }
+            t.str_cnt = p[idx..idx+len].to_string();
+            t.input = p[idx..idx+len].to_string();
+            tokens.push(t);
+            idx += len + 1;
             continue;
         }
 

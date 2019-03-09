@@ -45,6 +45,14 @@ fn vars_exist(name: & String) -> bool {
     return None != vars.get(name);
 }
 
+fn init_strings() {
+    *STRINGS.lock().unwrap() = Vec::new();
+}
+
+fn strings() -> Vec<Node> {
+    STRINGS.lock().unwrap().clone()
+}
+
 fn strings_push(node: Node) {
     let mut strings = STRINGS.lock().unwrap();
     strings.push(node);
@@ -284,7 +292,9 @@ pub fn sema(nodes: &mut Vec<Node>) {
         assert!(node.op == NodeType::FUNC);
 
         init_stacksize();
+        init_strings();
         walk(node, true);
         node.stacksize = stacksize();
+        node.strings = strings();
     }
 }
