@@ -261,7 +261,7 @@ fn primary(tokens: &Vec<Token>) -> Node {
 fn postfix(tokens: &Vec<Token>) -> Node {
     let mut lhs = primary(tokens);
     while consume(TokenType::S_BRA, tokens) {
-        lhs = new_expr(NodeType::DEREF, new_binop(NodeType::ADD, lhs, primary(tokens)));
+        lhs = new_expr(NodeType::DEREF, new_binop(NodeType::ADD, lhs, assign(tokens)));
         expect(TokenType::S_KET, tokens);
     }
     return lhs;
