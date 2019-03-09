@@ -546,19 +546,20 @@ fn gen_stmt(node: Node) {
         NodeType::IF => {
             let cond = *node.cond.unwrap();
             let then = *node.then.unwrap();
-            if !node.els.is_none() {
+            if node.els.is_some() {
                 let x = nlabel();
                 inc_nlabel();
                 let y = nlabel();
                 inc_nlabel();
                 let r = gen_expr(cond.clone());
                 add(IRType::UNLESS, r, x);
-                add(IRType::KILL, r, -1);
+                kill(r);
                 gen_stmt(then.clone());
                 add(IRType::JMP, y, -1);
-                add(IRType::LABEL, x, -1);
+                label(x);
                 gen_stmt(*node.els.unwrap());
-                add(IRType::LABEL, y, -1);
+                label(y);
+                return;
             }
 
             let x = nlabel();
@@ -566,11 +567,9 @@ fn gen_stmt(node: Node) {
             let r = gen_expr(cond);
 
             add(IRType::UNLESS, r, x);
-            add(IRType::KILL, r, -1);
-
+            kill(r);
             gen_stmt(then);
-
-            add(IRType::LABEL, x, -1);
+            label(x);
         }
         NodeType::FOR => {
             let x = nlabel();
