@@ -36,16 +36,18 @@ lazy_static! {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum NodeType {
-    NUM,
     ADD,
     SUB,
     MUL,
     DIV,
     EQ,
     LT,
+    NUM,
+    STR,
     IDENT,
     VARDEF,
     LVAR,
+    GVAR,
     IF,
     FOR,
     ADDR,
@@ -104,6 +106,7 @@ pub struct Node {
     pub lhs: Option<Box<Node>>,
     pub rhs: Option<Box<Node>>,
     pub val: i32,
+    pub str_cnt: String,
     pub expr: Option<Box<Node>>,
     pub stmts: Vec<Node>,
 
@@ -120,6 +123,7 @@ pub struct Node {
 
     // Function definition
     pub stacksize: i32,
+    pub strings: Vec<Box<Node>>,
     
     // Local variable
     pub offset: i32,
@@ -136,6 +140,7 @@ pub fn alloc_node() -> Node {
         lhs: None,
         rhs: None,
         val: 0,
+        str_cnt: String::new(),
         expr: None,
         stmts: Vec::new(),
 
@@ -149,6 +154,7 @@ pub fn alloc_node() -> Node {
         body: None,
 
         stacksize: 0,
+        strings: Vec::new(),
 
         offset: 0,
 
@@ -219,6 +225,12 @@ fn primary(tokens: &Vec<Token>) -> Node {
         node.op = NodeType::NUM;
         node.val = t.val;
         return node;
+    }
+
+    if t.ty == TokenType::STR {
+        node.ty = ary_of(char_ty(), t.str_cnt.len() as i32);
+        node.op = NodeType::STR;
+        node.str_cnt = t.str_cnt.clone();
     }
 
     if t.ty == TokenType::IDENT {

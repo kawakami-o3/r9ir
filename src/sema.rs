@@ -6,14 +6,22 @@ use std::mem;
 use std::sync::Mutex;
 
 lazy_static! {
+    static ref STR_LABEL: Mutex<i32> = Mutex::new(0);
     static ref VARS: Mutex<HashMap<String, Var>> = Mutex::new(HashMap::new());
+    static ref STRINGS: Mutex<Vec<Node>> = Mutex::new(Vec::new());
     static ref STACKSIZE: Mutex<i32> = Mutex::new(0);
 }
 
 #[derive(Clone, Debug, PartialEq)]
 struct Var {
     ty: Type,
+    is_local: bool,
+
+    // local
     offset: i32,
+
+    // global
+    name: String,
 }
 
 #[allow(dead_code)]
@@ -37,6 +45,11 @@ fn vars_exist(name: & String) -> bool {
     return None != vars.get(name);
 }
 
+fn strings_push(node: Node) {
+    let mut strings = STRINGS.lock().unwrap();
+    strings.push(node);
+}
+
 fn stacksize() -> i32 {
     *STACKSIZE.lock().unwrap()
 }
@@ -49,6 +62,13 @@ fn init_stacksize() {
 fn add_stacksize(i: i32) {
     let mut stacksize = STACKSIZE.lock().unwrap();
     *stacksize += i;
+}
+
+fn bump_str_label() -> i32 {
+    let mut str_label = STR_LABEL.lock().unwrap();
+    let ret = *str_label;
+    *str_label += 1;
+    return ret;
 }
 
 fn swap(p: &mut Node, q: &mut Node) {
@@ -69,6 +89,18 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
         NodeType::NUM => {
             return node;
         }
+        NodeType::STR => {
+            let name = format!(".L.str{}", bump_str_label());
+            node.name = String::from(name.clone());
+            strings_push(node.clone());
+
+            let node_ty = node.clone().ty;
+            *node = alloc_node();
+            node.op = NodeType::GVAR;
+            node.ty = node_ty;
+            node.name = name;
+            return walk(node, decay);
+        }
         NodeType::IDENT => {
             match VARS.lock().unwrap().get(&node.name) {
                 None => {
@@ -87,13 +119,21 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
                 }
             }
         }
+        NodeType::GVAR => {
+            if decay && node.ty.ty == CType::ARY {
+                *node = addr_of(node.clone(), *node.clone().ty.ary_of.unwrap());
+            }
+            return node;
+        }
         NodeType::VARDEF => {
             add_stacksize(size_of(node.clone().ty));
             node.offset = stacksize();
 
             let var = Var {
                 ty: node.ty.clone(),
+                is_local: true,
                 offset: stacksize(),
+                name: String::new(),
             };
             vars_put(node.name.clone(), var.clone());
 

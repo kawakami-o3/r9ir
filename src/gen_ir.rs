@@ -62,6 +62,10 @@ fn init_irinfo() {
         name: "",
         ty: IRInfoType::LABEL
     });
+    irinfo.insert(IRType::LABEL_ADDR, IRInfo {
+        name: "LABEL_ADDR",
+        ty: IRInfoType::LABEL_ADDR
+    });
     irinfo.insert(IRType::LT, IRInfo {
         name: "LT",
         ty: IRInfoType::REG_REG
@@ -172,6 +176,7 @@ pub enum IRType {
     RETURN,
     CALL,
     LABEL,
+    LABEL_ADDR,
     LT,
     JMP,
     UNLESS,
@@ -203,8 +208,9 @@ pub struct IR {
     pub nargs: usize,
     pub args: [i32; 6],
 
-    // Function
+    // Function struct fields in 9cc
     pub stacksize: i32,
+    pub strings: Vec<Box<Node>>,
     pub ir: Vec<IR>,
 }
 
@@ -215,6 +221,7 @@ pub enum IRInfoType {
     IMM,
     JMP,
     LABEL,
+    LABEL_ADDR,
     REG_REG,
     REG_IMM,
     IMM_IMM,
@@ -235,6 +242,7 @@ fn tostr(ir: IR) -> String {
 
     return match info.ty {
         IRInfoType::LABEL => format!(".L{}:", ir.lhs),
+        IRInfoType::LABEL_ADDR => format!(" {} r{}, {}", info.name, ir.lhs, ir.name),
         IRInfoType::IMM => format!("  {} {}", ir.name, ir.lhs),
         IRInfoType::REG => format!("  {} r{}", info.name, ir.lhs),
         IRInfoType::REG_REG => format!("  {} r{}, r{}", info.name, ir.lhs, ir.rhs),
@@ -279,6 +287,7 @@ fn alloc_ir() -> IR {
 
         stacksize: 0,
         ir: Vec::new(),
+        strings: Vec::new(),
     };
 }
 fn add(op: IRType, lhs: i32, rhs: i32) -> usize {
@@ -319,7 +328,19 @@ fn gen_lval(node: Node) -> i32 {
         return r;
     }
 
-    panic!("not an lvalue: {:?} ({})", node.ty, node.name);
+    assert!(node.op == NodeType::GVAR);
+    let r = nreg();
+    inc_nreg();
+    let ir_idx = add(IRType::LABEL_ADDR, r, -1);
+    match CODE.lock() {
+        Ok(mut code) => {
+            code[ir_idx].name = node.name.clone();
+        }
+        Err(_) => {
+            panic!();
+        }
+    }
+    return r;
 }
 
 fn gen_binop(ty: IRType, lhs: Node, rhs: Node) -> i32 {
@@ -375,7 +396,7 @@ fn gen_expr(node: Node) -> i32 {
             return r1
         }
 
-        NodeType::LVAR => {
+        NodeType::GVAR | NodeType::LVAR => {
             let r = gen_lval(node.clone());
             if node.ty.ty == CType::CHAR {
                 add(IRType::LOAD8, r, r);
@@ -425,8 +446,14 @@ fn gen_expr(node: Node) -> i32 {
         }
 
         NodeType::DEREF => {
-            let r = gen_expr(*node.expr.unwrap());
-            add(IRType::LOAD64, r, r);
+            let r = gen_expr(*node.clone().expr.unwrap());
+            if node.clone().expr.unwrap().ty.ptr_of.unwrap().ty == CType::CHAR {
+                add(IRType::LOAD8, r, r);
+            } else if node.clone().expr.unwrap().ty.ptr_of.unwrap().ty == CType::INT {
+                add(IRType::LOAD32, r, r);
+            } else {
+                add(IRType::LOAD64, r, r);
+            }
             return r;
         }
 
@@ -610,6 +637,7 @@ pub fn gen_ir(nodes: Vec<Node>) -> Vec<IR> {
         fun.name = node.name.clone();
         fun.stacksize = node.stacksize;
         fun.ir = CODE.lock().unwrap().clone();
+        fun.strings = node.strings;
 
         v.push(fun);
     }

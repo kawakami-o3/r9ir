@@ -52,7 +52,10 @@ fn visit(irv: &mut Vec<IR>) {
         let mut ir = &mut irv[i];
 
         match irinfo.get(&ir.op).unwrap().ty {
-            IRInfoType::REG | IRInfoType::REG_IMM | IRInfoType::REG_LABEL => {
+            IRInfoType::REG |
+                IRInfoType::REG_IMM |
+                IRInfoType::REG_LABEL |
+                IRInfoType::LABEL_ADDR => {
                 ir.lhs = alloc(ir.lhs);
             }
             IRInfoType::REG_REG => {

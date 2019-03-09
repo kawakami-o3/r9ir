@@ -29,7 +29,6 @@ struct Symbol {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TokenType {
-    NUM,
     ADD,
     SUB,
     MUL,
@@ -44,6 +43,8 @@ pub enum TokenType {
     S_BRA,
     S_KET,
     AMP,
+    NUM,
+    STR,
     IDENT,
     INT,
     CHAR,
@@ -63,6 +64,7 @@ pub enum TokenType {
 pub struct Token {
     pub ty: TokenType,
     pub val: i32,
+    pub str_cnt: String,
     pub name: String,
     pub input: String,
 }
@@ -91,6 +93,7 @@ pub fn tokenize(p: &String) -> Vec<Token> {
                     tokens.push(Token{
                         ty: s.ty,
                         val: 0,
+                        str_cnt: String::new(),
                         name: String::from(s.name),
                         input: String::from(s.name),
                     });
@@ -128,6 +131,7 @@ pub fn tokenize(p: &String) -> Vec<Token> {
             let tok = Token {
                 ty: ty,
                 val: 0,
+                str_cnt: String::new(),
                 name: String::new(),
                 input: format!("{}", c),
             };
@@ -156,6 +160,7 @@ pub fn tokenize(p: &String) -> Vec<Token> {
             let tok = Token {
                 ty: TokenType::IDENT,
                 val: 0,
+                str_cnt: String::new(),
                 name: s.clone(),
                 input: s.clone(),
             };
@@ -181,6 +186,7 @@ pub fn tokenize(p: &String) -> Vec<Token> {
             let tok = Token {
                 ty: TokenType::NUM,
                 val: i32::from_str_radix(&s, 10).unwrap(),
+                str_cnt: String::new(),
                 name: String::new(),
                 input: s,
             };
@@ -195,6 +201,7 @@ pub fn tokenize(p: &String) -> Vec<Token> {
     let tok = Token {
         ty: TokenType::EOF,
         val: 0,
+        str_cnt: String::new(),
         name: String::new(),
         input: String::new(),
     };

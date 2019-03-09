@@ -21,6 +21,14 @@ fn inc_label() {
 }
 
 fn gen(fun: &IR) {
+    println!(".data");
+    for i in 0..fun.strings.len() {
+        let node = &fun.strings[i];
+        assert!(node.op == NodeType::STR);
+        println!("{}:", node.name);
+        println!("  .asciz \"{}\"", node.str_cnt);
+    }
+
     let ret = format!(".Lend{}", label());
     inc_label();
 
@@ -67,6 +75,9 @@ fn gen(fun: &IR) {
             IRType::LABEL => {
                 println!(".L{}:", ir.lhs);
             }
+            IRType::LABEL_ADDR => {
+                println!("  lea {}, {}", regs[ir.lhs as usize], ir.name);
+            }
             IRType::LT => {
                 println!("  cmp {}, {}", regs[ir.lhs as usize], regs[ir.rhs as usize]);
                 println!("  setl {}", regs8[ir.lhs as usize]);
@@ -80,10 +91,8 @@ fn gen(fun: &IR) {
                 println!("  je .L{}", ir.rhs);
             }
             IRType::LOAD8 => {
-                println!(
-                    "  mov {}, [{}]",
-                    regs8[ir.lhs as usize], regs[ir.rhs as usize]
-                );
+                println!("  mov {}, [{}]", regs8[ir.lhs as usize], regs[ir.rhs as usize]);
+                println!("  movzb {}, {}", regs[ir.lhs as usize], regs8[ir.lhs as usize]);
             }
             IRType::LOAD32 => {
                 println!(
