@@ -347,7 +347,7 @@ fn gen_binop(ty: IRType, lhs: Node, rhs: Node) -> i32 {
     let r1 = gen_expr(lhs);
     let r2 = gen_expr(rhs);
     add(ty, r1, r2);
-    add(IRType::KILL, r2, -1);
+    kill(r2);
     return r1;
 }
 
@@ -368,10 +368,10 @@ fn gen_expr(node: Node) -> i32 {
             add(IRType::UNLESS, r1, x);
             let r2 = gen_expr(*node.rhs.unwrap());
             add(IRType::MOV, r1, r2);
-            add(IRType::KILL, r2, -1);
+            kill(r2);
             add(IRType::UNLESS, r1, x);
             add(IRType::IMM, r1, 1);
-            add(IRType::LABEL, x, -1);
+            label(x);
             return r1;
         }
 
@@ -385,14 +385,14 @@ fn gen_expr(node: Node) -> i32 {
             add(IRType::UNLESS, r1, x);
             add(IRType::IMM, r1, 1);
             add(IRType::JMP, y, -1);
-            add(IRType::LABEL, x, -1);
+            label(x);
 
             let r2 = gen_expr(*node.rhs.unwrap());
             add(IRType::MOV, r1, r2);
-            add(IRType::KILL, r2, -1);
+            kill(r2);
             add(IRType::UNLESS, r1, y);
             add(IRType::IMM, r1, 1);
-            add(IRType::LABEL, y, -1);
+            label(y);
             return r1
         }
 
@@ -436,7 +436,7 @@ fn gen_expr(node: Node) -> i32 {
             };
 
             for i in 0..nargs {
-                add(IRType::KILL, args[i], -1);
+                kill(args[i]);
             }
             return r;
         }
@@ -465,7 +465,7 @@ fn gen_expr(node: Node) -> i32 {
             } else {
                 add(IRType::STORE32, lhs, rhs);
             }
-            add(IRType::KILL, rhs, -1);
+            kill(rhs);
             return lhs;
         }
         NodeType::ADD | NodeType::SUB => {
@@ -537,8 +537,8 @@ fn gen_stmt(node: Node) {
         } else {
             add(IRType::STORE64, lhs, rhs);
         }
-        add(IRType::KILL, lhs, -1);
-        add(IRType::KILL, rhs, -1);
+        kill(lhs);
+        kill(rhs);
         return;
     }
 
@@ -578,23 +578,23 @@ fn gen_stmt(node: Node) {
             inc_nlabel();
 
             gen_stmt(*node.init.unwrap());
-            add(IRType::LABEL, x, -1);
+            label(x);
             let r = gen_expr(*node.cond.unwrap());
             add(IRType::UNLESS, r, y);
-            add(IRType::KILL, r, -1);
+            kill(r);
             gen_stmt(*node.body.unwrap());
-            add(IRType::KILL, gen_expr(*node.inc.unwrap()), -1);
+            kill(gen_expr(*node.inc.unwrap()));
             add(IRType::JMP, x, -1);
-            add(IRType::LABEL, y, -1);
+            label(y);
         }
         NodeType::RETURN => {
             let r = gen_expr(*node.expr.unwrap());
             add(IRType::RETURN, r, -1);
-            add(IRType::KILL, r, -1);
+            kill(r);
         }
         NodeType::EXPR_STMT => {
             let r = gen_expr(*node.expr.unwrap());
-            add(IRType::KILL, r, -1);
+            kill(r);
         }
         NodeType::COMP_STMT => {
             for n in node.stmts {
