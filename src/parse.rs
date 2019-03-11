@@ -2,6 +2,7 @@
 
 #![allow(non_camel_case_types)]
 
+use crate::sema::*;
 use crate::token::*;
 use crate::util::*;
 use std::sync::Mutex;
@@ -123,7 +124,7 @@ pub struct Node {
 
     // Function definition
     pub stacksize: i32,
-    pub strings: Vec<Node>,
+    pub globals: Vec<Var>,
     
     // Local variable
     pub offset: i32,
@@ -154,7 +155,7 @@ pub fn alloc_node() -> Node {
         body: None,
 
         stacksize: 0,
-        strings: Vec::new(),
+        globals: Vec::new(),
 
         offset: 0,
 

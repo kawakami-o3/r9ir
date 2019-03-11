@@ -2,6 +2,7 @@
 #![allow(dead_code, non_camel_case_types)]
 
 use crate::parse::*;
+use crate::sema::*;
 use crate::util::size_of;
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -210,8 +211,8 @@ pub struct IR {
 
     // Function struct fields in 9cc
     pub stacksize: i32,
-    pub strings: Vec<Node>,
     pub ir: Vec<IR>,
+    pub globals: Vec<Var>,
 }
 
 #[derive(Clone, Debug)]
@@ -287,7 +288,7 @@ fn alloc_ir() -> IR {
 
         stacksize: 0,
         ir: Vec::new(),
-        strings: Vec::new(),
+        globals: Vec::new(),
     };
 }
 fn add(op: IRType, lhs: i32, rhs: i32) -> usize {
@@ -636,7 +637,7 @@ pub fn gen_ir(nodes: Vec<Node>) -> Vec<IR> {
         fun.name = node.name.clone();
         fun.stacksize = node.stacksize;
         fun.ir = CODE.lock().unwrap().clone();
-        fun.strings = node.strings;
+        fun.globals = node.globals;
 
         v.push(fun);
     }

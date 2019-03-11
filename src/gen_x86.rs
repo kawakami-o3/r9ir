@@ -20,18 +20,35 @@ fn inc_label() {
     *label += 1;
 }
 
+fn escape(s: & String) -> String {
+    let mut buf = String::new();
+    let mut chars = s.chars();
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            buf.push('\\');
+            buf.push('\\');
+        } else if c.is_alphanumeric() || c.is_whitespace() {
+            buf.push(c);
+        } else {
+            buf.push_str(&format!("\\{:03o}", u32::from(c)));
+        }
+    }
+    //buf.push('\0');
+    return buf;
+}
+
 fn gen(fun: &IR) {
     println!(".data");
-    for i in 0..fun.strings.len() {
-        let node = &fun.strings[i];
-        assert!(node.op == NodeType::STR);
-        println!("{}:", node.name);
-        println!("  .asciz \"{}\"", node.str_cnt);
+    for i in 0..fun.globals.len() {
+        let var = &fun.globals[i];
+        println!("{}:", var.name);
+        println!("  .ascii \"{}\"", escape(&var.data));
     }
 
     let ret = format!(".Lend{}", label());
     inc_label();
 
+    println!(".text");
     println!(".global {}", fun.name);
     println!("{}:", fun.name);
     println!("  push rbp");

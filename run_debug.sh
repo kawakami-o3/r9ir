@@ -21,6 +21,10 @@ run() {
 #run 'int main() { char x; return sizeof(x); }'
 
 run 'int main() { char *p = "abc"; return p[0]; }'
+run 'int main() { char *p = "abc"; return p[1]; }'
+run 'int main() { char *p = "abc"; return p[2]; }'
+run 'int main() { char *p = "abc"; return p[3]; }'
+
 
 #cat tmp.s
 

@@ -8,20 +8,33 @@ use std::sync::Mutex;
 lazy_static! {
     static ref STR_LABEL: Mutex<i32> = Mutex::new(0);
     static ref VARS: Mutex<HashMap<String, Var>> = Mutex::new(HashMap::new());
-    static ref STRINGS: Mutex<Vec<Node>> = Mutex::new(Vec::new());
+    static ref GLOBALS: Mutex<Vec<Var>> = Mutex::new(Vec::new());
     static ref STACKSIZE: Mutex<i32> = Mutex::new(0);
 }
 
 #[derive(Clone, Debug, PartialEq)]
-struct Var {
-    ty: Type,
-    is_local: bool,
+pub struct Var {
+    pub ty: Type,
+    pub is_local: bool,
 
     // local
-    offset: i32,
+    pub offset: i32,
 
     // global
-    name: String,
+    pub name: String,
+    pub data: String,
+    pub len: usize,
+}
+
+fn alloc_var(ty: Type) -> Var {
+    Var {
+        ty: ty,
+        is_local: true,
+        offset: 0,
+        name: String::new(),
+        data: String::new(),
+        len: 0,
+    }
 }
 
 #[allow(dead_code)]
@@ -45,17 +58,17 @@ fn vars_exist(name: & String) -> bool {
     return None != vars.get(name);
 }
 
-fn init_strings() {
-    *STRINGS.lock().unwrap() = Vec::new();
+fn init_globals() {
+    *GLOBALS.lock().unwrap() = Vec::new();
 }
 
-fn strings() -> Vec<Node> {
-    STRINGS.lock().unwrap().clone()
+fn globals() -> Vec<Var> {
+    GLOBALS.lock().unwrap().clone()
 }
 
-fn strings_push(node: Node) {
-    let mut strings = STRINGS.lock().unwrap();
-    strings.push(node);
+fn globals_push(var: Var) {
+    let mut globals = GLOBALS.lock().unwrap();
+    globals.push(var);
 }
 
 fn stacksize() -> i32 {
@@ -99,10 +112,17 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
         }
         NodeType::STR => {
             let name = format!(".L.str{}", bump_str_label());
-            node.name = String::from(name.clone());
-            strings_push(node.clone());
+            let tmp = node.clone();
+            let node_ty = tmp.ty;
+            let node_str = tmp.str_cnt;
 
-            let node_ty = node.clone().ty;
+            let mut var = alloc_var(node.clone().ty);
+            var.is_local = false;
+            var.name = String::from(name.clone());
+            var.len = node_str.len() + 1;
+            var.data = node_str;
+            globals_push(var.clone());
+
             *node = alloc_node();
             node.op = NodeType::GVAR;
             node.ty = node_ty;
@@ -142,6 +162,8 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
                 is_local: true,
                 offset: stacksize(),
                 name: String::new(),
+                data: String::new(),
+                len: 0,
             };
             vars_put(node.name.clone(), var.clone());
 
@@ -203,6 +225,11 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
         }
         NodeType::EQ => {
             node.lhs = Some(Box::new(walk(&mut *node.clone().lhs.unwrap(), false).clone()));
+            if node.clone().lhs.unwrap().op != NodeType::LVAR && node.clone().lhs.unwrap().op != NodeType::DEREF {
+                panic!("not an lvalue: {:?} ({})", node.op, node.name);
+            }
+
+
             node.rhs = Some(Box::new(walk(&mut *node.clone().rhs.unwrap(), true).clone()));
             node.ty = node.clone().lhs.unwrap().ty;
             return node;
@@ -292,9 +319,9 @@ pub fn sema(nodes: &mut Vec<Node>) {
         assert!(node.op == NodeType::FUNC);
 
         init_stacksize();
-        init_strings();
+        init_globals();
         walk(node, true);
         node.stacksize = stacksize();
-        node.strings = strings();
+        node.globals = globals();
     }
 }
