@@ -103,13 +103,18 @@ fn swap(p: &mut Node, q: &mut Node) {
     mem::swap(p, q);
 }
 
-fn addr_of(base: Node, ty: Type) -> Node {
-    let mut node = alloc_node();
-    node.op = NodeType::ADDR;
-    node.ty = ptr_of(ty);
+fn maybe_decay(base: & mut Node, decay: bool) -> & mut Node {
+    if !decay || base.ty.ty != CType::ARY {
+        return base;
+    }
 
-    node.expr = Some(Box::new(base));
-    return node;
+    let tmp = base.clone();
+    *base = alloc_node();
+    base.op = NodeType::ADDR;
+    base.ty = ptr_of(*tmp.clone().ty.ary_of.unwrap());
+
+    base.expr = Some(Box::new(tmp));
+    return base;
 }
 
 fn walk<'a>(env: &'a mut Env, node: &'a mut Node, decay: bool) -> &'a Node {
@@ -134,31 +139,19 @@ fn walk<'a>(env: &'a mut Env, node: &'a mut Node, decay: bool) -> &'a Node {
             node.op = NodeType::GVAR;
             node.ty = node_ty;
             node.name = name;
-            return walk(env, node, decay);
+            return maybe_decay(node, decay);
         }
         NodeType::IDENT => {
-            match env.find(&node.name) {
-                None => {
-                    panic!("undefined variable: {}", node.name);
-                }
-                Some(var) => {
-                    node.op = NodeType::LVAR;
-                    node.offset = var.offset;
-
-                    if decay && var.ty.ty == CType::ARY {
-                        *node = addr_of(node.clone(), *var.clone().ty.ary_of.unwrap());
-                        return node;
-                    }
-                    node.ty = var.clone().ty;
-                    return node;
-                }
-            }
-        }
-        NodeType::GVAR => {
-            if decay && node.ty.ty == CType::ARY {
-                *node = addr_of(node.clone(), *node.clone().ty.ary_of.unwrap());
-            }
-            return node;
+            let var = match env.find(&node.name) {
+                None => panic!("undefined variable: {}", node.name),
+                Some(var) => var,
+            };
+                
+            *node = alloc_node();
+            node.op = NodeType::LVAR;
+            node.offset = var.offset;
+            node.ty = var.ty.clone();
+            return maybe_decay(node, decay);
         }
         NodeType::VARDEF => {
             add_stacksize(size_of(node.clone().ty));
@@ -266,7 +259,7 @@ fn walk<'a>(env: &'a mut Env, node: &'a mut Node, decay: bool) -> &'a Node {
             match &mut node.expr {
                 Some(ref expr) => {
                     if expr.ty.ty != CType::PTR {
-                        panic!("operand must be a pointer");
+                        panic!("operand must be a pointer: {:?}", expr);
                     }
                 }
                 None => {}
