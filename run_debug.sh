@@ -10,7 +10,7 @@ run() {
 #run 'int main() { int sum=0; int i; for (i=10; i<15; i=i+1) sum = sum + i; return sum;}'
 #run 'int main() { int i=1; int j=1; int k; for (k=0; k<10; k=k+1) { int m=i+j; i=j; j=m; } return i;}'
 
-#run 'int mul(int a, int b) { return a * b; } int main() { return mul(2, 3); }'
+run 'int mul(int a, int b) { return a * b; } int main() { return mul(2, 3); }'
 #run 'int add(int a, int b, int c, int d, int e, int f) { return a+b+c+d+e+f; } int main() { return add(1,2,3,4,5,6); }'
 
 #run 'int main() { int *p = alloc1(3, 5); return *p + *(p + 1); }'
@@ -20,11 +20,13 @@ run() {
 #run 'int main() { int x[4]; return sizeof x; }'
 #run 'int main() { char x; return sizeof(x); }'
 
-run 'int main() { char *p = "abc"; return p[0]; }'
-run 'int main() { char *p = "abc"; return p[1]; }'
-run 'int main() { char *p = "abc"; return p[2]; }'
-run 'int main() { char *p = "abc"; return p[3]; }'
+#run 'int main() { char *p = "abc"; return p[0]; }'
+#run 'int main() { char *p = "abc"; return p[1]; }'
+#run 'int main() { char *p = "abc"; return p[2]; }'
+#run 'int main() { char *p = "abc"; return p[3]; }'
 
+
+#run 'int main() { int x = 1; { int x = 2; } return x; }'
 
 #cat tmp.s
 
