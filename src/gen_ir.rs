@@ -139,6 +139,10 @@ fn init_irinfo() {
         name: "SUB",
         ty: IRInfoType::REG_IMM
     });
+    irinfo.insert(IRType::IF, IRInfo {
+        name: "IF",
+        ty: IRInfoType::REG_LABEL
+    });
     irinfo.insert(IRType::UNLESS, IRInfo {
         name: "UNLESS",
         ty: IRInfoType::REG_LABEL
@@ -190,6 +194,7 @@ pub enum IRType {
     NE,
     LT,
     JMP,
+    IF,
     UNLESS,
     LOAD8,
     LOAD32,
@@ -613,6 +618,16 @@ fn gen_stmt(node: Node) {
             kill(gen_expr(*node.inc.unwrap()));
             add(IRType::JMP, x, -1);
             label(y);
+        }
+        NodeType::DO_WHILE => {
+            let x = nlabel();
+            inc_nlabel();
+            label(x);
+            gen_stmt(*node.body.unwrap());
+            let r = gen_expr(*node.cond.unwrap());
+            add(IRType::IF, r, x);
+            kill(r);
+            return;
         }
         NodeType::RETURN => {
             let r = gen_expr(*node.expr.unwrap());

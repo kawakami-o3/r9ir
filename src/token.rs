@@ -12,12 +12,14 @@ fn init_symbols() {
     let mut symbols = SYMBOLS.lock().unwrap();
 
     symbols.push(Symbol { name: "char", ty: TokenType::CHAR });
+    symbols.push(Symbol { name: "do", ty: TokenType::DO });
     symbols.push(Symbol { name: "else", ty: TokenType::ELSE });
     symbols.push(Symbol { name: "for", ty: TokenType::FOR });
     symbols.push(Symbol { name: "if", ty: TokenType::IF });
     symbols.push(Symbol { name: "int", ty: TokenType::INT });
     symbols.push(Symbol { name: "return", ty: TokenType::RETURN });
     symbols.push(Symbol { name: "sizeof", ty: TokenType::SIZEOF });
+    symbols.push(Symbol { name: "while", ty: TokenType::WHILE });
     symbols.push(Symbol { name: "&&", ty: TokenType::LOGAND });
     symbols.push(Symbol { name: "||", ty: TokenType::LOGOR });
     symbols.push(Symbol { name: "==", ty: TokenType::EQ });
@@ -52,8 +54,10 @@ pub enum TokenType {
     CHAR,
     IF,
     FOR,
-    EQ, // ==
-    NE, // !=
+    DO,    // "do"
+    WHILE, // "while"
+    EQ,    // ==
+    NE,    // !=
     ELSE,
     LOGOR,
     LOGAND,

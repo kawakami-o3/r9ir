@@ -51,6 +51,7 @@ pub enum NodeType {
     GVAR,
     IF,
     FOR,
+    DO_WHILE,
     ADDR,
     DEREF,
     EQ,
@@ -495,6 +496,17 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             node.inc = Some(Box::new(assign(tokens)));
             expect(TokenType::KET, tokens);
             node.body = Some(Box::new(stmt(tokens)));
+            return node;
+        }
+        TokenType::DO => {
+            inc_pos();
+            node.op = NodeType::DO_WHILE;
+            node.body = Some(Box::new(stmt(tokens)));
+            expect(TokenType::WHILE, tokens);
+            expect(TokenType::BRA, tokens);
+            node.cond = Some(Box::new(assign(tokens)));
+            expect(TokenType::KET, tokens);
+            expect(TokenType::SEMI_COLON, tokens);
             return node;
         }
         TokenType::RETURN => {

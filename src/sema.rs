@@ -213,6 +213,11 @@ fn walk<'a>(env: &'a mut Env, node: &'a mut Node, decay: bool) -> &'a Node {
             node.body = Some(Box::new(walk(env, &mut *node.clone().body.unwrap(), true).clone()));
             return node;
         }
+        NodeType::DO_WHILE => {
+            node.cond = Some(Box::new(walk(env, &mut *node.clone().cond.unwrap(), true).clone()));
+            node.body = Some(Box::new(walk(env, &mut *node.clone().body.unwrap(), true).clone()));
+            return node;
+        }
         NodeType::ADD | NodeType::SUB => {
             node.lhs = Some(Box::new(walk(env, &mut *node.clone().lhs.unwrap(), true).clone()));
             node.rhs = Some(Box::new(walk(env, &mut *node.clone().rhs.unwrap(), true).clone()));

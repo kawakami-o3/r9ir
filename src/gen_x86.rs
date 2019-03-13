@@ -105,6 +105,10 @@ fn gen(fun: &IR) {
             IRType::JMP => {
                 println!("  jmp .L{}", ir.lhs);
             }
+            IRType::IF => {
+                println!("  cmp {}, 0", regs[ir.lhs as usize]);
+                println!("  jne .L{}", ir.rhs);
+            }
             IRType::UNLESS => {
                 println!("  cmp {}, 0", regs[ir.lhs as usize]);
                 println!("  je .L{}", ir.rhs);
