@@ -37,13 +37,13 @@ fn main() {
     //let nodes_tmp = parse(&tokens);
     let mut nodes = parse(&tokens);
     //eprintln!("parse");
-    sema(&mut nodes);
+    let globals = sema(&mut nodes);
     let mut fns = gen_ir(nodes);
     //eprintln!("gen_ir");
 
     alloc_regs(&mut fns);
     //eprintln!("alloc_regs");
 
-    gen_x86(&fns);
+    gen_x86(globals, &fns);
     return;
 }

@@ -113,6 +113,10 @@ pub struct Node {
 
     pub name: String,
 
+    // Global variable
+    pub data: String,
+    pub len: usize,
+
     // "if" (cond) then "else els
     // "for" (init; cond; inc) body
     pub cond: Option<Box<Node>>,
@@ -146,6 +150,9 @@ pub fn alloc_node() -> Node {
         stmts: Vec::new(),
 
         name: String::new(),
+
+        data: String::new(),
+        len: 0,
 
         cond: None,
         then: None,
@@ -231,7 +238,8 @@ fn primary(tokens: &Vec<Token>) -> Node {
     if t.ty == TokenType::STR {
         node.ty = ary_of(char_ty(), t.str_cnt.len() as i32);
         node.op = NodeType::STR;
-        node.str_cnt = t.str_cnt.clone();
+        node.data = t.str_cnt.clone();
+        node.len = t.str_cnt.len() + 1;
         return node;
     }
 
@@ -500,41 +508,55 @@ pub fn compaund_stmt(tokens: &Vec<Token>) -> Node {
     return node;
 }
 
-fn function(tokens: &Vec<Token>) -> Node {
-    let mut node = alloc_node();
-    node.op = NodeType::FUNC;
+fn toplevel(tokens: &Vec<Token>) -> Node {
+    let ty = do_type(tokens);
+    // if (!ty)
 
-    let mut t = &tokens[pos()];
-    if t.ty != TokenType::INT {
-        panic!("function return type expected, but got {}", t.input);
-    }
-    inc_pos();
-
-    t = &tokens[pos()];
+    let t = &tokens[pos()];
     if t.ty != TokenType::IDENT {
-        panic!("function name expected, but got {}", t.input);
+        panic!("function or variable name expected, but got {}", t.input);
     }
-    node.name = t.name.clone();
     inc_pos();
 
-    expect(TokenType::BRA, tokens);
-    if !consume(TokenType::KET, tokens) {
-        node.args.push(param(tokens));
-        while consume(TokenType::COMMA, tokens) {
+    // Function
+    if consume(TokenType::BRA, tokens) {
+        let mut node = alloc_node();
+        node.op = NodeType::FUNC;
+        node.ty = ty;
+        node.name = t.name.clone();
+
+        if !consume(TokenType::KET, tokens) {
             node.args.push(param(tokens));
+            while consume(TokenType::COMMA, tokens) {
+                node.args.push(param(tokens));
+            }
+            expect(TokenType::KET, tokens);
         }
-        expect(TokenType::KET, tokens);
+
+        expect(TokenType::C_BRA, tokens);
+        node.body = Some(Box::new(compaund_stmt(tokens)));
+        return node;
     }
 
-    expect(TokenType::C_BRA, tokens);
-    node.body = Some(Box::new(compaund_stmt(tokens)));
+    // Global variable
+    let mut node = alloc_node();
+    node.op = NodeType::VARDEF;
+    node.ty = read_array(&mut ty.clone(), tokens).clone();
+    node.name = t.name.clone();
+    let mut data = String::new();
+    for _i in 0..size_of(&node.ty) {
+        data.push(char::from(0));
+    }
+    node.data = data;
+    node.len = size_of(&ty) as usize;
+    expect(TokenType::SEMI_COLON, tokens);
     return node;
 }
 
 pub fn parse(tokens: &Vec<Token>) -> Vec<Node> {
     let mut v = Vec::new();
     while tokens[pos()].ty != TokenType::EOF {
-        v.push(function(tokens));
+        v.push(toplevel(tokens));
     }
     return v;
 }

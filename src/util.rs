@@ -17,14 +17,14 @@ pub fn ary_of(base: Type, len: i32) -> Type {
     return ty;
 }
 
-pub fn size_of(ty: Type) -> i32 {
+pub fn size_of(ty: & Type) -> i32 {
     match ty.ty {
         CType::CHAR => 1,
         CType::INT => 4,
         CType::PTR => 8,
         _ => {
             assert!(ty.ty == CType::ARY);
-            size_of(*ty.ary_of.unwrap()) * ty.len
+            size_of(& ty.clone().ary_of.unwrap()) * ty.len
         }
     }
 }

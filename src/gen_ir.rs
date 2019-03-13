@@ -491,7 +491,7 @@ fn gen_expr(node: Node) -> i32 {
             inc_nreg();
             match node.lhs {
                 Some(ref lhs) => {
-                    add(IRType::IMM, r, size_of(*lhs.clone().ty.ptr_of.unwrap()));
+                    add(IRType::IMM, r, size_of(& lhs.clone().ty.ptr_of.unwrap()));
                 }
                 None => {}
             }
@@ -615,7 +615,12 @@ pub fn gen_ir(nodes: Vec<Node>) -> Vec<IR> {
 
     for i in 0..nodes.len() {
         let node = nodes[i].clone();
-        assert!(node.op == NodeType::FUNC, "");
+
+        if node.op == NodeType::VARDEF {
+            continue;
+        }
+
+        assert!(node.op == NodeType::FUNC);
 
         init_code();
         init_nreg();

@@ -38,17 +38,9 @@ fn escape(s: & String) -> String {
 }
 
 fn gen(fun: &IR) {
-    println!(".data");
-    for i in 0..fun.globals.len() {
-        let var = &fun.globals[i];
-        println!("{}:", var.name);
-        println!("  .ascii \"{}\"", escape(&var.data));
-    }
-
     let ret = format!(".Lend{}", label());
     inc_label();
 
-    println!(".text");
     println!(".global {}", fun.name);
     println!("{}:", fun.name);
     println!("  push rbp");
@@ -184,9 +176,16 @@ fn gen(fun: &IR) {
 }
 
 
-pub fn gen_x86(fns: &Vec<IR>) {
+pub fn gen_x86(globals: Vec<Var>, fns: &Vec<IR>) {
     println!(".intel_syntax noprefix");
 
+    println!(".data");
+    for var in globals.iter() {
+        println!("{}:", var.name);
+        println!("  .ascii \"{}\"", escape(&var.data));
+    }
+
+    println!(".text");
     for i in 0..fns.len() {
         gen(&fns[i]);
     }

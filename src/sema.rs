@@ -65,6 +65,15 @@ fn alloc_var(ty: Type) -> Var {
     }
 }
 
+fn new_global(ty: Type, data: String, len: usize) -> Var {
+    let mut var = alloc_var(ty);
+    var.is_local = false;
+    var.name = format!(".L.str{}", bump_str_label()).to_string();
+    var.data = data;
+    var.len = len;
+    return var;
+}
+
 fn init_globals() {
     *GLOBALS.lock().unwrap() = Vec::new();
 }
@@ -117,28 +126,33 @@ fn maybe_decay(base: & mut Node, decay: bool) -> & mut Node {
     return base;
 }
 
+fn check_lval(node: & Node) {
+    match node.op {
+        NodeType::LVAR | NodeType::GVAR | NodeType::DEREF => {
+            return;
+        }
+        _ => {
+            panic!("not an lvalue: {:?} ({})", node.op, node.name);
+        }
+    }
+}
+
 fn walk<'a>(env: &'a mut Env, node: &'a mut Node, decay: bool) -> &'a Node {
     match node.op {
         NodeType::NUM => {
             return node;
         }
         NodeType::STR => {
-            let name = format!(".L.str{}", bump_str_label());
-            let tmp = node.clone();
-            let node_ty = tmp.ty;
-            let node_str = tmp.str_cnt;
+            let node_ty = node.ty.clone();
+            let node_data = node.data.clone();
 
-            let mut var = alloc_var(node.clone().ty);
-            var.is_local = false;
-            var.name = String::from(name.clone());
-            var.len = node_str.len() + 1;
-            var.data = node_str;
+            let var = new_global(node_ty.clone(), node_data, node.len);
             globals_push(var.clone());
 
             *node = alloc_node();
             node.op = NodeType::GVAR;
             node.ty = node_ty;
-            node.name = name;
+            node.name = var.name;
             return maybe_decay(node, decay);
         }
         NodeType::IDENT => {
@@ -146,15 +160,23 @@ fn walk<'a>(env: &'a mut Env, node: &'a mut Node, decay: bool) -> &'a Node {
                 None => panic!("undefined variable: {}", node.name),
                 Some(var) => var,
             };
+
+            if var.is_local {
+                *node = alloc_node();
+                node.op = NodeType::LVAR;
+                node.ty = var.ty.clone();
+                node.offset = var.offset;
+                return maybe_decay(node, decay);
+            }
                 
             *node = alloc_node();
-            node.op = NodeType::LVAR;
-            node.offset = var.offset;
+            node.op = NodeType::GVAR;
             node.ty = var.ty.clone();
+            node.name = var.name.clone();
             return maybe_decay(node, decay);
         }
         NodeType::VARDEF => {
-            add_stacksize(size_of(node.clone().ty));
+            add_stacksize(size_of(& node.ty));
             node.offset = stacksize();
 
             let var = Var {
@@ -224,10 +246,7 @@ fn walk<'a>(env: &'a mut Env, node: &'a mut Node, decay: bool) -> &'a Node {
         }
         NodeType::EQ => {
             node.lhs = Some(Box::new(walk(env, &mut *node.clone().lhs.unwrap(), false).clone()));
-            if node.clone().lhs.unwrap().op != NodeType::LVAR && node.clone().lhs.unwrap().op != NodeType::DEREF {
-                panic!("not an lvalue: {:?} ({})", node.op, node.name);
-            }
-
+            check_lval(& *node.clone().lhs.unwrap());
 
             node.rhs = Some(Box::new(walk(env, &mut *node.clone().rhs.unwrap(), true).clone()));
             node.ty = node.clone().lhs.unwrap().ty;
@@ -251,6 +270,7 @@ fn walk<'a>(env: &'a mut Env, node: &'a mut Node, decay: bool) -> &'a Node {
             }
         NodeType::ADDR => {
             node.expr = Some(Box::new(walk(env, &mut *node.clone().expr.unwrap(), true).clone()));
+            check_lval(& *node.clone().expr.unwrap());
             node.ty = ptr_of(node.clone().expr.unwrap().ty);
             return node;
         }
@@ -275,7 +295,7 @@ fn walk<'a>(env: &'a mut Env, node: &'a mut Node, decay: bool) -> &'a Node {
         NodeType::SIZEOF => {
             let mut nexpr = *node.clone().expr.unwrap();
             let expr = walk(env, &mut nexpr, false);
-            let val = size_of(expr.clone().ty);
+            let val = size_of(& expr.ty);
 
             *node = alloc_node();
             node.op = NodeType::NUM;
@@ -314,15 +334,23 @@ fn walk<'a>(env: &'a mut Env, node: &'a mut Node, decay: bool) -> &'a Node {
     }
 }
 
-pub fn sema(nodes: &mut Vec<Node>) {
+pub fn sema(nodes: &mut Vec<Node>) -> Vec<Var> {
+    init_globals();
+    let mut topenv = new_env(None);
+
     for node in nodes.iter_mut() {
+        if node.op == NodeType::VARDEF {
+            let var = new_global(node.ty.clone(), node.data.clone(), node.len);
+            globals_push(var.clone());
+            topenv.vars.insert(node.name.clone(), var);
+            continue;
+        }
+
         assert!(node.op == NodeType::FUNC);
 
         init_stacksize();
-        init_globals();
-        let mut env = new_env(None);
-        walk(&mut env, node, true);
+        walk(&mut topenv, node, true);
         node.stacksize = stacksize();
-        node.globals = globals();
     }
+    return globals();
 }
