@@ -239,7 +239,7 @@ fn primary(tokens: &Vec<Token>) -> Node {
         node.ty = ary_of(char_ty(), t.str_cnt.len() as i32);
         node.op = NodeType::STR;
         node.data = t.str_cnt.clone();
-        node.len = t.str_cnt.len() + 1;
+        node.len = t.len;
         return node;
     }
 

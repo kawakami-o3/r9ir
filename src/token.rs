@@ -64,19 +64,58 @@ pub enum TokenType {
 pub struct Token {
     pub ty: TokenType,
     pub val: i32,
-    pub str_cnt: String,
     pub name: String,
     pub input: String,
+
+    // String literal
+    pub str_cnt: String,
+    pub len: usize,
 }
 
 fn new_token(ty: TokenType) -> Token {
     Token{
         ty: ty,
         val: 0,
-        str_cnt: String::new(),
         name: String::new(),
         input: String::new(),
+        str_cnt: String::new(),
+        len: 0,
     }
+}
+
+fn read_string(p: &String, idx: usize) -> String {
+    let mut len = 0;
+    let mut ret = String::new();
+
+    let char_bytes = p.as_bytes();
+    while (idx+len) < p.len() && char::from(char_bytes[idx+len]) != '"' {
+        let mut c = char::from(char_bytes[idx+len]);
+
+        if c != '\\' {
+            ret.push(c);
+            len += 1;
+            continue;
+        }
+
+        len += 1;
+        c = char::from(char_bytes[idx+len]);
+        match c {
+            'a' => ret.push(char::from(7)), // \a
+            'b' => ret.push(char::from(8)), // \b
+            'f' => ret.push(char::from(12)), // \f
+            'n' => ret.push('\n'), // 10
+            'r' => ret.push('\r'), // 13
+            't' => ret.push('\t'), // 9
+            'v' => ret.push(char::from(11)), // \v
+            '\0' => panic!("PREMATURE end of input"),
+            _ => ret.push(c),
+        }
+        len += 1;
+    }
+    if (idx+len) >= p.len() {
+        panic!("premature end of input");
+    }
+    return ret;
 }
 
 pub fn tokenize(p: &String) -> Vec<Token> {
@@ -96,15 +135,10 @@ pub fn tokenize(p: &String) -> Vec<Token> {
             let mut t = new_token(TokenType::STR);
             idx += 1;
 
-            let mut len = 0;
-            while (idx+len) < p.len() && char::from(char_bytes[idx+len]) != '"' {
-                len += 1;
-            }
-            if (idx+len) >= p.len() {
-                panic!("premature end of input");
-            }
-            t.str_cnt = p[idx..idx+len].to_string();
-            t.input = p[idx..idx+len].to_string();
+            let s = read_string(p, idx);
+            let len = s.len();
+            t.str_cnt = s;
+            t.len = len;
             tokens.push(t);
             idx += len + 1;
             continue;
@@ -122,9 +156,10 @@ pub fn tokenize(p: &String) -> Vec<Token> {
                     tokens.push(Token{
                         ty: s.ty,
                         val: 0,
-                        str_cnt: String::new(),
                         name: String::from(s.name),
                         input: String::from(s.name),
+                        str_cnt: String::new(),
+                        len: 0,
                     });
 
                     idx += s.name.len();
@@ -160,9 +195,10 @@ pub fn tokenize(p: &String) -> Vec<Token> {
             let tok = Token {
                 ty: ty,
                 val: 0,
-                str_cnt: String::new(),
                 name: String::new(),
                 input: format!("{}", c),
+                str_cnt: String::new(),
+                len: 0,
             };
 
             tokens.push(tok);
@@ -189,9 +225,10 @@ pub fn tokenize(p: &String) -> Vec<Token> {
             let tok = Token {
                 ty: TokenType::IDENT,
                 val: 0,
-                str_cnt: String::new(),
                 name: s.clone(),
                 input: s.clone(),
+                str_cnt: String::new(),
+                len: 0,
             };
 
             tokens.push(tok);
@@ -215,9 +252,10 @@ pub fn tokenize(p: &String) -> Vec<Token> {
             let tok = Token {
                 ty: TokenType::NUM,
                 val: i32::from_str_radix(&s, 10).unwrap(),
-                str_cnt: String::new(),
                 name: String::new(),
                 input: s,
+                str_cnt: String::new(),
+                len: 0,
             };
 
             tokens.push(tok);
@@ -230,9 +268,10 @@ pub fn tokenize(p: &String) -> Vec<Token> {
     let tok = Token {
         ty: TokenType::EOF,
         val: 0,
-        str_cnt: String::new(),
         name: String::new(),
         input: String::new(),
+        str_cnt: String::new(),
+        len: 0,
     };
     tokens.push(tok);
 
