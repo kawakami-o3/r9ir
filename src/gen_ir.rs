@@ -67,6 +67,14 @@ fn init_irinfo() {
         name: "LABEL_ADDR",
         ty: IRInfoType::LABEL_ADDR
     });
+    irinfo.insert(IRType::EQ, IRInfo {
+        name: "EQ",
+        ty: IRInfoType::REG_REG
+    });
+    irinfo.insert(IRType::NE, IRInfo {
+        name: "NE",
+        ty: IRInfoType::REG_REG
+    });
     irinfo.insert(IRType::LT, IRInfo {
         name: "LT",
         ty: IRInfoType::REG_REG
@@ -178,6 +186,8 @@ pub enum IRType {
     CALL,
     LABEL,
     LABEL_ADDR,
+    EQ,
+    NE,
     LT,
     JMP,
     UNLESS,
@@ -361,6 +371,22 @@ fn gen_expr(node: Node) -> i32 {
             return r;
         }
 
+        NodeType::EQ => {
+            let lhs = gen_expr(*node.lhs.unwrap());
+            let rhs = gen_expr(*node.rhs.unwrap());
+            add(IRType::EQ, lhs, rhs);
+            kill(rhs);
+            return lhs;
+        }
+
+        NodeType::NE => {
+            let lhs = gen_expr(*node.lhs.unwrap());
+            let rhs = gen_expr(*node.rhs.unwrap());
+            add(IRType::NE, lhs, rhs);
+            kill(rhs);
+            return lhs;
+        }
+
         NodeType::LOGAND => {
             let x = nlabel();
             inc_nlabel();
@@ -458,7 +484,7 @@ fn gen_expr(node: Node) -> i32 {
             return r;
         }
 
-        NodeType::EQ => {
+        NodeType::EQL => {
             let rhs = gen_expr(*node.clone().rhs.unwrap());
             let lhs = gen_lval(*node.clone().lhs.unwrap());
             if node.lhs.unwrap().ty.ty == CType::PTR {

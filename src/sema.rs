@@ -244,7 +244,7 @@ fn walk<'a>(env: &'a mut Env, node: &'a mut Node, decay: bool) -> &'a Node {
 
             return node;
         }
-        NodeType::EQ => {
+        NodeType::EQL => {
             node.lhs = Some(Box::new(walk(env, &mut *node.clone().lhs.unwrap(), false).clone()));
             check_lval(& *node.clone().lhs.unwrap());
 
@@ -255,6 +255,8 @@ fn walk<'a>(env: &'a mut Env, node: &'a mut Node, decay: bool) -> &'a Node {
         NodeType::MUL |
             NodeType::DIV |
             NodeType::LT |
+            NodeType::EQ |
+            NodeType::NE |
             NodeType::LOGAND |
             NodeType::LOGOR => {
                 node.lhs = Some(Box::new(walk(env, &mut *node.clone().lhs.unwrap(), true).clone()));

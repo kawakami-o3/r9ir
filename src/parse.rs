@@ -41,7 +41,7 @@ pub enum NodeType {
     SUB,
     MUL,
     DIV,
-    EQ,
+    EQL,
     LT,
     NUM,
     STR,
@@ -53,6 +53,8 @@ pub enum NodeType {
     FOR,
     ADDR,
     DEREF,
+    EQ,
+    NE,
     LOGOR,
     LOGAND,
     RETURN,
@@ -331,15 +333,33 @@ fn rel(tokens: &Vec<Token>) -> Node {
     }
 }
 
-fn logand(tokens: &Vec<Token>) -> Node {
+fn equality(tokens: &Vec<Token>) -> Node {
     let mut lhs = rel(tokens);
+    loop {
+        let t = &tokens[pos()];
+        if t.ty == TokenType::EQ {
+            inc_pos();
+            lhs = new_binop(NodeType::EQ, lhs, rel(tokens));
+            continue;
+        }
+        if t.ty == TokenType::NE {
+            inc_pos();
+            lhs = new_binop(NodeType::NE, lhs, rel(tokens));
+            continue;
+        }
+        return lhs;
+    }
+}
+
+fn logand(tokens: &Vec<Token>) -> Node {
+    let mut lhs = equality(tokens);
     loop {
         let t = &tokens[pos()];
         if t.ty != TokenType::LOGAND {
             return lhs;
         }
         inc_pos();
-        lhs = new_binop(to_node_type(&t.ty), lhs, rel(tokens));
+        lhs = new_binop(to_node_type(&t.ty), lhs, equality(tokens));
     }
 }
 
@@ -357,8 +377,8 @@ fn logor(tokens: &Vec<Token>) -> Node {
 
 fn assign(tokens: &Vec<Token>) -> Node {
     let lhs = logor(tokens);
-    if consume(TokenType::EQ, tokens) {
-        return new_binop(NodeType::EQ, lhs, logor(tokens));
+    if consume(TokenType::EQL, tokens) {
+        return new_binop(NodeType::EQL, lhs, logor(tokens));
     }
     return lhs;
 }
@@ -414,7 +434,7 @@ fn decl(tokens: &Vec<Token>) -> Node {
     node.ty = read_array(&mut node.ty, tokens).clone();
 
     // Read an initializer.
-    if consume(TokenType::EQ, tokens) {
+    if consume(TokenType::EQL, tokens) {
         node.init = Some(Box::new(assign(tokens)));
     }
     expect(TokenType::SEMI_COLON, tokens);

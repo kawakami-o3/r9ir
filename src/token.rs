@@ -20,6 +20,8 @@ fn init_symbols() {
     symbols.push(Symbol { name: "sizeof", ty: TokenType::SIZEOF });
     symbols.push(Symbol { name: "&&", ty: TokenType::LOGAND });
     symbols.push(Symbol { name: "||", ty: TokenType::LOGOR });
+    symbols.push(Symbol { name: "==", ty: TokenType::EQ });
+    symbols.push(Symbol { name: "!=", ty: TokenType::NE });
 }
 
 struct Symbol {
@@ -33,7 +35,7 @@ pub enum TokenType {
     SUB,
     MUL,
     DIV,
-    EQ,
+    EQL,
     LT,
     GT,
     BRA,
@@ -50,6 +52,8 @@ pub enum TokenType {
     CHAR,
     IF,
     FOR,
+    EQ, // ==
+    NE, // !=
     ELSE,
     LOGOR,
     LOGAND,
@@ -179,7 +183,7 @@ pub fn tokenize(p: &String) -> Vec<Token> {
                 '*' => TokenType::MUL,
                 '/' => TokenType::DIV,
                 ';' => TokenType::SEMI_COLON,
-                '=' => TokenType::EQ,
+                '=' => TokenType::EQL,
                 '<' => TokenType::LT,
                 '>' => TokenType::GT,
                 ',' => TokenType::COMMA,

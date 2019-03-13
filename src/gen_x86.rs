@@ -37,6 +37,12 @@ fn escape(s: & String) -> String {
     return buf;
 }
 
+fn emit_cmp(ir: &IR, insn: &str) {
+    println!("  cmp {}, {}", regs[ir.lhs as usize], regs[ir.rhs as usize]);
+    println!("  {} {}", insn, regs8[ir.lhs as usize]);
+    println!("  movzb {}, {}", regs[ir.lhs as usize], regs8[ir.lhs as usize]);
+}
+
 fn gen(fun: &IR) {
     let ret = format!(".Lend{}", label());
     inc_label();
@@ -87,10 +93,14 @@ fn gen(fun: &IR) {
             IRType::LABEL_ADDR => {
                 println!("  lea {}, {}", regs[ir.lhs as usize], ir.name);
             }
+            IRType::EQ => {
+                emit_cmp(ir, "sete")
+            }
+            IRType::NE => {
+                emit_cmp(ir, "setne")
+            }
             IRType::LT => {
-                println!("  cmp {}, {}", regs[ir.lhs as usize], regs[ir.rhs as usize]);
-                println!("  setl {}", regs8[ir.lhs as usize]);
-                println!("  movzb {}, {}", regs[ir.lhs as usize], regs8[ir.lhs as usize]);
+                emit_cmp(ir, "setl")
             }
             IRType::JMP => {
                 println!("  jmp .L{}", ir.lhs);
