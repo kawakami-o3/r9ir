@@ -14,6 +14,7 @@ fn init_symbols() {
     symbols.push(Symbol { name: "char", ty: TokenType::CHAR });
     symbols.push(Symbol { name: "do", ty: TokenType::DO });
     symbols.push(Symbol { name: "else", ty: TokenType::ELSE });
+    symbols.push(Symbol { name: "extern", ty: TokenType::EXTERN });
     symbols.push(Symbol { name: "for", ty: TokenType::FOR });
     symbols.push(Symbol { name: "if", ty: TokenType::IF });
     symbols.push(Symbol { name: "int", ty: TokenType::INT });
@@ -50,6 +51,7 @@ pub enum TokenType {
     NUM,
     STR,
     IDENT,
+    EXTERN,
     INT,
     CHAR,
     IF,

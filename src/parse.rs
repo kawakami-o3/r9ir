@@ -117,6 +117,7 @@ pub struct Node {
     pub name: String,
 
     // Global variable
+    pub is_extern: bool,
     pub data: String,
     pub len: usize,
 
@@ -154,6 +155,7 @@ pub fn alloc_node() -> Node {
 
         name: String::new(),
 
+        is_extern: false,
         data: String::new(),
         len: 0,
 
@@ -541,6 +543,7 @@ pub fn compaund_stmt(tokens: &Vec<Token>) -> Node {
 }
 
 fn toplevel(tokens: &Vec<Token>) -> Node {
+    let is_extern = consume(TokenType::EXTERN, tokens);
     let ty = do_type(tokens);
     // if (!ty)
 
@@ -579,8 +582,12 @@ fn toplevel(tokens: &Vec<Token>) -> Node {
     for _i in 0..size_of(&node.ty) {
         data.push(char::from(0));
     }
-    node.data = data;
-    node.len = size_of(&ty) as usize;
+    if is_extern {
+        node.is_extern = true;
+    } else {
+        node.data = data;
+        node.len = size_of(&ty) as usize;
+    }
     expect(TokenType::SEMI_COLON, tokens);
     return node;
 }

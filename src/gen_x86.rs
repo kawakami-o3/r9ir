@@ -195,6 +195,9 @@ pub fn gen_x86(globals: Vec<Var>, fns: &Vec<IR>) {
 
     println!(".data");
     for var in globals.iter() {
+        if var.is_extern {
+            continue;
+        }
         println!("{}:", var.name);
         println!("  .ascii \"{}\"", escape(&var.data));
     }

@@ -10,10 +10,7 @@ run() {
 #run 'int main() { int sum=0; int i; for (i=10; i<15; i=i+1) sum = sum + i; return sum;}'
 #run 'int main() { int i=1; int j=1; int k; for (k=0; k<10; k=k+1) { int m=i+j; i=j; j=m; } return i;}'
 
-run 'int main() { return 4 == 5; }'
-#run 'int main() { return 5 == 5; }'
-#run 'int main() { return 4 != 5; }'
-#run 'int main() { return 5 != 5; }'
+run 'extern int global_arr[1]; int main() { return global_arr[0]; }'
 
 
 #cat tmp.s

@@ -50,6 +50,7 @@ pub struct Var {
 
     // global
     pub name: String,
+    pub is_extern: bool,
     pub data: String,
     pub len: usize,
 }
@@ -57,18 +58,20 @@ pub struct Var {
 fn alloc_var(ty: Type) -> Var {
     Var {
         ty: ty,
-        is_local: true,
+        is_local: false,
         offset: 0,
         name: String::new(),
+        is_extern: false,
         data: String::new(),
         len: 0,
     }
 }
 
-fn new_global(ty: Type, data: String, len: usize) -> Var {
+fn new_global(ty: Type, name: String, data: String, len: usize) -> Var {
     let mut var = alloc_var(ty);
     var.is_local = false;
-    var.name = format!(".L.str{}", bump_str_label()).to_string();
+    //var.name = format!(".L.str{}", bump_str_label()).to_string();
+    var.name = name;
     var.data = data;
     var.len = len;
     return var;
@@ -146,7 +149,8 @@ fn walk<'a>(env: &'a mut Env, node: &'a mut Node, decay: bool) -> &'a Node {
             let node_ty = node.ty.clone();
             let node_data = node.data.clone();
 
-            let var = new_global(node_ty.clone(), node_data, node.len);
+            let name = format!(".L.str{}", bump_str_label()).to_string();
+            let var = new_global(node_ty.clone(), name, node_data, node.len);
             globals_push(var.clone());
 
             *node = alloc_node();
@@ -179,14 +183,9 @@ fn walk<'a>(env: &'a mut Env, node: &'a mut Node, decay: bool) -> &'a Node {
             add_stacksize(size_of(& node.ty));
             node.offset = stacksize();
 
-            let var = Var {
-                ty: node.ty.clone(),
-                is_local: true,
-                offset: stacksize(),
-                name: String::new(),
-                data: String::new(),
-                len: 0,
-            };
+            let mut var = alloc_var(node.ty.clone());
+            var.is_local = true;
+            var.offset = stacksize();
             env.vars.insert(node.name.clone(), var.clone());
 
             match node.init {
@@ -347,7 +346,8 @@ pub fn sema(nodes: &mut Vec<Node>) -> Vec<Var> {
 
     for node in nodes.iter_mut() {
         if node.op == NodeType::VARDEF {
-            let var = new_global(node.ty.clone(), node.data.clone(), node.len);
+            let mut var = new_global(node.ty.clone(), node.name.clone(), node.data.clone(), node.len);
+            var.is_extern = node.is_extern;
             globals_push(var.clone());
             topenv.vars.insert(node.name.clone(), var);
             continue;
