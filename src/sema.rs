@@ -334,6 +334,11 @@ fn walk<'a>(env: &'a mut Env, node: &'a mut Node, decay: bool) -> &'a Node {
             node.expr = Some(Box::new(walk(env, &mut *node.clone().expr.unwrap(), true).clone()));
             return node;
         }
+        NodeType::STMT_EXPR => {
+            node.stmt = Some(Box::new(walk(env, &mut *node.clone().stmt.unwrap(), true).clone()));
+            node.ty = int_ty();
+            return node;
+        }
         _ => {
             panic!("unknown node type");
         }

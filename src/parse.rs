@@ -63,7 +63,8 @@ pub enum NodeType {
     CALL,
     FUNC,
     COMP_STMT,
-    EXPR_STMT,
+    EXPR_STMT, // Expression statement
+    STMT_EXPR, // Statement expression (GNU extn.)
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -112,6 +113,7 @@ pub struct Node {
     pub val: i32,
     pub str_cnt: String,
     pub expr: Option<Box<Node>>,
+    pub stmt: Option<Box<Node>>,  // Statement expression
     pub stmts: Vec<Node>,
 
     pub name: String,
@@ -151,6 +153,7 @@ pub fn alloc_node() -> Node {
         val: 0,
         str_cnt: String::new(),
         expr: None,
+        stmt: None,
         stmts: Vec::new(),
 
         name: String::new(),
@@ -227,6 +230,13 @@ fn primary(tokens: &Vec<Token>) -> Node {
     inc_pos();
 
     if t.ty == TokenType::BRA {
+        if consume(TokenType::C_BRA, tokens) {
+            let mut node = alloc_node();
+            node.op = NodeType::STMT_EXPR;
+            node.stmt = Some(Box::new(compound_stmt(tokens)));
+            expect(TokenType::KET, tokens);
+            return node;
+        }
         let node = assign(tokens);
         expect(TokenType::KET, tokens);
         return node;
@@ -532,7 +542,7 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
     }
 }
 
-pub fn compaund_stmt(tokens: &Vec<Token>) -> Node {
+pub fn compound_stmt(tokens: &Vec<Token>) -> Node {
     let mut node = alloc_node();
     node.op = NodeType::COMP_STMT;
 
@@ -569,7 +579,7 @@ fn toplevel(tokens: &Vec<Token>) -> Node {
         }
 
         expect(TokenType::C_BRA, tokens);
-        node.body = Some(Box::new(compaund_stmt(tokens)));
+        node.body = Some(Box::new(compound_stmt(tokens)));
         return node;
     }
 
