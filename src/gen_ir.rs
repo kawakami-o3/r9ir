@@ -298,9 +298,8 @@ fn tostr(ir: IR) -> String {
         IRInfoType::CALL => {
             let mut s = String::new();
             s.push_str(&format!("  r{} = {}(", ir.lhs, ir.name));
-            for i in ir.args.iter() {
-                s.push_str(&format!(", r{}", i));
-            }
+            let args = ir.args.iter().map(|a| format!("r{}", a).to_string()).collect::<Vec<String>>();
+            s.push_str(&args.join(", "));
             s.push_str(")");
             s
         }
@@ -530,7 +529,9 @@ fn gen_expr(node: Node) -> i32 {
         NodeType::EQL => {
             let rhs = gen_expr(*node.clone().rhs.unwrap());
             let lhs = gen_lval(*node.clone().lhs.unwrap());
-            if node.lhs.unwrap().ty.ty == CType::PTR {
+            if node.lhs.clone().unwrap().ty.ty == CType::CHAR {
+                add(IRType::STORE8, lhs, rhs);
+            } else if node.lhs.clone().unwrap().ty.ty == CType::PTR {
                 add(IRType::STORE64, lhs, rhs);
             } else {
                 add(IRType::STORE32, lhs, rhs);

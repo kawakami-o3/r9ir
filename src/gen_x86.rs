@@ -24,16 +24,20 @@ fn escape(s: & String) -> String {
     let mut buf = String::new();
     let mut chars = s.chars();
     while let Some(c) = chars.next() {
-        if c == '\\' {
+    //let char_bytes = s.as_bytes();
+    //for i in 0..len {
+        //let c = char::from(char_bytes[i]);
+        if c == '\\' || c == '"'{
             buf.push('\\');
-            buf.push('\\');
-        } else if c.is_alphanumeric() || c.is_whitespace() {
+            buf.push(c);
+        } else if c.is_ascii_graphic() || c == ' ' {
             buf.push(c);
         } else {
             buf.push_str(&format!("\\{:03o}", u32::from(c)));
         }
     }
-    //buf.push('\0');
+
+    //buf.push(char::from(0));
     return buf;
 }
 
@@ -133,6 +137,12 @@ fn gen(fun: &IR) {
                 println!(
                     "  mov [{}], {}",
                     regs[ir.lhs as usize], regs8[ir.rhs as usize]
+                );
+
+                // fall through in 9cc
+                println!(
+                    "  mov [{}], {}",
+                    regs[ir.lhs as usize], regs32[ir.rhs as usize]
                 );
             }
             IRType::STORE32 => {

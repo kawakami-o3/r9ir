@@ -93,7 +93,12 @@ fn new_token(ty: TokenType) -> Token {
     }
 }
 
-fn read_string(p: &String, idx: usize) -> String {
+struct StrInfo {
+    cnt: String,
+    len: usize,
+}
+
+fn read_string(p: &String, idx: usize) -> StrInfo {
     let mut len = 0;
     let mut ret = String::new();
 
@@ -123,9 +128,14 @@ fn read_string(p: &String, idx: usize) -> String {
         len += 1;
     }
     if (idx+len) >= p.len() {
-        panic!("premature end of input");
+        panic!("premature end of input: {}", ret);
     }
-    return ret;
+    //ret.push(&format!("\\{:03o}", u32::from(c)));
+    ret.push(char::from(0));
+    return StrInfo{
+        cnt: ret,
+        len: len,
+    };
 }
 
 pub fn tokenize(p: &String) -> Vec<Token> {
@@ -145,8 +155,9 @@ pub fn tokenize(p: &String) -> Vec<Token> {
             let mut t = new_token(TokenType::STR);
             idx += 1;
 
-            let s = read_string(p, idx);
-            let len = s.len();
+            let info = read_string(p, idx);
+            let s = info.cnt;
+            let len = info.len;
             t.str_cnt = s;
             t.len = len;
             tokens.push(t);
@@ -272,7 +283,7 @@ pub fn tokenize(p: &String) -> Vec<Token> {
             continue;
         }
 
-        panic!(format!("cannot tokenize: {}", c));
+        panic!("cannot tokenize: {}", c);
     }
 
     let tok = Token {

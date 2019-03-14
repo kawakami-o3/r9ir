@@ -588,13 +588,13 @@ fn toplevel(tokens: &Vec<Token>) -> Node {
     node.op = NodeType::VARDEF;
     node.ty = read_array(&mut ty.clone(), tokens).clone();
     node.name = t.name.clone();
-    let mut data = String::new();
-    for _i in 0..size_of(&node.ty) {
-        data.push(char::from(0));
-    }
     if is_extern {
         node.is_extern = true;
     } else {
+        let mut data = String::new();
+        for _i in 0..size_of(&node.ty) {
+            data.push(char::from(0));
+        }
         node.data = data;
         node.len = size_of(&ty) as usize;
     }
