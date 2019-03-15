@@ -145,8 +145,8 @@ fn init_irinfo() {
         name: "SUB",
         ty: IRInfoType::REG_REG
     });
-    irinfo.insert(IRType::SUB_IMM, IRInfo {
-        name: "SUB",
+    irinfo.insert(IRType::BPREL, IRInfo {
+        name: "BPREL",
         ty: IRInfoType::REG_IMM
     });
     irinfo.insert(IRType::IF, IRInfo {
@@ -221,7 +221,7 @@ fn init_code() {
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum IRType {
     IMM,
-    SUB_IMM,
+    BPREL,
     MOV,
     RETURN,
     CALL,
@@ -391,8 +391,7 @@ fn gen_lval(node: Node) -> i32 {
 
     if node.op == NodeType::LVAR {
         let r = bump_nreg();
-        add(IRType::MOV, r, 0);
-        add(IRType::SUB_IMM, r, node.offset);
+        add(IRType::BPREL, r, node.offset);
         return r;
     }
 
@@ -625,8 +624,7 @@ fn gen_stmt(node: Node) {
 
         let rhs = gen_expr(*node.init.unwrap());
         let lhs = bump_nreg();
-        add(IRType::MOV, lhs, 0);
-        add(IRType::SUB_IMM, lhs, node.offset);
+        add(IRType::BPREL, lhs, node.offset);
         if node.ty.ty == CType::CHAR {
             add(IRType::STORE8, lhs, rhs);
         } else if node.ty.ty == CType::INT {

@@ -103,8 +103,8 @@ fn gen(fun: &IR) {
             IRType::IMM => {
                 println!("  mov {}, {}", regs[ir.lhs as usize], ir.rhs);
             }
-            IRType::SUB_IMM => {
-                println!("  sub {}, {}", regs[ir.lhs as usize], ir.rhs);
+            IRType::BPREL => {
+                println!("  lea {}, [rbp-{}]", regs[ir.lhs as usize], ir.rhs);
             }
             IRType::MOV => {
                 println!("  mov {}, {}", regs[ir.lhs as usize], regs[ir.rhs as usize]);
