@@ -220,6 +220,32 @@ pub fn tokenize(p: &String) -> Vec<Token> {
             continue;
         }
 
+        // Line comment
+        if c == '/' && char::from(char_bytes[idx+1]) == '/' {
+            while char::from(char_bytes[idx]) != '\n' {
+                idx += 1;
+            }
+            continue;
+        }
+
+        if c == '/' && char::from(char_bytes[idx+1]) == '*' {
+            idx += 2;
+            loop {
+                if p.len() <= idx {
+                    panic!("premature end of input");
+                }
+                let c1 = char::from(char_bytes[idx]);
+                let c2 = char::from(char_bytes[idx+1]);
+                if c1 == '*' && c2 == '/' {
+                    idx += 2;
+                    break;
+                } else {
+                    idx += 1;
+                }
+            }
+            continue;
+        }
+
         // Character literal
         if c == '\'' {
             let mut t = new_token(TokenType::NUM);
