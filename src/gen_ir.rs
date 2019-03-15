@@ -518,7 +518,7 @@ fn gen_expr(node: Node) -> i32 {
             let r = bump_nreg();
             set_return_reg(r);
 
-            gen_stmt(*node.stmt.clone().unwrap());
+            gen_stmt(*node.body.clone().unwrap());
             label(return_label());
 
             set_return_label(orig_label);
@@ -590,6 +590,10 @@ fn gen_expr(node: Node) -> i32 {
 }
 
 fn gen_stmt(node: Node) {
+    if node.op == NodeType::NULL {
+        return;
+    }
+
     if node.op == NodeType::VARDEF {
         if node.init.is_none() {
             return;
@@ -647,7 +651,7 @@ fn gen_stmt(node: Node) {
             add(IRType::UNLESS, r, y);
             kill(r);
             gen_stmt(*node.body.unwrap());
-            kill(gen_expr(*node.inc.unwrap()));
+            gen_stmt(*node.inc.unwrap());
             add(IRType::JMP, x, -1);
             label(y);
         }

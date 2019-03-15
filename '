@@ -26,11 +26,9 @@ fn pos() -> usize {
     return i;
 }
 
-fn bump_pos() -> usize {
+fn inc_pos() {
     let mut pos = POS.lock().unwrap();
-    let ret = *pos;
     *pos += 1;
-    return ret;
 }
 
 lazy_static! {
@@ -188,7 +186,7 @@ fn expect(ty: TokenType, tokens: &Vec<Token>) {
     if t.ty != ty {
         panic!(format!("{:?} expected, but got {:?} ", ty, t.ty));
     }
-    bump_pos();
+    inc_pos();
 }
 
 fn consume(ty: TokenType, tokens: &Vec<Token>) -> bool {
@@ -196,7 +194,7 @@ fn consume(ty: TokenType, tokens: &Vec<Token>) -> bool {
     if t.ty != ty {
         return false;
     }
-    bump_pos();
+    inc_pos();
     return true;
 }
 
@@ -231,7 +229,8 @@ fn new_expr(op: NodeType, expr: Node) -> Node {
 }
 
 fn primary(tokens: &Vec<Token>) -> Node {
-    let t = &tokens[bump_pos()];
+    let t = &tokens[pos()];
+    inc_pos();
 
     if t.ty == TokenType::BRA {
         if consume(TokenType::C_BRA, tokens) {
@@ -315,7 +314,7 @@ fn mul(tokens: &Vec<Token>) -> Node {
         if t.ty != TokenType::MUL && t.ty != TokenType::DIV {
             return lhs;
         }
-        bump_pos();
+        inc_pos();
         lhs = new_binop(to_node_type(&t.ty), lhs, unary(tokens));
     }
 }
@@ -327,7 +326,7 @@ fn add(tokens: &Vec<Token>) -> Node {
         if t.ty != TokenType::ADD && t.ty != TokenType::SUB {
             return lhs;
         }
-        bump_pos();
+        inc_pos();
         lhs = new_binop(to_node_type(&t.ty), lhs, mul(tokens));
     }
 }
@@ -337,12 +336,12 @@ fn rel(tokens: &Vec<Token>) -> Node {
     loop {
         let t = &tokens[pos()];
         if t.ty == TokenType::LT {
-            bump_pos();
+            inc_pos();
             lhs = new_binop(NodeType::LT, lhs, add(tokens));
             continue;
         }
         if t.ty == TokenType::GT {
-            bump_pos();
+            inc_pos();
             lhs = new_binop(NodeType::LT, add(tokens), lhs);
             continue;
         }
@@ -355,12 +354,12 @@ fn equality(tokens: &Vec<Token>) -> Node {
     loop {
         let t = &tokens[pos()];
         if t.ty == TokenType::EQ {
-            bump_pos();
+            inc_pos();
             lhs = new_binop(NodeType::EQ, lhs, rel(tokens));
             continue;
         }
         if t.ty == TokenType::NE {
-            bump_pos();
+            inc_pos();
             lhs = new_binop(NodeType::NE, lhs, rel(tokens));
             continue;
         }
@@ -375,7 +374,7 @@ fn logand(tokens: &Vec<Token>) -> Node {
         if t.ty != TokenType::LOGAND {
             return lhs;
         }
-        bump_pos();
+        inc_pos();
         lhs = new_binop(to_node_type(&t.ty), lhs, equality(tokens));
     }
 }
@@ -387,7 +386,7 @@ fn logor(tokens: &Vec<Token>) -> Node {
         if t.ty != TokenType::LOGOR {
             return lhs;
         }
-        bump_pos();
+        inc_pos();
         lhs = new_binop(to_node_type(&t.ty), lhs, logand(tokens));
     }
 }
@@ -407,7 +406,7 @@ fn do_type(tokens: &Vec<Token>) -> Type {
         panic!("typename expected, but got {}", t.input);
     }
     let mut ty = ty_opt.unwrap();
-    bump_pos();
+    inc_pos();
 
     while consume(TokenType::MUL, tokens) {
         ty = ptr_of(ty);
@@ -444,7 +443,7 @@ fn decl(tokens: &Vec<Token>) -> Node {
         panic!("variable name expected, but got {}", t.input);
     }
     node.name = t.name.clone();
-    bump_pos();
+    inc_pos();
 
 
     // Read the second half of type name (e.g. `[3][5]`).
@@ -468,7 +467,7 @@ fn param(tokens: &Vec<Token>) -> Node {
         panic!("parameter name expected, but got {}", t.input);
     }
     node.name = t.name.clone();
-    bump_pos();
+    inc_pos();
     return node;
 }
 
@@ -487,7 +486,7 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             return decl(tokens);
         }
         TokenType::IF => {
-            bump_pos();
+            inc_pos();
             node.op = NodeType::IF;
             expect(TokenType::BRA, tokens);
             node.cond = Some(Box::new(assign(tokens)));
@@ -499,7 +498,7 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             return node;
         }
         TokenType::FOR => {
-            bump_pos();
+            inc_pos();
             node.op = NodeType::FOR;
             expect(TokenType::BRA, tokens);
             if get_type(tokens).is_some() {
@@ -509,24 +508,15 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             }
             node.cond = Some(Box::new(assign(tokens)));
             expect(TokenType::SEMI_COLON, tokens);
-            node.inc = Some(Box::new(new_expr(NodeType::EXPR_STMT, assign(tokens))));
-            expect(TokenType::KET, tokens);
-            node.body = Some(Box::new(stmt(tokens)));
-            return node;
-        }
-        TokenType::WHILE => {
-            bump_pos();
-            node.op = NodeType::FOR;
-            node.init = Some(Box::new(null_stmt()));
-            node.inc = Some(Box::new(null_stmt()));
-            expect(TokenType::BRA, tokens);
-            node.cond = Some(Box::new(assign(tokens)));
+            node.inc = Some(Box::new(assign(tokens)));
             expect(TokenType::KET, tokens);
             node.body = Some(Box::new(stmt(tokens)));
             return node;
         }
         TokenType::DO => {
-            bump_pos();
+        }
+        TokenType::DO => {
+            inc_pos();
             node.op = NodeType::DO_WHILE;
             node.body = Some(Box::new(stmt(tokens)));
             expect(TokenType::WHILE, tokens);
@@ -537,14 +527,14 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             return node;
         }
         TokenType::RETURN => {
-            bump_pos();
+            inc_pos();
             node.op = NodeType::RETURN;
             node.expr = Some(Box::new(assign(tokens)));
             expect(TokenType::SEMI_COLON, tokens);
             return node;
         }
         TokenType::C_BRA => {
-            bump_pos();
+            inc_pos();
             node.op = NodeType::COMP_STMT;
             while !consume(TokenType::C_KET, tokens) {
                 node.stmts.push(stmt(tokens));
@@ -576,7 +566,7 @@ fn toplevel(tokens: &Vec<Token>) -> Node {
     if t.ty != TokenType::IDENT {
         panic!("function or variable name expected, but got {}", t.input);
     }
-    bump_pos();
+    inc_pos();
 
     // Function
     if consume(TokenType::BRA, tokens) {

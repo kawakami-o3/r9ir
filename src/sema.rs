@@ -190,36 +190,36 @@ fn walk<'a>(env: &'a mut Env, node: &'a mut Node, decay: bool) -> &'a Node {
 
             match node.init {
                 Some(_) => {
-                    node.init = Some(Box::new(walk(env, &mut *node.clone().init.unwrap(), true).clone()));
+                    node.init = Some(Box::new(walk(env, &mut *node.init.clone().unwrap(), true).clone()));
                 }
                 None => { }
             }
             return node;
         }
         NodeType::IF => {
-            node.cond = Some(Box::new(walk(env, &mut *node.clone().cond.unwrap(), true).clone()));
-            node.then = Some(Box::new(walk(env, &mut *node.clone().then.unwrap(), true).clone()));
+            node.cond = Some(Box::new(walk(env, &mut *node.cond.clone().unwrap(), true).clone()));
+            node.then = Some(Box::new(walk(env, &mut *node.then.clone().unwrap(), true).clone()));
 
             if node.els.is_some() {
-                node.els = Some(Box::new(walk(env, &mut *node.clone().els.unwrap(), true).clone()));
+                node.els = Some(Box::new(walk(env, &mut *node.els.clone().unwrap(), true).clone()));
             }
             return node;
         }
         NodeType::FOR => {
-            node.init = Some(Box::new(walk(env, &mut *node.clone().init.unwrap(), true).clone()));
-            node.cond = Some(Box::new(walk(env, &mut *node.clone().cond.unwrap(), true).clone()));
-            node.inc = Some(Box::new(walk(env, &mut *node.clone().inc.unwrap(), true).clone()));
-            node.body = Some(Box::new(walk(env, &mut *node.clone().body.unwrap(), true).clone()));
+            node.init = Some(Box::new(walk(env, &mut *node.init.clone().unwrap(), true).clone()));
+            node.cond = Some(Box::new(walk(env, &mut *node.cond.clone().unwrap(), true).clone()));
+            node.inc = Some(Box::new(walk(env, &mut *node.inc.clone().unwrap(), true).clone()));
+            node.body = Some(Box::new(walk(env, &mut *node.body.clone().unwrap(), true).clone()));
             return node;
         }
         NodeType::DO_WHILE => {
-            node.cond = Some(Box::new(walk(env, &mut *node.clone().cond.unwrap(), true).clone()));
-            node.body = Some(Box::new(walk(env, &mut *node.clone().body.unwrap(), true).clone()));
+            node.cond = Some(Box::new(walk(env, &mut *node.cond.clone().unwrap(), true).clone()));
+            node.body = Some(Box::new(walk(env, &mut *node.body.clone().unwrap(), true).clone()));
             return node;
         }
         NodeType::ADD | NodeType::SUB => {
-            node.lhs = Some(Box::new(walk(env, &mut *node.clone().lhs.unwrap(), true).clone()));
-            node.rhs = Some(Box::new(walk(env, &mut *node.clone().rhs.unwrap(), true).clone()));
+            node.lhs = Some(Box::new(walk(env, &mut *node.lhs.clone().unwrap(), true).clone()));
+            node.rhs = Some(Box::new(walk(env, &mut *node.rhs.clone().unwrap(), true).clone()));
 
             match (&mut node.lhs, &mut node.rhs) {
                 (Some(ref mut lhs), Some(ref mut rhs)) => {
@@ -249,11 +249,11 @@ fn walk<'a>(env: &'a mut Env, node: &'a mut Node, decay: bool) -> &'a Node {
             return node;
         }
         NodeType::EQL => {
-            node.lhs = Some(Box::new(walk(env, &mut *node.clone().lhs.unwrap(), false).clone()));
-            check_lval(& *node.clone().lhs.unwrap());
+            node.lhs = Some(Box::new(walk(env, &mut *node.lhs.clone().unwrap(), false).clone()));
+            check_lval(& *node.lhs.clone().unwrap());
 
-            node.rhs = Some(Box::new(walk(env, &mut *node.clone().rhs.unwrap(), true).clone()));
-            node.ty = node.clone().lhs.unwrap().ty;
+            node.rhs = Some(Box::new(walk(env, &mut *node.rhs.clone().unwrap(), true).clone()));
+            node.ty = node.lhs.clone().unwrap().ty;
             return node;
         }
         NodeType::MUL |
@@ -263,8 +263,8 @@ fn walk<'a>(env: &'a mut Env, node: &'a mut Node, decay: bool) -> &'a Node {
             NodeType::NE |
             NodeType::LOGAND |
             NodeType::LOGOR => {
-                node.lhs = Some(Box::new(walk(env, &mut *node.clone().lhs.unwrap(), true).clone()));
-                node.rhs = Some(Box::new(walk(env, &mut *node.clone().rhs.unwrap(), true).clone()));
+                node.lhs = Some(Box::new(walk(env, &mut *node.lhs.clone().unwrap(), true).clone()));
+                node.rhs = Some(Box::new(walk(env, &mut *node.rhs.clone().unwrap(), true).clone()));
 
                 match node.lhs {
                     Some(ref lhs) => {
@@ -275,13 +275,13 @@ fn walk<'a>(env: &'a mut Env, node: &'a mut Node, decay: bool) -> &'a Node {
                 return node;
             }
         NodeType::ADDR => {
-            node.expr = Some(Box::new(walk(env, &mut *node.clone().expr.unwrap(), true).clone()));
-            check_lval(& *node.clone().expr.unwrap());
-            node.ty = ptr_of(node.clone().expr.unwrap().ty);
+            node.expr = Some(Box::new(walk(env, &mut *node.expr.clone().unwrap(), true).clone()));
+            check_lval(& *node.expr.clone().unwrap());
+            node.ty = ptr_of(node.expr.clone().unwrap().ty);
             return node;
         }
         NodeType::DEREF => {
-            node.expr = Some(Box::new(walk(env, &mut *node.clone().expr.unwrap(), true).clone()));
+            node.expr = Some(Box::new(walk(env, &mut *node.expr.clone().unwrap(), true).clone()));
             match &mut node.expr {
                 Some(ref expr) => {
                     if expr.ty.ty != CType::PTR {
@@ -291,15 +291,15 @@ fn walk<'a>(env: &'a mut Env, node: &'a mut Node, decay: bool) -> &'a Node {
                 None => {}
             }
 
-            node.ty = *node.clone().expr.unwrap().ty.ptr_of.unwrap();
+            node.ty = *node.expr.clone().unwrap().ty.ptr_of.unwrap();
             return node;
         }
         NodeType::RETURN => {
-            node.expr = Some(Box::new(walk(env, &mut *node.clone().expr.unwrap(), true).clone()));
+            node.expr = Some(Box::new(walk(env, &mut *node.expr.clone().unwrap(), true).clone()));
             return node;
         }
         NodeType::SIZEOF => {
-            let mut nexpr = *node.clone().expr.unwrap();
+            let mut nexpr = *node.expr.clone().unwrap();
             let expr = walk(env, &mut nexpr, false);
             let val = size_of(& expr.ty);
 
@@ -320,7 +320,7 @@ fn walk<'a>(env: &'a mut Env, node: &'a mut Node, decay: bool) -> &'a Node {
             for i in 0..node.args.len() {
                 node.args[i] = walk(env, &mut node.args[i], true).clone();
             }
-            node.body = Some(Box::new(walk(env, &mut *node.clone().body.unwrap(), true).clone()));
+            node.body = Some(Box::new(walk(env, &mut *node.body.clone().unwrap(), true).clone()));
             return node;
         }
         NodeType::COMP_STMT => {
@@ -331,12 +331,15 @@ fn walk<'a>(env: &'a mut Env, node: &'a mut Node, decay: bool) -> &'a Node {
             return node;
         }
         NodeType::EXPR_STMT => {
-            node.expr = Some(Box::new(walk(env, &mut *node.clone().expr.unwrap(), true).clone()));
+            node.expr = Some(Box::new(walk(env, &mut *node.expr.clone().unwrap(), true).clone()));
             return node;
         }
         NodeType::STMT_EXPR => {
-            node.stmt = Some(Box::new(walk(env, &mut *node.clone().stmt.unwrap(), true).clone()));
+            node.body = Some(Box::new(walk(env, &mut *node.body.clone().unwrap(), true).clone()));
             node.ty = int_ty();
+            return node;
+        }
+        NodeType::NULL => {
             return node;
         }
         _ => {

@@ -34,48 +34,48 @@ struct Symbol {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TokenType {
-    ADD,
-    SUB,
-    MUL,
-    DIV,
-    EQL,
-    LT,
-    GT,
-    BRA,
-    KET,
-    C_BRA,
-    C_KET,
-    S_BRA,
-    S_KET,
-    AMP,
-    NUM,
-    STR,
-    IDENT,
-    EXTERN,
-    INT,
-    CHAR,
-    IF,
-    FOR,
-    DO,    // "do"
-    WHILE, // "while"
-    EQ,    // ==
-    NE,    // !=
-    ELSE,
-    LOGOR,
-    LOGAND,
-    RETURN,
-    SIZEOF,
-    EOF,
-    COMMA,
-    SEMI_COLON,
+    ADD,        // +
+    SUB,        // -
+    MUL,        // *
+    DIV,        // /
+    EQL,        // =
+    LT,         // <
+    GT,         // >
+    BRA,        // (
+    KET,        // )
+    C_BRA,      // {
+    C_KET,      // }
+    S_BRA,      // [
+    S_KET,      // ]
+    AMP,        // &
+    COMMA,      // .
+    SEMI_COLON, // ;
+    NUM,        // Number literal
+    STR,        // String literal
+    IDENT,      // Identifier
+    EXTERN,     // "extern"
+    INT,        // "int"
+    CHAR,       // "char"
+    IF,         // "if"
+    ELSE,       // "else"
+    FOR,        // "for"
+    DO,         // "do"
+    WHILE,      // "while"
+    EQ,         // ==
+    NE,         // !=
+    LOGOR,      // ||
+    LOGAND,     // &&
+    RETURN,     // "return"
+    SIZEOF,     // "sizeof"
+    EOF,        // End marker
 }
 
 #[derive(Debug)]
 pub struct Token {
-    pub ty: TokenType,
-    pub val: i32,
-    pub name: String,
-    pub input: String,
+    pub ty: TokenType, // Token type
+    pub val: i32,      // Nuber literal
+    pub name: String,  // Identifier
+    pub input: String, // Token string (for error reporting)
 
     // String literal
     pub str_cnt: String,
