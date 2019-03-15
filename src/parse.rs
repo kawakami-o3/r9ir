@@ -89,7 +89,11 @@ pub enum CType {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Type {
     pub ty: CType,
-    pub ptr_of: Option<Box<Type>>,
+
+    // Pointer
+    pub ptr_to: Option<Box<Type>>,
+
+    // Array
     pub ary_of: Option<Box<Type>>,
     pub len: i32,
 }
@@ -97,7 +101,7 @@ pub struct Type {
 pub fn alloc_type() -> Type {
     Type {
         ty: CType::INT,
-        ptr_of: None,
+        ptr_to: None,
         ary_of: None,
         len: 0,
     } 
@@ -418,7 +422,7 @@ fn do_type(tokens: &Vec<Token>) -> Type {
     bump_pos();
 
     while consume(TokenType::MUL, tokens) {
-        ty = ptr_of(ty);
+        ty = ptr_to(ty);
     }
     return ty;
 }

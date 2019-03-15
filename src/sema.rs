@@ -139,7 +139,7 @@ fn maybe_decay(base: & mut Node, decay: bool) -> & mut Node {
     let tmp = base.clone();
     *base = alloc_node();
     base.op = NodeType::ADDR;
-    base.ty = ptr_of(*tmp.clone().ty.ary_of.unwrap());
+    base.ty = ptr_to(*tmp.clone().ty.ary_of.unwrap());
 
     base.expr = Some(Box::new(tmp));
     return base;
@@ -293,7 +293,7 @@ fn walk<'a>(node: &'a mut Node, env: &'a mut Env, decay: bool) -> &'a Node {
         NodeType::ADDR => {
             node.expr = Some(Box::new(walk(&mut *node.expr.clone().unwrap(), env, true).clone()));
             check_lval(& *node.expr.clone().unwrap());
-            node.ty = ptr_of(node.expr.clone().unwrap().ty);
+            node.ty = ptr_to(node.expr.clone().unwrap().ty);
             return node;
         }
         NodeType::DEREF => {
@@ -307,7 +307,7 @@ fn walk<'a>(node: &'a mut Node, env: &'a mut Env, decay: bool) -> &'a Node {
                 None => {}
             }
 
-            node.ty = *node.expr.clone().unwrap().ty.ptr_of.unwrap();
+            node.ty = *node.expr.clone().unwrap().ty.ptr_to.unwrap();
             return node;
         }
         NodeType::RETURN => {

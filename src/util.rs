@@ -2,10 +2,10 @@
 
 use crate::parse::*;
 
-pub fn ptr_of(base: Type) -> Type {
+pub fn ptr_to(base: Type) -> Type {
     let mut ty = alloc_type();
     ty.ty = CType::PTR;
-    ty.ptr_of = Some(Box::new(base));
+    ty.ptr_to = Some(Box::new(base));
     return ty;
 }
 

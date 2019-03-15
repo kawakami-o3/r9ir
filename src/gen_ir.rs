@@ -525,9 +525,9 @@ fn gen_expr(node: Node) -> i32 {
 
         NodeType::DEREF => {
             let r = gen_expr(*node.clone().expr.unwrap());
-            if node.clone().expr.unwrap().ty.ptr_of.unwrap().ty == CType::CHAR {
+            if node.clone().expr.unwrap().ty.ptr_to.unwrap().ty == CType::CHAR {
                 add(IRType::LOAD8, r, r);
-            } else if node.clone().expr.unwrap().ty.ptr_of.unwrap().ty == CType::INT {
+            } else if node.clone().expr.unwrap().ty.ptr_to.unwrap().ty == CType::INT {
                 add(IRType::LOAD32, r, r);
             } else {
                 add(IRType::LOAD64, r, r);
@@ -584,7 +584,7 @@ fn gen_expr(node: Node) -> i32 {
             let r = bump_nreg();
             match node.lhs {
                 Some(ref lhs) => {
-                    add(IRType::IMM, r, size_of(& lhs.clone().ty.ptr_of.unwrap()));
+                    add(IRType::IMM, r, size_of(& lhs.clone().ty.ptr_to.unwrap()));
                 }
                 None => {}
             }
