@@ -1,3 +1,6 @@
+
+// This pass generates x86-64 assembly from IR.
+
 #![allow(non_upper_case_globals)]
 
 use crate::regalloc::*;

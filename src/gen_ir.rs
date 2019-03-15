@@ -28,12 +28,19 @@ lazy_static! {
     static ref RETURN_LABEL: Mutex<i32> = Mutex::new(0);
     static ref RETURN_REG: Mutex<i32> = Mutex::new(0);
 
-    // Compile AST to intermediate code that has infinite number of registers.
-    // Base pointer is always assigned to r0.
-
     pub static ref IRINFO: Mutex<HashMap<IRType, IRInfo>> = Mutex::new(HashMap::new());
 }
 
+// 9cc's code generation is two-pass. In the first pass, abstract
+// syntax trees are compiled to IR (intermediate representation).
+//
+// IR resembles the real x86-64 instruction set, but it has infinite
+// number of registers. We don't try too hard to reuse registers in
+// this pass. Instead, we "kill" registers to mark them as dead when
+// we are done with them and use new registers.
+//
+// Such infinite number of registers are mapped to a finite registers
+// in a later pass.
 
 fn init_irinfo() {
     let mut irinfo = IRINFO.lock().unwrap();
@@ -360,6 +367,23 @@ fn label(x: i32) {
     add(IRType::LABEL, x, -1);
 }
 
+// In C, all expressions that can be written on the left-hand side of
+// the '=' operator must have an address in memory. In other words, if
+// you can apply the '&' operator to take an address of some
+// expression E, you can assign E to a new value.
+//
+// Other expressions, such as `1+2`, cannot be written on the lhs of
+// '=', since they are just temporary values that don't have an address.
+//
+// The stuff that can be written on the lhs of '=' is called lvalue.
+// Other values are called rvalue. An lvalue is essentially an address.
+//
+// When lvalues appear on the rvalue context, they are converted to
+// rvalues by loading their values from their addresses. You can think
+// '&' as an operator that suppresses such automatic lvalue-to-rvalue
+// conversion.
+//
+// This function evaluates a given node as an lvalue.
 fn gen_lval(node: Node) -> i32 {
     if node.op == NodeType::DEREF {
         return gen_expr(*node.expr.unwrap());
