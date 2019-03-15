@@ -2,9 +2,11 @@
 
 use crate::regalloc::*;
 use crate::*;
+use std::collections::HashMap;
 
 lazy_static! {
     static ref LABEL: Mutex<usize> = Mutex::new(0);
+    static ref ESCAPED: Mutex<HashMap<char,char>> = Mutex::new(HashMap::new());
 }
 
 const argreg8: [&'static str; 6] = ["dil", "sil", "dl", "cl", "r8b", "r9b"];
@@ -15,21 +17,52 @@ fn label() -> usize {
     *LABEL.lock().unwrap()
 }
 
+fn init_escaped() {
+    let mut escaped = ESCAPED.lock().unwrap();
+    if escaped.len() > 0 {
+        return;
+    }
+
+    escaped.insert(char::from(8), 'b');  // \b
+    escaped.insert(char::from(12), 'f'); // \f
+    escaped.insert(char::from(10), 'n'); // \n
+    escaped.insert(char::from(13), 'r'); // \r
+    escaped.insert(char::from(9), 't');  // \t
+    escaped.insert('\\', '\\');
+    escaped.insert('\'', '\'');
+    escaped.insert('\"', '"');
+}
+
+fn escaped(c: char) -> Option<char> {
+    let mut ret = None;
+    match ESCAPED.lock() {
+        Ok(escaped) => {
+            match escaped.get(&c) {
+                Some(esc) => {
+                    ret = Some(*esc);
+                }
+                None => { }
+            }
+        }
+        Err(_) => { }
+    }
+    return ret;
+}
+
 fn inc_label() {
     let mut label = LABEL.lock().unwrap();
     *label += 1;
 }
 
 fn escape(s: & String) -> String {
+    init_escaped();
+
     let mut buf = String::new();
     let mut chars = s.chars();
     while let Some(c) = chars.next() {
-    //let char_bytes = s.as_bytes();
-    //for i in 0..len {
-        //let c = char::from(char_bytes[i]);
-        if c == '\\' || c == '"'{
+        if let Some(esc) = escaped(c) {
             buf.push('\\');
-            buf.push(c);
+            buf.push(esc);
         } else if c.is_ascii_graphic() || c == ' ' {
             buf.push(c);
         } else {

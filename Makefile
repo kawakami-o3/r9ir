@@ -12,5 +12,6 @@ test:
 
 clean:
 	cargo clean
+	rm -f tmp-test
 
 .PHONY: all build test clean
