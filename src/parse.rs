@@ -551,6 +551,10 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             }
             return node;
         }
+        TokenType::SEMI_COLON => {
+            bump_pos();
+            return null_stmt();
+        }
         _ => {
             return expr_stmt(tokens);
         }
