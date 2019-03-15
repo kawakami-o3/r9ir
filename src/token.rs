@@ -3,9 +3,11 @@
 
 use std::cmp;
 use std::sync::Mutex;
+use std::collections::HashMap;
 
 lazy_static! {
     static ref SYMBOLS: Mutex<Vec<Symbol>> = Mutex::new(Vec::new());
+    static ref ESCAPED: Mutex<HashMap<char, char>> = Mutex::new(HashMap::new());
 }
 
 fn init_symbols() {
@@ -25,6 +27,36 @@ fn init_symbols() {
     symbols.push(Symbol { name: "||", ty: TokenType::LOGOR });
     symbols.push(Symbol { name: "==", ty: TokenType::EQ });
     symbols.push(Symbol { name: "!=", ty: TokenType::NE });
+}
+
+fn init_escaped() {
+    let mut escaped = ESCAPED.lock().unwrap();
+
+    escaped.insert('a', char::from(7));  // \a
+    escaped.insert('b', char::from(8));  // \b
+    escaped.insert('f', char::from(12)); // \f
+    escaped.insert('n', char::from(10)); // \n
+    escaped.insert('r', char::from(13)); // \r
+    escaped.insert('t', char::from(9));  // \t
+    escaped.insert('v', char::from(11)); // \v
+    escaped.insert('e', char::from(27)); // \033
+    escaped.insert('E', char::from(27)); // \033
+}
+
+fn escaped(c: char) -> Option<char> {
+    let mut ret = None;
+    match ESCAPED.lock() {
+        Ok(escaped) => {
+            match escaped.get(&c) {
+                Some(c) => {
+                    ret = Some(*c);
+                }
+                None => { }
+            }
+        }
+        Err(_) => { }
+    }
+    return ret;
 }
 
 struct Symbol {
@@ -93,6 +125,46 @@ fn new_token(ty: TokenType) -> Token {
     }
 }
 
+struct CharInfo {
+    chr: char,
+    len: usize,
+}
+
+fn read_char(p: &String, idx: usize) -> CharInfo {
+    if p.len() <= idx {
+        panic!("premature end of input");
+    }
+
+    let char_bytes = p.as_bytes();
+    let mut len = 0;
+    let mut c = char::from(char_bytes[idx]);
+    if c != '\\' {
+        len += 1;
+    } else {
+        len += 1;
+        if p.len() <= idx + len {
+            panic!("premature end of input");
+        }
+        c = char::from(char_bytes[idx+len]);
+        match escaped(c) {
+            Some(esc) => {
+                c = esc;
+            }
+            None => { }
+        }
+        len += 1;
+    }
+    
+    if char::from(char_bytes[idx+len]) != '\'' {
+        panic!("unclosed character literal");
+    }
+    len += 1;
+    return CharInfo {
+        chr: c,
+        len: len,
+    };
+}
+
 struct StrInfo {
     cnt: String,
     len: usize,
@@ -114,16 +186,12 @@ fn read_string(p: &String, idx: usize) -> StrInfo {
 
         len += 1;
         c = char::from(char_bytes[idx+len]);
-        match c {
-            'a' => ret.push(char::from(7)), // \a
-            'b' => ret.push(char::from(8)), // \b
-            'f' => ret.push(char::from(12)), // \f
-            'n' => ret.push('\n'), // 10
-            'r' => ret.push('\r'), // 13
-            't' => ret.push('\t'), // 9
-            'v' => ret.push(char::from(11)), // \v
-            '\0' => panic!("PREMATURE end of input"),
-            _ => ret.push(c),
+        if c == '\0' {
+            panic!("PREMATURE end of input");
+        }
+        match escaped(c) {
+            Some(esc) => ret.push(esc),
+            None => ret.push(c),
         }
         len += 1;
     }
@@ -140,6 +208,8 @@ fn read_string(p: &String, idx: usize) -> StrInfo {
 
 pub fn tokenize(p: &String) -> Vec<Token> {
     init_symbols();
+    init_escaped();
+
     let mut tokens = Vec::new();
     let char_bytes = p.as_bytes();
     let mut idx = 0;
@@ -147,6 +217,18 @@ pub fn tokenize(p: &String) -> Vec<Token> {
         let c: char = char::from(char_bytes[idx]);
         if c.is_whitespace() {
             idx += 1;
+            continue;
+        }
+
+        // Character literal
+        if c == '\'' {
+            let mut t = new_token(TokenType::NUM);
+            idx += 1;
+            let info = read_char(p, idx);
+            t.val = u32::from(info.chr) as i32;
+
+            tokens.push(t);
+            idx += info.len;
             continue;
         }
 
