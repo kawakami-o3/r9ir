@@ -115,6 +115,11 @@ fn init_stacksize() {
     *stacksize = 0;
 }
 
+fn set_stacksize(i: i32) {
+    let mut stacksize = STACKSIZE.lock().unwrap();
+    *stacksize = i;
+}
+
 fn add_stacksize(i: i32) {
     let mut stacksize = STACKSIZE.lock().unwrap();
     *stacksize += i;
@@ -196,6 +201,7 @@ fn walk<'a>(node: &'a mut Node, env: &'a mut Env, decay: bool) -> &'a Node {
             return maybe_decay(node, decay);
         }
         NodeType::VARDEF => {
+            set_stacksize(roundup(stacksize(), align_of(node.ty.clone())));
             add_stacksize(size_of(& node.ty));
             node.offset = stacksize();
 

@@ -4,6 +4,7 @@
 #![allow(non_upper_case_globals)]
 
 use crate::regalloc::*;
+use crate::util::*;
 use crate::*;
 use std::collections::HashMap;
 
@@ -91,7 +92,7 @@ fn gen(fun: &IR) {
     println!("{}:", fun.name);
     println!("  push rbp");
     println!("  mov rbp, rsp");
-    println!("  sub rsp, {}", fun.stacksize);
+    println!("  sub rsp, {}", roundup(fun.stacksize, 16));
     println!("  push r12");
     println!("  push r13");
     println!("  push r14");
