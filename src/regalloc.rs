@@ -13,6 +13,7 @@
 #![allow(non_upper_case_globals)]
 
 use crate::gen_ir::*;
+use crate::irdump::*;
 use crate::*;
 
 lazy_static! {
@@ -59,11 +60,10 @@ fn visit(irv: &mut Vec<IR>) {
         }
     }
 
-    let irinfo = IRINFO.lock().unwrap();
     for i in 0..irv.len() {
         let mut ir = &mut irv[i];
 
-        match irinfo.get(&ir.op).unwrap().ty {
+        match irinfo_get(&ir.op).unwrap().ty {
             IRInfoType::REG |
                 IRInfoType::REG_IMM |
                 IRInfoType::REG_LABEL |

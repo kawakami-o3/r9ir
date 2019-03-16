@@ -5,6 +5,7 @@ extern crate lazy_static;
 
 mod gen_x86;
 mod gen_ir;
+mod irdump;
 mod parse;
 mod regalloc;
 mod sema;
