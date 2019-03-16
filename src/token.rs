@@ -17,6 +17,7 @@ lazy_static! {
 fn init_symbols() {
     let mut symbols = SYMBOLS.lock().unwrap();
 
+    symbols.push(Symbol { name: "_Alignof", ty: TokenType::ALIGNOF });
     symbols.push(Symbol { name: "char", ty: TokenType::CHAR });
     symbols.push(Symbol { name: "do", ty: TokenType::DO });
     symbols.push(Symbol { name: "else", ty: TokenType::ELSE });
@@ -103,6 +104,7 @@ pub enum TokenType {
     LOGAND,     // &&
     RETURN,     // "return"
     SIZEOF,     // "sizeof"
+    ALIGNOF,    // "_Alignof"
     EOF,        // End marker
 }
 

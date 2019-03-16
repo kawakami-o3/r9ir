@@ -70,6 +70,7 @@ pub enum NodeType {
     LOGOR,     // ||
     RETURN,    // "return"
     SIZEOF,    // "sizeof"
+    ALIGNOF,   // "_Alignof"
     CALL,      // Function call
     FUNC,      // Function definition
     COMP_STMT, // Compound statement
@@ -316,6 +317,9 @@ fn unary(tokens: &Vec<Token>) -> Node {
     }
     if consume(TokenType::SIZEOF, tokens) {
         return new_expr(NodeType::SIZEOF, unary(tokens));
+    }
+    if consume(TokenType::ALIGNOF, tokens) {
+        return new_expr(NodeType::ALIGNOF, unary(tokens));
     }
     return postfix(tokens);
 }

@@ -44,6 +44,14 @@ fn new_env<'a>(next: Option<&'a Env>) -> Env<'a> {
     }
 }
 
+fn new_int(val: i32) -> Node {
+    let mut node = alloc_node();
+    node.op = NodeType::NUM;
+    node.ty = int_ty();
+    node.val = val;
+    return node;
+}
+
 impl<'a> Env<'a> {
     fn find(&self, name: & String) -> Option<&Var> {
         if let Some(v) = self.vars.get(name) {
@@ -325,10 +333,13 @@ fn walk<'a>(node: &'a mut Node, env: &'a mut Env, decay: bool) -> &'a Node {
             let expr = walk(&mut nexpr, env, false);
             let val = size_of(& expr.ty);
 
-            *node = alloc_node();
-            node.op = NodeType::NUM;
-            node.ty = int_ty();
-            node.val = val;
+            *node = new_int(val);
+            return node;
+        }
+        NodeType::ALIGNOF => {
+            let mut e = node.expr.clone().unwrap();
+            let expr = walk(&mut e, env, false);
+            *node = new_int(align_of(expr.ty.clone()));
             return node;
         }
         NodeType::CALL => {
