@@ -184,6 +184,27 @@ fn label(x: i32) {
     add(IRType::LABEL, x, -1);
 }
 
+fn choose_insn(node: Node, op8: IRType, op32: IRType, op64: IRType) -> IRType {
+    match size_of(&node.ty) {
+        1 => op8,
+        4 => op32,
+        8 => op64,
+        _ => panic!(),
+    }
+}
+
+fn load_insn(node: Node) -> IRType {
+    return choose_insn(node, IRType::LOAD8, IRType::LOAD32, IRType::LOAD64);
+}
+
+fn store_insn(node: Node) -> IRType {
+    return choose_insn(node, IRType::STORE8, IRType::STORE32, IRType::STORE64);
+}
+
+fn store_arg_insn(node: Node) -> IRType {
+    return choose_insn(node, IRType::STORE8_ARG, IRType::STORE32_ARG, IRType::STORE64_ARG);
+}
+
 // In C, all expressions that can be written on the left-hand side of
 // the '=' operator must have an address in memory. In other words, if
 // you can apply the '&' operator to take an address of some
@@ -293,13 +314,7 @@ fn gen_expr(node: Node) -> i32 {
 
         NodeType::GVAR | NodeType::LVAR => {
             let r = gen_lval(node.clone());
-            if node.ty.ty == CType::CHAR {
-                add(IRType::LOAD8, r, r);
-            } else if node.ty.ty == CType::INT {
-                add(IRType::LOAD32, r, r);
-            } else {
-                add(IRType::LOAD64, r, r);
-            }
+            add(load_insn(node), r, r);
             return r;
         }
 
@@ -341,13 +356,7 @@ fn gen_expr(node: Node) -> i32 {
 
         NodeType::DEREF => {
             let r = gen_expr(*node.clone().expr.unwrap());
-            if node.clone().expr.unwrap().ty.ptr_to.unwrap().ty == CType::CHAR {
-                add(IRType::LOAD8, r, r);
-            } else if node.clone().expr.unwrap().ty.ptr_to.unwrap().ty == CType::INT {
-                add(IRType::LOAD32, r, r);
-            } else {
-                add(IRType::LOAD64, r, r);
-            }
+            add(load_insn(node), r, r);
             return r;
         }
 
@@ -369,13 +378,7 @@ fn gen_expr(node: Node) -> i32 {
         NodeType::EQL => {
             let rhs = gen_expr(*node.clone().rhs.unwrap());
             let lhs = gen_lval(*node.clone().lhs.unwrap());
-            if node.lhs.clone().unwrap().ty.ty == CType::CHAR {
-                add(IRType::STORE8, lhs, rhs);
-            } else if node.lhs.clone().unwrap().ty.ty == CType::PTR {
-                add(IRType::STORE64, lhs, rhs);
-            } else {
-                add(IRType::STORE32, lhs, rhs);
-            }
+            add(store_insn(node), lhs, rhs);
             kill(rhs);
             return lhs;
         }
@@ -439,16 +442,10 @@ fn gen_stmt(node: Node) {
             return;
         }
 
-        let rhs = gen_expr(*node.init.unwrap());
+        let rhs = gen_expr(*node.init.clone().unwrap());
         let lhs = bump_nreg();
         add(IRType::BPREL, lhs, node.offset);
-        if node.ty.ty == CType::CHAR {
-            add(IRType::STORE8, lhs, rhs);
-        } else if node.ty.ty == CType::INT {
-            add(IRType::STORE32, lhs, rhs);
-        } else {
-            add(IRType::STORE64, lhs, rhs);
-        }
+        add(store_insn(node), lhs, rhs);
         kill(lhs);
         kill(rhs);
         return;
@@ -549,14 +546,7 @@ pub fn gen_ir(nodes: Vec<Node>) -> Vec<IR> {
 
         for i in 0..node.args.len() {
             let arg = &node.args[i];
-
-            if arg.ty.ty == CType::CHAR {
-                add(IRType::STORE8_ARG, arg.offset, i as i32);
-            } else if arg.ty.ty == CType::INT {
-                add(IRType::STORE32_ARG, arg.offset, i as i32);
-            } else {
-                add(IRType::STORE64_ARG, arg.offset, i as i32);
-            }
+            add(store_arg_insn(arg.clone()), arg.offset, i as i32);
         }
         gen_stmt(*node.body.unwrap());
 
