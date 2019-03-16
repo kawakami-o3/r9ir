@@ -247,9 +247,9 @@ fn gen_lval(node: Node) -> i32 {
     return r;
 }
 
-fn gen_binop(ty: IRType, lhs: Node, rhs: Node) -> i32 {
-    let r1 = gen_expr(lhs);
-    let r2 = gen_expr(rhs);
+fn gen_binop(ty: IRType, node: Node) -> i32 {
+    let r1 = gen_expr(*node.lhs.unwrap());
+    let r2 = gen_expr(*node.rhs.unwrap());
     add(ty, r1, r2);
     kill(r2);
     return r1;
@@ -264,19 +264,11 @@ fn gen_expr(node: Node) -> i32 {
         }
 
         NodeType::EQ => {
-            let lhs = gen_expr(*node.lhs.unwrap());
-            let rhs = gen_expr(*node.rhs.unwrap());
-            add(IRType::EQ, lhs, rhs);
-            kill(rhs);
-            return lhs;
+            return gen_binop(IRType::EQ, node);
         }
 
         NodeType::NE => {
-            let lhs = gen_expr(*node.lhs.unwrap());
-            let rhs = gen_expr(*node.rhs.unwrap());
-            add(IRType::NE, lhs, rhs);
-            kill(rhs);
-            return lhs;
+            return gen_binop(IRType::NE, node);
         }
 
         NodeType::LOGAND => {
@@ -393,7 +385,7 @@ fn gen_expr(node: Node) -> i32 {
             match node.lhs {
                 Some(ref lhs) => {
                     if lhs.ty.ty != CType::PTR {
-                        return gen_binop(insn, *lhs.clone(), *node.rhs.unwrap());
+                        return gen_binop(insn, node.clone());
                     }
                 }
                 None => {}
@@ -415,16 +407,15 @@ fn gen_expr(node: Node) -> i32 {
             kill(rhs);
 
             return lhs;
-            //return gen_binop(IRType::SUB, *node.lhs.unwrap(), *node.rhs.unwrap());
         }
         NodeType::MUL => {
-            return gen_binop(IRType::MUL, *node.lhs.unwrap(), *node.rhs.unwrap());
+            return gen_binop(IRType::MUL, node);
         }
         NodeType::DIV => {
-            return gen_binop(IRType::DIV, *node.lhs.unwrap(), *node.rhs.unwrap());
+            return gen_binop(IRType::DIV, node);
         }
         NodeType::LT => {
-            return gen_binop(IRType::LT, *node.lhs.unwrap(), *node.rhs.unwrap());
+            return gen_binop(IRType::LT, node);
         }
         _ => {
             panic!("unknown AST type {:?}", node);
