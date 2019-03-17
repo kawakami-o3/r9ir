@@ -21,9 +21,9 @@ lazy_static! {
     static ref REG_MAP: Mutex<Vec<i32>> = Mutex::new(Vec::new());
 }
 
-pub const regs: [&'static str; 8] = ["rbp", "r10", "r11", "rbx", "r12", "r13", "r14", "r15"];
-pub const regs8: [&'static str; 8] = ["rbl", "r10b", "r11b", "bl", "r12b", "r13b", "r14b", "r15b"];
-pub const regs32: [&'static str; 8] = ["ebp", "r10d", "r11d", "ebx", "r12d", "r13d", "r14d", "r15d"];
+pub const regs: [&'static str; 7] = ["r10", "r11", "rbx", "r12", "r13", "r14", "r15"];
+pub const regs8: [&'static str; 7] = ["r10b", "r11b", "bl", "r12b", "r13b", "r14b", "r15b"];
+pub const regs32: [&'static str; 7] = ["r10d", "r11d", "ebx", "r12d", "r13d", "r14d", "r15d"];
 
 // Code generator
 
@@ -48,18 +48,6 @@ fn alloc(ir_reg: i32) -> i32 {
 }
 
 fn visit(irv: &mut Vec<IR>) {
-    // r0 is a reserved register that is always mapped to rbp.
-
-    match (REG_MAP.lock(), USED.lock()) {
-        (Ok(mut reg_map), Ok(mut used)) => {
-            reg_map[0] = 0;
-            used[0] = true;
-        }
-        _ => {
-            panic!();
-        }
-    }
-
     for i in 0..irv.len() {
         let mut ir = &mut irv[i];
 
