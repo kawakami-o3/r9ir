@@ -200,7 +200,7 @@ pub fn tostr(ir: IR) -> String {
     };
 }
 
-fn dump_ir(irv: Vec<IR>) {
+pub fn dump_ir(irv: Vec<IR>) {
     for i in 0..irv.len() {
         let fun = &irv[i];
         eprintln!("{}():", fun.name);
