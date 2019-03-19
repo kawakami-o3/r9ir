@@ -138,12 +138,6 @@ pub struct Node {
     pub data: String,
     pub len: usize,
 
-    // Struct
-    pub members: Vec<Node>,
-
-    // Struct access
-    pub member: String,
-
     // "if" (cond) then "else els
     // "for" (init; cond; inc) body
     pub cond: Option<Box<Node>>,
@@ -180,10 +174,6 @@ pub fn alloc_node() -> Node {
         is_extern: false,
         data: String::new(),
         len: 0,
-
-        members: Vec::new(),
-
-        member: String::new(),
 
         cond: None,
         then: None,
@@ -357,7 +347,15 @@ fn postfix(tokens: &Vec<Token>) -> Node {
         let mut node = alloc_node();
         node.op = NodeType::DOT;
         node.expr = Some(Box::new(lhs));
-        node.member = ident(tokens);
+        node.name = ident(tokens);
+        return node;
+    }
+
+    if consume(TokenType::ARROW, tokens) {
+        let mut node = alloc_node();
+        node.op = NodeType::DOT;
+        node.expr = Some(Box::new(new_expr(NodeType::DEREF, lhs)));
+        node.name = ident(tokens);
         return node;
     }
 

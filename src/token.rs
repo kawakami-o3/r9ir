@@ -29,10 +29,11 @@ fn init_symbols() {
     symbols.push(Symbol { name: "sizeof", ty: TokenType::SIZEOF });
     symbols.push(Symbol { name: "struct", ty: TokenType::STRUCT });
     symbols.push(Symbol { name: "while", ty: TokenType::WHILE });
-    symbols.push(Symbol { name: "&&", ty: TokenType::LOGAND });
-    symbols.push(Symbol { name: "||", ty: TokenType::LOGOR });
-    symbols.push(Symbol { name: "==", ty: TokenType::EQ });
     symbols.push(Symbol { name: "!=", ty: TokenType::NE });
+    symbols.push(Symbol { name: "&&", ty: TokenType::LOGAND });
+    symbols.push(Symbol { name: "->", ty: TokenType::ARROW });
+    symbols.push(Symbol { name: "==", ty: TokenType::EQ });
+    symbols.push(Symbol { name: "||", ty: TokenType::LOGOR });
 }
 
 fn init_escaped() {
@@ -92,6 +93,7 @@ pub enum TokenType {
     NUM,        // Number literal
     STR,        // String literal
     IDENT,      // Identifier
+    ARROW,     // "->"
     EXTERN,     // "extern"
     INT,        // "int"
     CHAR,       // "char"

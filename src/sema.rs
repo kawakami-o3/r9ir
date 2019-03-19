@@ -294,7 +294,7 @@ fn walk<'a>(node: &'a mut Node, env: &'a mut Env, decay: bool) -> &'a Node {
 
             let ty = node.expr.clone().unwrap().ty;
             for m in ty.members.iter() {
-                if m.name != node.member {
+                if m.name != node.name {
                     continue;
                 }
 
@@ -302,7 +302,7 @@ fn walk<'a>(node: &'a mut Node, env: &'a mut Env, decay: bool) -> &'a Node {
                 node.offset = m.ty.offset;
                 return node;
             }
-            panic!("member missing: {}", node.member);
+            panic!("member missing: {}", node.name);
         }
         NodeType::MUL |
             NodeType::DIV |
