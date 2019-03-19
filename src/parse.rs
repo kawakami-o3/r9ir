@@ -415,27 +415,32 @@ fn primary(tokens: &Vec<Token>) -> Node {
 fn postfix(tokens: &Vec<Token>) -> Node {
     let mut lhs = primary(tokens);
 
-    if consume(TokenType::DOT, tokens) {
-        let mut node = alloc_node();
-        node.op = NodeType::DOT;
-        node.expr = Some(Box::new(lhs));
-        node.name = ident(tokens);
-        return node;
-    }
+    loop {
+        if consume(TokenType::DOT, tokens) {
+            let mut node = alloc_node();
+            node.op = NodeType::DOT;
+            node.expr = Some(Box::new(lhs));
+            node.name = ident(tokens);
+            lhs = node;
+            continue;
+        }
 
-    if consume(TokenType::ARROW, tokens) {
-        let mut node = alloc_node();
-        node.op = NodeType::DOT;
-        node.expr = Some(Box::new(new_expr(NodeType::DEREF, lhs)));
-        node.name = ident(tokens);
-        return node;
-    }
+        if consume(TokenType::ARROW, tokens) {
+            let mut node = alloc_node();
+            node.op = NodeType::DOT;
+            node.expr = Some(Box::new(new_expr(NodeType::DEREF, lhs)));
+            node.name = ident(tokens);
+            lhs = node;
+            continue;
+        }
 
-    while consume(TokenType::S_BRA, tokens) {
-        lhs = new_expr(NodeType::DEREF, new_binop(NodeType::ADD, lhs, assign(tokens)));
-        expect(TokenType::S_KET, tokens);
+        if consume(TokenType::S_BRA, tokens) {
+            lhs = new_expr(NodeType::DEREF, new_binop(NodeType::ADD, lhs, assign(tokens)));
+            expect(TokenType::S_KET, tokens);
+            continue;
+        }
+        return lhs;
     }
-    return lhs;
 }
 
 fn unary(tokens: &Vec<Token>) -> Node {

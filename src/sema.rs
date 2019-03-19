@@ -300,7 +300,7 @@ fn walk<'a>(node: &'a mut Node, env: &'a mut Env, decay: bool) -> &'a Node {
 
                 node.ty = m.ty.clone();
                 node.offset = m.ty.offset;
-                return node;
+                return maybe_decay(node, decay);
             }
             panic!("member missing: {}", node.name);
         }
