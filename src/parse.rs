@@ -65,6 +65,7 @@ pub enum NodeType {
     DO_WHILE,  // do ~ while
     ADDR,      // address-of operator ("&")
     DEREF,     // pointer dereference ("*")
+    DOT,       // Struct member access
     EQ,        // ==
     NE,        // !=
     LOGAND,    // &&
@@ -103,7 +104,7 @@ pub struct Type {
     pub len: i32,
 
     // Struct
-    pub members: Vec<Type>,
+    pub members: Vec<Node>,
     pub offset: i32,
 }
 
@@ -120,7 +121,7 @@ pub fn alloc_type() -> Type {
     } 
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Node {
     pub op: NodeType,            // Node type
     pub ty: Type,                // C type
@@ -137,6 +138,12 @@ pub struct Node {
     pub data: String,
     pub len: usize,
 
+    // Struct
+    pub members: Vec<Node>,
+
+    // Struct access
+    pub member: String,
+
     // "if" (cond) then "else els
     // "for" (init; cond; inc) body
     pub cond: Option<Box<Node>>,
@@ -150,7 +157,7 @@ pub struct Node {
     pub stacksize: i32,
     pub globals: Vec<Var>,
     
-    // Local variable
+    // Offset from BP or begining of a struct
     pub offset: i32,
 
     // Function call
@@ -173,6 +180,10 @@ pub fn alloc_node() -> Node {
         is_extern: false,
         data: String::new(),
         len: 0,
+
+        members: Vec::new(),
+
+        member: String::new(),
 
         cond: None,
         then: None,
@@ -275,6 +286,14 @@ fn new_expr(op: NodeType, expr: Node) -> Node {
     return node;
 }
 
+fn ident(tokens: &Vec<Token>) -> String {
+    let t = &tokens[bump_pos()];
+    if t.ty != TokenType::IDENT {
+        panic!("identifier expected, but got {}", t.input);
+    }
+    return t.name.clone();
+}
+
 fn primary(tokens: &Vec<Token>) -> Node {
     let t = &tokens[bump_pos()];
 
@@ -333,6 +352,15 @@ fn primary(tokens: &Vec<Token>) -> Node {
 
 fn postfix(tokens: &Vec<Token>) -> Node {
     let mut lhs = primary(tokens);
+
+    if consume(TokenType::DOT, tokens) {
+        let mut node = alloc_node();
+        node.op = NodeType::DOT;
+        node.expr = Some(Box::new(lhs));
+        node.member = ident(tokens);
+        return node;
+    }
+
     while consume(TokenType::S_BRA, tokens) {
         lhs = new_expr(NodeType::DEREF, new_binop(NodeType::ADD, lhs, assign(tokens)));
         expect(TokenType::S_KET, tokens);
@@ -486,13 +514,7 @@ fn decl(tokens: &Vec<Token>) -> Node {
     node.ty = do_type(tokens);
 
     // Read an identifier.
-    let t = &tokens[pos()];
-    if t.ty != TokenType::IDENT {
-        panic!("variable name expected, but got {}", t.input);
-    }
-    node.name = t.name.clone();
-    bump_pos();
-
+    node.name = ident(tokens);
 
     // Read the second half of type name (e.g. `[3][5]`).
     node.ty = read_array(&mut node.ty, tokens).clone();
@@ -509,13 +531,7 @@ fn param(tokens: &Vec<Token>) -> Node {
     let mut node = alloc_node();
     node.op = NodeType::VARDEF;
     node.ty = do_type(tokens);
-
-    let t = &tokens[pos()];
-    if t.ty != TokenType::IDENT {
-        panic!("parameter name expected, but got {}", t.input);
-    }
-    node.name = t.name.clone();
-    bump_pos();
+    node.name = ident(tokens);
     return node;
 }
 
@@ -625,18 +641,14 @@ fn toplevel(tokens: &Vec<Token>) -> Node {
     let ty = do_type(tokens);
     // if (!ty) ... // 'do_type' panics when it fails to parse a type name.
 
-    let t = &tokens[pos()];
-    if t.ty != TokenType::IDENT {
-        panic!("function or variable name expected, but got {}", t.input);
-    }
-    bump_pos();
+    let name = ident(tokens);
 
     // Function
     if consume(TokenType::BRA, tokens) {
         let mut node = alloc_node();
         node.op = NodeType::FUNC;
         node.ty = ty;
-        node.name = t.name.clone();
+        node.name = name;
 
         if !consume(TokenType::KET, tokens) {
             node.args.push(param(tokens));
@@ -655,7 +667,7 @@ fn toplevel(tokens: &Vec<Token>) -> Node {
     let mut node = alloc_node();
     node.op = NodeType::VARDEF;
     node.ty = read_array(&mut ty.clone(), tokens).clone();
-    node.name = t.name.clone();
+    node.name = name;
     if is_extern {
         node.is_extern = true;
     } else {

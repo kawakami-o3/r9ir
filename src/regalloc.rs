@@ -21,17 +21,45 @@ lazy_static! {
     static ref REG_MAP: Mutex<Vec<i32>> = Mutex::new(Vec::new());
 }
 
+const reg_map_size: usize = 8192;
+
 pub const regs: [&'static str; 7] = ["r10", "r11", "rbx", "r12", "r13", "r14", "r15"];
 pub const regs8: [&'static str; 7] = ["r10b", "r11b", "bl", "r12b", "r13b", "r14b", "r15b"];
 pub const regs32: [&'static str; 7] = ["r10d", "r11d", "ebx", "r12d", "r13d", "r14d", "r15d"];
 
-// Code generator
+fn init_used() {
+    match USED.lock() {
+        Ok(mut used) => {
+            *used = Vec::new();
+            for _i in 0..regs.len() {
+                used.push(false);
+            }
+        }
+        _ => {
+            panic!();
+        }
+    }
+}
+
+fn init_reg_map() {
+    match REG_MAP.lock() {
+        Ok(mut reg_map) => {
+            *reg_map = Vec::new();
+            for _i in 0..reg_map_size {
+                reg_map.push(-1);
+            }
+        }
+        _ => {
+            panic!();
+        }
+    }
+}
 
 fn alloc(ir_reg: i32) -> i32 {
     let mut reg_map = REG_MAP.lock().unwrap();
     if reg_map[ir_reg as usize] != -1 {
         let r = reg_map[ir_reg as usize];
-        assert!(USED.lock().unwrap()[r as usize], "");
+        assert!(USED.lock().unwrap()[r as usize]);
         return r;
     }
 
@@ -81,26 +109,10 @@ fn visit(irv: &mut Vec<IR>) {
 }
 
 pub fn alloc_regs(fns: &mut Vec<IR>) {
-
+    init_reg_map();
+    init_used();
     for i in 0..fns.len() {
-        let mut fun = &mut fns[i];
-        match (REG_MAP.lock(), USED.lock()) {
-            (Ok(mut reg_map), Ok(mut used)) => {
-                *reg_map = Vec::new();
-                for _i in 0..fun.ir.len() {
-                    reg_map.push(-1);
-                }
-
-                *used = Vec::new();
-                for _i in 0..regs.len() {
-                    used.push(false);
-                }
-            }
-            _ => {
-                panic!();
-            }
-        }
-
+        let fun = &mut fns[i];
         visit(&mut fun.ir);
     }
 }

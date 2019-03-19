@@ -39,6 +39,7 @@ pub fn struct_of(members: &mut Vec<Node>) -> Type {
             ty.align = ty_tmp.align;
         }
     }
+    ty.members = members.clone();
     ty.size = roundup(off, ty.align);
     return ty;
 }

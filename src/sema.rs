@@ -160,7 +160,7 @@ fn maybe_decay(base: & mut Node, decay: bool) -> & mut Node {
 
 fn check_lval(node: & Node) {
     match node.op {
-        NodeType::LVAR | NodeType::GVAR | NodeType::DEREF => {
+        NodeType::LVAR | NodeType::GVAR | NodeType::DEREF | NodeType::DOT => {
             return;
         }
         _ => {
@@ -285,6 +285,24 @@ fn walk<'a>(node: &'a mut Node, env: &'a mut Env, decay: bool) -> &'a Node {
             node.rhs = Some(Box::new(walk(&mut *node.rhs.clone().unwrap(), env, true).clone()));
             node.ty = node.lhs.clone().unwrap().ty;
             return node;
+        }
+        NodeType::DOT => {
+            node.expr = Some(Box::new(walk(&mut *node.expr.clone().unwrap(), env, true).clone()));
+            if node.expr.clone().unwrap().ty.ty != CType::STRUCT {
+                panic!("struct expected before '.'");
+            }
+
+            let ty = node.expr.clone().unwrap().ty;
+            for m in ty.members.iter() {
+                if m.name != node.member {
+                    continue;
+                }
+
+                node.ty = m.ty.clone();
+                node.offset = m.ty.offset;
+                return node;
+            }
+            panic!("member missing: {}", node.member);
         }
         NodeType::MUL |
             NodeType::DIV |

@@ -33,7 +33,7 @@ lazy_static! {
     static ref CODE: Mutex<Vec<IR>> = Mutex::new(Vec::new());
 
     static ref NREG: Mutex<i32> = Mutex::new(1);
-    static ref NLABEL: Mutex<i32> = Mutex::new(0);
+    static ref NLABEL: Mutex<i32> = Mutex::new(1);
 
     static ref RETURN_LABEL: Mutex<i32> = Mutex::new(0);
     static ref RETURN_REG: Mutex<i32> = Mutex::new(0);
@@ -226,6 +226,15 @@ fn gen_lval(node: Node) -> i32 {
         return gen_expr(*node.expr.unwrap());
     }
 
+    if node.op == NodeType::DOT {
+        let r1 = gen_lval(*node.expr.unwrap());
+        let r2 = bump_nreg();
+        add(IRType::IMM, r2, node.offset);
+        add(IRType::ADD, r1, r2);
+        kill(r2);
+        return r1;
+    }
+
     if node.op == NodeType::LVAR {
         let r = bump_nreg();
         add(IRType::BPREL, r, node.offset);
@@ -303,7 +312,9 @@ fn gen_expr(node: Node) -> i32 {
             return r1
         }
 
-        NodeType::GVAR | NodeType::LVAR => {
+        NodeType::GVAR |
+            NodeType::LVAR |
+            NodeType::DOT => {
             let r = gen_lval(node.clone());
             add(load_insn(node), r, r);
             return r;
@@ -520,7 +531,6 @@ fn gen_stmt(node: Node) {
 
 pub fn gen_ir(nodes: Vec<Node>) -> Vec<IR> {
     let mut v = Vec::new();
-    set_nlabel(1);
 
     for i in 0..nodes.len() {
         let node = nodes[i].clone();
@@ -532,7 +542,6 @@ pub fn gen_ir(nodes: Vec<Node>) -> Vec<IR> {
         assert!(node.op == NodeType::FUNC);
 
         init_code();
-        set_nreg(1);
 
         for i in 0..node.args.len() {
             let arg = &node.args[i];

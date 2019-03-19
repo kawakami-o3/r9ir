@@ -49,7 +49,7 @@ fn init_irinfo() {
         ty: IRInfoType::REG_REG
     });
     irinfo.insert(IRType::IMM, IRInfo {
-        name: "MOV",
+        name: "IMM",
         ty: IRInfoType::REG_IMM
     });
     irinfo.insert(IRType::JMP, IRInfo {
@@ -178,7 +178,7 @@ pub fn tostr(ir: IR) -> String {
 
     return match info.ty {
         IRInfoType::LABEL => format!(".L{}:", ir.lhs),
-        IRInfoType::LABEL_ADDR => format!(" {} r{}, {}", info.name, ir.lhs, ir.name),
+        IRInfoType::LABEL_ADDR => format!("  {} r{}, {}", info.name, ir.lhs, ir.name),
         IRInfoType::IMM => format!("  {} {}", ir.name, ir.lhs),
         IRInfoType::REG => format!("  {} r{}", info.name, ir.lhs),
         IRInfoType::REG_REG => format!("  {} r{}, r{}", info.name, ir.lhs, ir.rhs),
@@ -201,6 +201,8 @@ pub fn tostr(ir: IR) -> String {
 }
 
 pub fn dump_ir(irv: Vec<IR>) {
+    init_irinfo();
+
     for i in 0..irv.len() {
         let fun = &irv[i];
         eprintln!("{}():", fun.name);

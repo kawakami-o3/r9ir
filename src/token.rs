@@ -86,7 +86,8 @@ pub enum TokenType {
     S_BRA,      // [
     S_KET,      // ]
     AMP,        // &
-    COMMA,      // .
+    DOT,        // .
+    COMMA,      // ,
     SEMI_COLON, // ;
     NUM,        // Number literal
     STR,        // String literal
@@ -309,7 +310,7 @@ pub fn tokenize(p: &String) -> Vec<Token> {
         }
 
         // Single-letter token
-        if "+-*/;=(),{}<>[]&".contains(c) {
+        if "+-*/;=(),{}<>[]&.".contains(c) {
             let ty = match c {
                 '+' => TokenType::ADD,
                 '-' => TokenType::SUB,
@@ -327,6 +328,7 @@ pub fn tokenize(p: &String) -> Vec<Token> {
                 '[' => TokenType::S_BRA,
                 ']' => TokenType::S_KET,
                 '&' => TokenType::AMP,
+                '.' => TokenType::DOT,
                 _ => panic!(format!("unknown {}", c)),
             };
             let tok = Token {
