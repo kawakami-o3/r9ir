@@ -13,6 +13,7 @@
 use crate::sema::*;
 use crate::token::*;
 use crate::util::*;
+use std::collections::HashMap;
 use std::sync::Mutex;
 
 fn to_node_type(ty: &TokenType) -> NodeType {
@@ -43,6 +44,49 @@ fn bump_pos() -> usize {
 
 lazy_static! {
     static ref POS: Mutex<usize> = Mutex::new(0);
+    static ref ENV: Mutex<Env> = Mutex::new(new_env(None));
+}
+
+#[derive(Clone)]
+struct Env {
+    tags: HashMap<String, Vec<Node>>,
+    next: Option<Box<Env>>,
+}
+
+fn new_env(next: Option<Box<Env>>) -> Env {
+    Env{
+        tags: HashMap::new(),
+        next: next,
+    }
+}
+
+fn env_tag_get(key: & String) -> Option<Vec<Node>> {
+    match ENV.lock() {
+        Ok(env) => {
+            match env.tags.get(key) {
+                Some(v) => {
+                    return Some(v.clone());
+                }
+                None => {
+                    return None;
+                }
+            }
+        }
+        Err(_) => {
+            panic!();
+        }
+    }
+}
+
+fn env_tag_put(key: String, val: Vec<Node>) {
+    match ENV.lock() {
+        Ok(mut env) => {
+            env.tags.insert(key, val);
+        }
+        Err(_) => {
+            panic!();
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -248,12 +292,40 @@ fn read_type(tokens: &Vec<Token>) -> Option<Type> {
         }
         TokenType::STRUCT => {
             bump_pos();
-            expect(TokenType::C_BRA, tokens);
-            let mut members = Vec::new();
-            while !consume(TokenType::C_KET, tokens) {
-                members.push(decl(tokens));
+
+            let mut tag: Option<String> = None;
+            let t = &tokens[pos()];
+            if t.ty == TokenType::IDENT {
+                bump_pos();
+                tag = Some(t.name.clone());
             }
-            return Some(struct_of(&mut members));
+
+            let mut members: Option<Vec<Node>> = None;
+            if consume(TokenType::C_BRA, tokens) {
+                let mut ms = Vec::new();
+                while !consume(TokenType::C_KET, tokens) {
+                    ms.push(decl(tokens));
+                }
+                members = Some(ms);
+            }
+
+            match (tag, members.clone()) {
+                (None, None) => {
+                    panic!("bad struct definition");
+                }
+                (Some(tag), Some(members)) => {
+                    env_tag_put(tag, members);
+                }
+                (Some(tag), None) => {
+                    members = env_tag_get(&tag);
+                    if members.is_none() {
+                        panic!("incomplete type: {}", tag);
+                    }
+                }
+                _ => { }
+            }
+
+            return Some(struct_of(&mut members.unwrap()));
         }
         _ => {
             return None;
@@ -628,8 +700,24 @@ pub fn compound_stmt(tokens: &Vec<Token>) -> Node {
     let mut node = alloc_node();
     node.op = NodeType::COMP_STMT;
 
+    match ENV.lock() {
+        Ok(mut env) => {
+            *env = new_env(Some(Box::new(env.clone())));
+        }
+        Err(_) => {
+            panic!();
+        }
+    }
     while !consume(TokenType::C_KET, tokens) {
         node.stmts.push(stmt(tokens));
+    }
+    match ENV.lock() {
+        Ok(mut env) => {
+            *env = *env.next.clone().unwrap();
+        }
+        Err(_) => {
+            panic!();
+        }
     }
     return node;
 }
@@ -682,6 +770,14 @@ fn toplevel(tokens: &Vec<Token>) -> Node {
 
 pub fn parse(tokens: &Vec<Token>) -> Vec<Node> {
     let mut v = Vec::new();
+    match ENV.lock() {
+        Ok(mut env) => {
+            *env = new_env(Some(Box::new(env.clone())));
+        }
+        Err(_) => {
+            panic!();
+        }
+    }
     while tokens[pos()].ty != TokenType::EOF {
         v.push(toplevel(tokens));
     }
