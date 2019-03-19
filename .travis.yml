@@ -1,4 +1,4 @@
 language: rust
 
 script:
-  - bash run_test.sh
+  - make test
