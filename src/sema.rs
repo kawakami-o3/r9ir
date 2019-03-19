@@ -209,8 +209,8 @@ fn walk<'a>(node: &'a mut Node, env: &'a mut Env, decay: bool) -> &'a Node {
             return maybe_decay(node, decay);
         }
         NodeType::VARDEF => {
-            set_stacksize(roundup(stacksize(), align_of(node.ty.clone())));
-            add_stacksize(size_of(& node.ty));
+            set_stacksize(roundup(stacksize(), node.ty.align));
+            add_stacksize(node.ty.size);
             node.offset = stacksize();
 
             let mut var = alloc_var(node.ty.clone());
@@ -331,7 +331,7 @@ fn walk<'a>(node: &'a mut Node, env: &'a mut Env, decay: bool) -> &'a Node {
         NodeType::SIZEOF => {
             let mut nexpr = *node.expr.clone().unwrap();
             let expr = walk(&mut nexpr, env, false);
-            let val = size_of(& expr.ty);
+            let val = expr.ty.size;
 
             *node = new_int(val);
             return node;
@@ -339,7 +339,7 @@ fn walk<'a>(node: &'a mut Node, env: &'a mut Env, decay: bool) -> &'a Node {
         NodeType::ALIGNOF => {
             let mut e = node.expr.clone().unwrap();
             let expr = walk(&mut e, env, false);
-            *node = new_int(align_of(expr.ty.clone()));
+            *node = new_int(expr.ty.align);
             return node;
         }
         NodeType::CALL => {

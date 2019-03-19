@@ -27,6 +27,7 @@ fn init_symbols() {
     symbols.push(Symbol { name: "int", ty: TokenType::INT });
     symbols.push(Symbol { name: "return", ty: TokenType::RETURN });
     symbols.push(Symbol { name: "sizeof", ty: TokenType::SIZEOF });
+    symbols.push(Symbol { name: "struct", ty: TokenType::STRUCT });
     symbols.push(Symbol { name: "while", ty: TokenType::WHILE });
     symbols.push(Symbol { name: "&&", ty: TokenType::LOGAND });
     symbols.push(Symbol { name: "||", ty: TokenType::LOGOR });
@@ -93,6 +94,7 @@ pub enum TokenType {
     EXTERN,     // "extern"
     INT,        // "int"
     CHAR,       // "char"
+    STRUCT,     // "struct"
     IF,         // "if"
     ELSE,       // "else"
     FOR,        // "for"

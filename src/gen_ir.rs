@@ -15,7 +15,6 @@
 
 use crate::parse::*;
 use crate::sema::*;
-use crate::util::size_of;
 use std::sync::Mutex;
 
 fn to_ir_type(node_type: &NodeType) -> IRType {
@@ -185,7 +184,7 @@ fn label(x: i32) {
 }
 
 fn choose_insn(node: Node, op8: IRType, op32: IRType, op64: IRType) -> IRType {
-    match size_of(&node.ty) {
+    match node.ty.size {
         1 => op8,
         4 => op32,
         8 => op64,
@@ -395,7 +394,7 @@ fn gen_expr(node: Node) -> i32 {
             let r = bump_nreg();
             match node.lhs {
                 Some(ref lhs) => {
-                    add(IRType::IMM, r, size_of(& lhs.clone().ty.ptr_to.unwrap()));
+                    add(IRType::IMM, r, lhs.ty.ptr_to.clone().unwrap().size);
                 }
                 None => {}
             }

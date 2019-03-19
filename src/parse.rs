@@ -8,7 +8,7 @@
 // `1+2=3`, are accepted by this parser, but that's intentional.
 // Semantic errors are detected in a later pass.
 
-#![allow(non_camel_case_types)]
+#![allow(dead_code, non_camel_case_types)]
 
 use crate::sema::*;
 use crate::token::*;
@@ -56,6 +56,7 @@ pub enum NodeType {
     NUM,       // Number literal
     STR,       // String literal
     IDENT,     // Identifier
+    STRUCT,    // Struct
     VARDEF,    // Variable definition
     LVAR,      // Local variable reference
     GVAR,      // Global variable reference
@@ -85,11 +86,14 @@ pub enum CType {
     CHAR,
     PTR,
     ARY,
+    STRUCT,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Type {
     pub ty: CType,
+    pub size: i32,
+    pub align: i32,
 
     // Pointer
     pub ptr_to: Option<Box<Type>>,
@@ -97,27 +101,23 @@ pub struct Type {
     // Array
     pub ary_of: Option<Box<Type>>,
     pub len: i32,
+
+    // Struct
+    pub members: Vec<Type>,
+    pub offset: i32,
 }
 
 pub fn alloc_type() -> Type {
     Type {
         ty: CType::INT,
+        size: 0,
+        align: 0,
         ptr_to: None,
         ary_of: None,
         len: 0,
+        members: Vec::new(),
+        offset: 0,
     } 
-}
-
-pub fn int_ty() -> Type {
-    let mut ty = alloc_type();
-    ty.ty = CType::INT;
-    return ty
-}
-
-fn char_ty() -> Type {
-    let mut ty = alloc_type();
-    ty.ty = CType::CHAR;
-    return ty
 }
 
 #[derive(Clone, Debug)]
@@ -204,6 +204,22 @@ fn expect(ty: TokenType, tokens: &Vec<Token>) {
     bump_pos();
 }
 
+fn new_prim_ty(ty: CType, size: i32) -> Type {
+    let mut ret = alloc_type();
+    ret.ty = ty;
+    ret.size = size;
+    ret.align = size;
+    return ret;
+}
+
+fn char_ty() -> Type {
+    return new_prim_ty(CType::CHAR, 1);
+}
+
+pub fn int_ty() -> Type {
+    return new_prim_ty(CType::INT, 4);
+}
+
 fn consume(ty: TokenType, tokens: &Vec<Token>) -> bool {
     let t = &tokens[pos()];
     if t.ty != ty {
@@ -213,17 +229,33 @@ fn consume(ty: TokenType, tokens: &Vec<Token>) -> bool {
     return true;
 }
 
-fn get_type(tokens: &Vec<Token>) -> Option<Type> {
+fn is_typename(tokens: &Vec<Token>) -> bool {
+    let t = &tokens[pos()];
+    return t.ty == TokenType::INT || t.ty == TokenType::CHAR || t.ty == TokenType::STRUCT;
+}
+
+fn read_type(tokens: &Vec<Token>) -> Option<Type> {
     let t = &tokens[pos()];
     match t.ty {
         TokenType::INT => {
+            bump_pos();
             return Some(int_ty());
         }
         TokenType::CHAR => {
+            bump_pos();
             return Some(char_ty());
         }
+        TokenType::STRUCT => {
+            bump_pos();
+            expect(TokenType::C_BRA, tokens);
+            let mut members = Vec::new();
+            while !consume(TokenType::C_KET, tokens) {
+                members.push(decl(tokens));
+            }
+            return Some(struct_of(&mut members));
+        }
         _ => {
-            None
+            return None;
         }
     }
 }
@@ -418,12 +450,11 @@ fn assign(tokens: &Vec<Token>) -> Node {
 
 fn do_type(tokens: &Vec<Token>) -> Type {
     let t = &tokens[pos()];
-    let ty_opt = get_type(tokens);
+    let ty_opt = read_type(tokens);
     if ty_opt.is_none() {
         panic!("typename expected, but got {}", t.input);
     }
     let mut ty = ty_opt.unwrap();
-    bump_pos();
 
     while consume(TokenType::MUL, tokens) {
         ty = ptr_to(ty);
@@ -499,7 +530,9 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
     let t = &tokens[pos()];
 
     match t.ty {
-        TokenType::INT | TokenType::CHAR => {
+        TokenType::INT |
+            TokenType::CHAR |
+            TokenType::STRUCT => {
             return decl(tokens);
         }
         TokenType::IF => {
@@ -518,7 +551,7 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             bump_pos();
             node.op = NodeType::FOR;
             expect(TokenType::BRA, tokens);
-            if get_type(tokens).is_some() {
+            if is_typename(tokens) {
                 node.init = Some(Box::new(decl(tokens)));
             } else {
                 node.init = Some(Box::new(expr_stmt(tokens)));
@@ -590,7 +623,7 @@ pub fn compound_stmt(tokens: &Vec<Token>) -> Node {
 fn toplevel(tokens: &Vec<Token>) -> Node {
     let is_extern = consume(TokenType::EXTERN, tokens);
     let ty = do_type(tokens);
-    // if (!ty)
+    // if (!ty) ... // 'do_type' panics when it fails to parse a type name.
 
     let t = &tokens[pos()];
     if t.ty != TokenType::IDENT {
@@ -627,11 +660,11 @@ fn toplevel(tokens: &Vec<Token>) -> Node {
         node.is_extern = true;
     } else {
         let mut data = String::new();
-        for _i in 0..size_of(&node.ty) {
+        for _i in 0..node.ty.size {
             data.push(char::from(0));
         }
         node.data = data;
-        node.len = size_of(&ty) as usize;
+        node.len = ty.size as usize;
     }
     expect(TokenType::SEMI_COLON, tokens);
     return node;
