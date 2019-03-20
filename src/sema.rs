@@ -315,6 +315,7 @@ fn walk<'a>(node: &'a mut Node, env: &'a mut Env, decay: bool) -> &'a Node {
             NodeType::DIV |
             NodeType::LT |
             NodeType::OR |
+            NodeType::HAT |
             NodeType::EQ |
             NodeType::NE |
             NodeType::LOGAND |

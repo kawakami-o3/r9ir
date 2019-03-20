@@ -83,6 +83,7 @@ pub enum TokenType {
     LT,         // <
     GT,         // >
     OR,         // |
+    HAT,        // ^
     BRA,        // (
     KET,        // )
     C_BRA,      // {
@@ -320,7 +321,7 @@ pub fn tokenize(p: &String) -> Vec<Token> {
         }
 
         // Single-letter token
-        if "+-*/;=(),{}<>[]&.!?:|".contains(c) {
+        if "+-*/;=(),{}<>[]&.!?:|^".contains(c) {
             let ty = match c {
                 '+' => TokenType::ADD,
                 '-' => TokenType::SUB,
@@ -332,6 +333,7 @@ pub fn tokenize(p: &String) -> Vec<Token> {
                 '<' => TokenType::LT,
                 '>' => TokenType::GT,
                 '|' => TokenType::OR,
+                '^' => TokenType::HAT,
                 ',' => TokenType::COMMA,
                 '(' => TokenType::BRA,
                 ')' => TokenType::KET,

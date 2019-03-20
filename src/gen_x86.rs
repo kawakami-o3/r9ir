@@ -146,6 +146,9 @@ fn gen(fun: &IR) {
             IRType::OR => {
                 println!("  or {}, {}", regs[ir.lhs as usize], regs[ir.rhs as usize]);
             }
+            IRType::XOR => {
+                println!("  xor {}, {}", regs[ir.lhs as usize], regs[ir.rhs as usize]);
+            }
             IRType::JMP => {
                 println!("  jmp .L{}", ir.lhs);
             }
