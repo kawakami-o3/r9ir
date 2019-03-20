@@ -322,6 +322,11 @@ fn walk<'a>(node: &'a mut Node, env: &'a mut Env, decay: bool) -> &'a Node {
                 }
                 return node;
             }
+        NodeType::EXCLAM => {
+            node.expr = Some(Box::new(walk(&mut *node.expr.clone().unwrap(), env, true).clone()));
+            node.ty = node.expr.clone().unwrap().ty;
+            return node;
+        }
         NodeType::ADDR => {
             node.expr = Some(Box::new(walk(&mut *node.expr.clone().unwrap(), env, true).clone()));
             check_lval(& *node.expr.clone().unwrap());

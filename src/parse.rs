@@ -135,6 +135,7 @@ pub enum NodeType {
     DIV,       // /
     EQL,       // =
     LT,        // <
+    EXCLAM,    // !
     NUM,       // Number literal
     STR,       // String literal
     IDENT,     // Identifier
@@ -506,6 +507,9 @@ fn unary(tokens: &Vec<Token>) -> Node {
     }
     if consume(TokenType::AMP, tokens) {
         return new_expr(NodeType::ADDR, mul(tokens));
+    }
+    if consume(TokenType::EXCLAM, tokens) {
+        return new_expr(NodeType::EXCLAM, unary(tokens));
     }
     if consume(TokenType::SIZEOF, tokens) {
         return new_expr(NodeType::SIZEOF, unary(tokens));

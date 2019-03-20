@@ -427,6 +427,14 @@ fn gen_expr(node: Node) -> i32 {
         NodeType::LT => {
             return gen_binop(IRType::LT, node);
         }
+        NodeType::EXCLAM => {
+            let lhs = gen_expr(*node.expr.unwrap());
+            let rhs = bump_nreg();
+            add(IRType::IMM, rhs, 0);
+            add(IRType::EQ, lhs, rhs);
+            kill(rhs);
+            return lhs;
+        }
         _ => {
             panic!("unknown AST type {:?}", node);
         }
