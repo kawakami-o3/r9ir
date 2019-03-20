@@ -76,6 +76,10 @@ fn init_irinfo() {
         name: "NE",
         ty: IRInfoType::REG_REG
     });
+    irinfo.insert(IRType::LE, IRInfo {
+        name: "LE",
+        ty: IRInfoType::REG_REG
+    });
     irinfo.insert(IRType::LT, IRInfo {
         name: "LT",
         ty: IRInfoType::REG_REG

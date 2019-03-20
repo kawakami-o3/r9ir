@@ -105,6 +105,7 @@ pub enum IRType {
     LABEL_ADDR,
     EQ,
     NE,
+    LE,
     LT,
     AND,
     OR,
@@ -429,6 +430,9 @@ fn gen_expr(node: Node) -> i32 {
         }
         NodeType::LT => {
             return gen_binop(IRType::LT, node);
+        }
+        NodeType::LE => {
+            return gen_binop(IRType::LE, node);
         }
         NodeType::AND => {
             return gen_binop(IRType::AND, node);

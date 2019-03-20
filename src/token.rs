@@ -34,7 +34,9 @@ fn init_symbols() {
     symbols.push(Symbol { name: "!=", ty: TokenType::NE });
     symbols.push(Symbol { name: "&&", ty: TokenType::LOGAND });
     symbols.push(Symbol { name: "->", ty: TokenType::ARROW });
+    symbols.push(Symbol { name: "<=", ty: TokenType::LE });
     symbols.push(Symbol { name: "==", ty: TokenType::EQ });
+    symbols.push(Symbol { name: ">=", ty: TokenType::GE });
     symbols.push(Symbol { name: "||", ty: TokenType::LOGOR });
 }
 
@@ -114,6 +116,8 @@ pub enum TokenType {
     WHILE,      // "while"
     EQ,         // ==
     NE,         // !=
+    LE,         // <=
+    GE,         // >=
     LOGOR,      // ||
     LOGAND,     // &&
     RETURN,     // "return"

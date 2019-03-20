@@ -143,6 +143,9 @@ fn gen(fun: &IR) {
             IRType::LT => {
                 emit_cmp(ir, "setl")
             }
+            IRType::LE => {
+                emit_cmp(ir, "setle")
+            }
             IRType::AND => {
                 println!("  and {}, {}", regs[ir.lhs as usize], regs[ir.rhs as usize]);
             }

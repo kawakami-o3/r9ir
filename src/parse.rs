@@ -156,6 +156,7 @@ pub enum NodeType {
     DOT,       // Struct member access
     EQ,        // ==
     NE,        // !=
+    LE,        // <=
     LOGAND,    // &&
     LOGOR,     // ||
     RETURN,    // "return"
@@ -558,6 +559,10 @@ fn rel(tokens: &Vec<Token>) -> Node {
             lhs = new_binop(NodeType::LT, lhs, add(tokens));
         } else if consume(TokenType::GT, tokens) {
             lhs = new_binop(NodeType::LT, add(tokens), lhs);
+        } else if consume(TokenType::LE, tokens) {
+            lhs = new_binop(NodeType::LE, lhs, add(tokens));
+        } else if consume(TokenType::GE, tokens) {
+            lhs = new_binop(NodeType::LE, add(tokens), lhs);
         } else {
             return lhs;
         }
