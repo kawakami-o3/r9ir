@@ -136,7 +136,8 @@ pub enum NodeType {
     EQL,       // =
     LT,        // <
     OR,        // |
-    HAT,       // ^
+    XOR,       // ^
+    AND,       // &
     EXCLAM,    // !
     QUEST,     // ?
     COMMA,     // ,
@@ -584,15 +585,27 @@ fn equality(tokens: &Vec<Token>) -> Node {
     }
 }
 
-fn bit_xor(tokens: &Vec<Token>) -> Node {
+fn bit_and(tokens: &Vec<Token>) -> Node {
     let mut lhs = equality(tokens);
+    loop {
+        let t = &tokens[pos()];
+        if t.ty != TokenType::AMP {
+            return lhs;
+        }
+        bump_pos();
+        lhs = new_binop(NodeType::AND, lhs, equality(tokens));
+    }
+}
+
+fn bit_xor(tokens: &Vec<Token>) -> Node {
+    let mut lhs = bit_and(tokens);
     loop {
         let t = &tokens[pos()];
         if t.ty != TokenType::HAT {
             return lhs;
         }
         bump_pos();
-        lhs = new_binop(NodeType::HAT, lhs, equality(tokens));
+        lhs = new_binop(NodeType::XOR, lhs, bit_and(tokens));
     }
 }
 
