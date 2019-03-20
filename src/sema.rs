@@ -320,6 +320,8 @@ fn walk<'a>(node: &'a mut Node, env: &'a mut Env, decay: bool) -> &'a Node {
             NodeType::EQ |
             NodeType::NE |
             NodeType::LE |
+            NodeType::SHL |
+            NodeType::SHR |
             NodeType::LOGAND |
             NodeType::LOGOR => {
                 node.lhs = Some(Box::new(walk(&mut *node.lhs.clone().unwrap(), env, true).clone()));

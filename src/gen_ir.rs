@@ -110,6 +110,8 @@ pub enum IRType {
     AND,
     OR,
     XOR,
+    SHL,
+    SHR,
     JMP,
     IF,
     UNLESS,
@@ -442,6 +444,12 @@ fn gen_expr(node: Node) -> i32 {
         }
         NodeType::XOR => {
             return gen_binop(IRType::XOR, node);
+        }
+        NodeType::SHL => {
+            return gen_binop(IRType::SHL, node);
+        }
+        NodeType::SHR => {
+            return gen_binop(IRType::SHR, node);
         }
         NodeType::COMMA => {
             kill(gen_expr(*node.lhs.unwrap()));

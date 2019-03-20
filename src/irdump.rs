@@ -96,6 +96,14 @@ fn init_irinfo() {
         name: "XOR",
         ty: IRInfoType::REG_REG
     });
+    irinfo.insert(IRType::SHL, IRInfo {
+        name: "SHL",
+        ty: IRInfoType::REG_REG
+    });
+    irinfo.insert(IRType::SHR, IRInfo {
+        name: "SHR",
+        ty: IRInfoType::REG_REG
+    });
     irinfo.insert(IRType::LOAD8, IRInfo {
         name: "LOAD8",
         ty: IRInfoType::REG_REG

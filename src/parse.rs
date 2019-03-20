@@ -159,6 +159,8 @@ pub enum NodeType {
     LE,        // <=
     LOGAND,    // &&
     LOGOR,     // ||
+    SHL,       // <<
+    SHR,       // >>
     RETURN,    // "return"
     SIZEOF,    // "sizeof"
     ALIGNOF,   // "_Alignof"
@@ -552,17 +554,30 @@ fn add(tokens: &Vec<Token>) -> Node {
     }
 }
 
-fn rel(tokens: &Vec<Token>) -> Node {
+fn shift(tokens: &Vec<Token>) -> Node {
     let mut lhs = add(tokens);
     loop {
+        if consume(TokenType::SHL, tokens) {
+            lhs = new_binop(NodeType::SHL, lhs, add(tokens));
+        } else if consume(TokenType::SHR, tokens) {
+            lhs = new_binop(NodeType::SHR, lhs, add(tokens));
+        } else {
+            return lhs;
+        }
+    }
+}
+
+fn relational(tokens: &Vec<Token>) -> Node {
+    let mut lhs = shift(tokens);
+    loop {
         if consume(TokenType::LT, tokens) {
-            lhs = new_binop(NodeType::LT, lhs, add(tokens));
+            lhs = new_binop(NodeType::LT, lhs, shift(tokens));
         } else if consume(TokenType::GT, tokens) {
-            lhs = new_binop(NodeType::LT, add(tokens), lhs);
+            lhs = new_binop(NodeType::LT, shift(tokens), lhs);
         } else if consume(TokenType::LE, tokens) {
-            lhs = new_binop(NodeType::LE, lhs, add(tokens));
+            lhs = new_binop(NodeType::LE, lhs, shift(tokens));
         } else if consume(TokenType::GE, tokens) {
-            lhs = new_binop(NodeType::LE, add(tokens), lhs);
+            lhs = new_binop(NodeType::LE, shift(tokens), lhs);
         } else {
             return lhs;
         }
@@ -570,12 +585,12 @@ fn rel(tokens: &Vec<Token>) -> Node {
 }
 
 fn equality(tokens: &Vec<Token>) -> Node {
-    let mut lhs = rel(tokens);
+    let mut lhs = relational(tokens);
     loop {
         if consume(TokenType::EQ, tokens) {
-            lhs = new_binop(NodeType::EQ, lhs, rel(tokens));
+            lhs = new_binop(NodeType::EQ, lhs, relational(tokens));
         } else if consume(TokenType::NE, tokens) {
-            lhs = new_binop(NodeType::NE, lhs, rel(tokens));
+            lhs = new_binop(NodeType::NE, lhs, relational(tokens));
         } else {
             return lhs;
         }

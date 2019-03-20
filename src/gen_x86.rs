@@ -155,6 +155,14 @@ fn gen(fun: &IR) {
             IRType::XOR => {
                 println!("  xor {}, {}", regs[ir.lhs as usize], regs[ir.rhs as usize]);
             }
+            IRType::SHL => {
+                println!("  mov cl, {}", regs8[ir.rhs as usize]);
+                println!("  shl {}, cl", regs[ir.lhs as usize]);
+            }
+            IRType::SHR => {
+                println!("  mov cl, {}", regs8[ir.rhs as usize]);
+                println!("  shr {}, cl", regs[ir.lhs as usize]);
+            }
             IRType::JMP => {
                 println!("  jmp .L{}", ir.lhs);
             }
