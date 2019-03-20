@@ -135,6 +135,7 @@ pub enum NodeType {
     DIV,       // /
     EQL,       // =
     LT,        // <
+    OR,        // |
     EXCLAM,    // !
     QUEST,     // ?
     COMMA,     // ,
@@ -582,15 +583,27 @@ fn equality(tokens: &Vec<Token>) -> Node {
     }
 }
 
-fn logand(tokens: &Vec<Token>) -> Node {
+fn bit_or(tokens: &Vec<Token>) -> Node {
     let mut lhs = equality(tokens);
+    loop {
+        let t = &tokens[pos()];
+        if t.ty != TokenType::OR {
+            return lhs;
+        }
+        bump_pos();
+        lhs = new_binop(NodeType::OR, lhs, equality(tokens));
+    }
+}
+
+fn logand(tokens: &Vec<Token>) -> Node {
+    let mut lhs = bit_or(tokens);
     loop {
         let t = &tokens[pos()];
         if t.ty != TokenType::LOGAND {
             return lhs;
         }
         bump_pos();
-        lhs = new_binop(NodeType::LOGAND, lhs, equality(tokens));
+        lhs = new_binop(NodeType::LOGAND, lhs, bit_or(tokens));
     }
 }
 

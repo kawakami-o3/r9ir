@@ -80,6 +80,10 @@ fn init_irinfo() {
         name: "LT",
         ty: IRInfoType::REG_REG
     });
+    irinfo.insert(IRType::OR, IRInfo {
+        name: "OR",
+        ty: IRInfoType::REG_REG
+    });
     irinfo.insert(IRType::LOAD8, IRInfo {
         name: "LOAD8",
         ty: IRInfoType::REG_REG
