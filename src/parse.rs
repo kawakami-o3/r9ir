@@ -137,6 +137,7 @@ pub enum NodeType {
     LT,        // <
     EXCLAM,    // !
     QUEST,     // ?
+    COMMA,     // ,
     NUM,       // Number literal
     STR,       // String literal
     IDENT,     // Identifier
@@ -426,7 +427,7 @@ fn primary(tokens: &Vec<Token>) -> Node {
             expect(TokenType::KET, tokens);
             return node;
         }
-        let node = assign(tokens);
+        let node = expr(tokens);
         expect(TokenType::KET, tokens);
         return node;
     }
@@ -614,18 +615,26 @@ fn conditional(tokens: &Vec<Token>) -> Node {
     let mut node = alloc_node();
     node.op = NodeType::QUEST;
     node.cond = Some(Box::new(cond));
-    node.then = Some(Box::new(assign(tokens)));
+    node.then = Some(Box::new(expr(tokens)));
     expect(TokenType::COLON, tokens);
-    node.els = Some(Box::new(assign(tokens)));
+    node.els = Some(Box::new(expr(tokens)));
     return node;
 }
 
 fn assign(tokens: &Vec<Token>) -> Node {
     let lhs = conditional(tokens);
-    if consume(TokenType::EQL, tokens) {
-        return new_binop(NodeType::EQL, lhs, conditional(tokens));
+    if !consume(TokenType::EQL, tokens) {
+        return lhs;
     }
-    return lhs;
+    return new_binop(NodeType::EQL, lhs, conditional(tokens));
+}
+
+fn expr(tokens: &Vec<Token>) -> Node {
+    let lhs = assign(tokens);
+    if !consume(TokenType::COMMA, tokens) {
+        return lhs;
+    }
+    return new_binop(NodeType::COMMA, lhs, expr(tokens));
 }
 
 fn do_type(tokens: &Vec<Token>) -> Type {
@@ -645,7 +654,7 @@ fn do_type(tokens: &Vec<Token>) -> Type {
 fn read_array<'a>(ty: &'a mut Type, tokens: &Vec<Token>) -> &'a Type {
     let mut v = Vec::new();
     while consume(TokenType::S_BRA, tokens) {
-        let len = primary(tokens);
+        let len = expr(tokens);
         if len.op != NodeType::NUM {
             panic!("number expected");
         }
@@ -691,7 +700,7 @@ fn param(tokens: &Vec<Token>) -> Node {
 }
 
 fn expr_stmt(tokens: &Vec<Token>) -> Node {
-    let node = new_expr(NodeType::EXPR_STMT, assign(tokens));
+    let node = new_expr(NodeType::EXPR_STMT, expr(tokens));
     expect(TokenType::SEMI_COLON, tokens);
     return node;
 }
@@ -717,7 +726,7 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             bump_pos();
             node.op = NodeType::IF;
             expect(TokenType::BRA, tokens);
-            node.cond = Some(Box::new(assign(tokens)));
+            node.cond = Some(Box::new(expr(tokens)));
             expect(TokenType::KET, tokens);
             node.then = Some(Box::new(stmt(tokens)));
             if consume(TokenType::ELSE, tokens) {
@@ -734,9 +743,9 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             } else {
                 node.init = Some(Box::new(expr_stmt(tokens)));
             }
-            node.cond = Some(Box::new(assign(tokens)));
+            node.cond = Some(Box::new(expr(tokens)));
             expect(TokenType::SEMI_COLON, tokens);
-            node.inc = Some(Box::new(new_expr(NodeType::EXPR_STMT, assign(tokens))));
+            node.inc = Some(Box::new(new_expr(NodeType::EXPR_STMT, expr(tokens))));
             expect(TokenType::KET, tokens);
             node.body = Some(Box::new(stmt(tokens)));
             return node;
@@ -747,7 +756,7 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             node.init = Some(Box::new(null_stmt()));
             node.inc = Some(Box::new(null_stmt()));
             expect(TokenType::BRA, tokens);
-            node.cond = Some(Box::new(assign(tokens)));
+            node.cond = Some(Box::new(expr(tokens)));
             expect(TokenType::KET, tokens);
             node.body = Some(Box::new(stmt(tokens)));
             return node;
@@ -758,7 +767,7 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             node.body = Some(Box::new(stmt(tokens)));
             expect(TokenType::WHILE, tokens);
             expect(TokenType::BRA, tokens);
-            node.cond = Some(Box::new(assign(tokens)));
+            node.cond = Some(Box::new(expr(tokens)));
             expect(TokenType::KET, tokens);
             expect(TokenType::SEMI_COLON, tokens);
             return node;
@@ -766,7 +775,7 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
         TokenType::RETURN => {
             bump_pos();
             node.op = NodeType::RETURN;
-            node.expr = Some(Box::new(assign(tokens)));
+            node.expr = Some(Box::new(expr(tokens)));
             expect(TokenType::SEMI_COLON, tokens);
             return node;
         }

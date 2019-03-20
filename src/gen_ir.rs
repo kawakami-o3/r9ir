@@ -427,6 +427,10 @@ fn gen_expr(node: Node) -> i32 {
         NodeType::LT => {
             return gen_binop(IRType::LT, node);
         }
+        NodeType::COMMA => {
+            kill(gen_expr(*node.lhs.unwrap()));
+            return gen_expr(*node.rhs.unwrap());
+        }
         NodeType::QUEST => {
             let x = bump_nlabel();
             let y = bump_nlabel();

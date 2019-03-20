@@ -329,6 +329,12 @@ fn walk<'a>(node: &'a mut Node, env: &'a mut Env, decay: bool) -> &'a Node {
                 }
                 return node;
             }
+        NodeType::COMMA => {
+            node.lhs = Some(Box::new(walk(&mut *node.lhs.clone().unwrap(), env, true).clone()));
+            node.rhs = Some(Box::new(walk(&mut *node.rhs.clone().unwrap(), env, true).clone()));
+            node.ty = node.rhs.clone().unwrap().ty;
+            return node;
+        }
         NodeType::EXCLAM => {
             node.expr = Some(Box::new(walk(&mut *node.expr.clone().unwrap(), env, true).clone()));
             node.ty = node.expr.clone().unwrap().ty;
