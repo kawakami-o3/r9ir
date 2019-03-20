@@ -304,6 +304,13 @@ fn walk<'a>(node: &'a mut Node, env: &'a mut Env, decay: bool) -> &'a Node {
             }
             panic!("member missing: {}", node.name);
         }
+        NodeType::QUEST => {
+            node.cond = Some(Box::new(walk(&mut *node.cond.clone().unwrap(), env, true).clone()));
+            node.then = Some(Box::new(walk(&mut *node.then.clone().unwrap(), env, true).clone()));
+            node.els = Some(Box::new(walk(&mut *node.els.clone().unwrap(), env, true).clone()));
+            node.ty = node.then.clone().unwrap().ty;
+            return node;
+        }
         NodeType::MUL |
             NodeType::DIV |
             NodeType::LT |

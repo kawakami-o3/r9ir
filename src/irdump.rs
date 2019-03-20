@@ -181,6 +181,7 @@ pub fn tostr(ir: IR) -> String {
         IRInfoType::LABEL_ADDR => format!("  {} r{}, {}", info.name, ir.lhs, ir.name),
         IRInfoType::IMM => format!("  {} {}", ir.name, ir.lhs),
         IRInfoType::REG => format!("  {} r{}", info.name, ir.lhs),
+        IRInfoType::JMP => format!("  {} .L{}", info.name, ir.lhs),
         IRInfoType::REG_REG => format!("  {} r{}, r{}", info.name, ir.lhs, ir.rhs),
         IRInfoType::REG_IMM => format!("  {} r{}, {}", info.name, ir.lhs, ir.rhs),
         IRInfoType::IMM_IMM => format!("  {} {}, {}", info.name, ir.lhs, ir.rhs),
@@ -195,7 +196,7 @@ pub fn tostr(ir: IR) -> String {
         }
         IRInfoType::NOARG => format!("  {}", info.name),
         _ => {
-            panic!("unknown ir");
+            panic!("unknown ir {:?}", info.ty);
         }
     };
 }

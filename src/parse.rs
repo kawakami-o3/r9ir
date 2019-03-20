@@ -136,6 +136,7 @@ pub enum NodeType {
     EQL,       // =
     LT,        // <
     EXCLAM,    // !
+    QUEST,     // ?
     NUM,       // Number literal
     STR,       // String literal
     IDENT,     // Identifier
@@ -604,10 +605,25 @@ fn logor(tokens: &Vec<Token>) -> Node {
     }
 }
 
+fn conditional(tokens: &Vec<Token>) -> Node {
+    let cond = logor(tokens);
+    if !consume(TokenType::QUEST, tokens) {
+        return cond;
+    }
+
+    let mut node = alloc_node();
+    node.op = NodeType::QUEST;
+    node.cond = Some(Box::new(cond));
+    node.then = Some(Box::new(assign(tokens)));
+    expect(TokenType::COLON, tokens);
+    node.els = Some(Box::new(assign(tokens)));
+    return node;
+}
+
 fn assign(tokens: &Vec<Token>) -> Node {
-    let lhs = logor(tokens);
+    let lhs = conditional(tokens);
     if consume(TokenType::EQL, tokens) {
-        return new_binop(NodeType::EQL, lhs, logor(tokens));
+        return new_binop(NodeType::EQL, lhs, conditional(tokens));
     }
     return lhs;
 }

@@ -90,8 +90,10 @@ pub enum TokenType {
     S_KET,      // ]
     AMP,        // &
     EXCLAM,     // !
+    QUEST,      // ?
     DOT,        // .
     COMMA,      // ,
+    COLON,      // :
     SEMI_COLON, // ;
     NUM,        // Number literal
     STR,        // String literal
@@ -317,12 +319,13 @@ pub fn tokenize(p: &String) -> Vec<Token> {
         }
 
         // Single-letter token
-        if "+-*/;=(),{}<>[]&.!".contains(c) {
+        if "+-*/;=(),{}<>[]&.!?:".contains(c) {
             let ty = match c {
                 '+' => TokenType::ADD,
                 '-' => TokenType::SUB,
                 '*' => TokenType::MUL,
                 '/' => TokenType::DIV,
+                ':' => TokenType::COLON,
                 ';' => TokenType::SEMI_COLON,
                 '=' => TokenType::EQL,
                 '<' => TokenType::LT,
@@ -336,6 +339,7 @@ pub fn tokenize(p: &String) -> Vec<Token> {
                 ']' => TokenType::S_KET,
                 '&' => TokenType::AMP,
                 '!' => TokenType::EXCLAM,
+                '?' => TokenType::QUEST,
                 '.' => TokenType::DOT,
                 _ => panic!(format!("unknown {}", c)),
             };

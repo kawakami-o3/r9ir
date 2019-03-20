@@ -427,6 +427,24 @@ fn gen_expr(node: Node) -> i32 {
         NodeType::LT => {
             return gen_binop(IRType::LT, node);
         }
+        NodeType::QUEST => {
+            let x = bump_nlabel();
+            let y = bump_nlabel();
+            let r = gen_expr(*node.cond.unwrap());
+
+            add(IRType::UNLESS, r, x);
+            let r2 = gen_expr(*node.then.unwrap());
+            add(IRType::MOV, r, r2);
+            kill(r2);
+            add(IRType::JMP, y, -1);
+
+            label(x);
+            let r3 = gen_expr(*node.els.unwrap());
+            add(IRType::MOV, r, r3);
+            kill(r2);
+            label(y);
+            return r;
+        }
         NodeType::EXCLAM => {
             let lhs = gen_expr(*node.expr.unwrap());
             let rhs = bump_nreg();
