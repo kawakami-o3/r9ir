@@ -134,6 +134,9 @@ fn gen(fun: &IR) {
             IRType::LABEL_ADDR => {
                 println!("  lea {}, {}", regs[ir.lhs as usize], ir.name);
             }
+            IRType::NEG => {
+                println!("  neg {}", regs[ir.lhs as usize]);
+            }
             IRType::EQ => {
                 emit_cmp(ir, "sete")
             }

@@ -342,7 +342,8 @@ fn walk<'a>(node: &'a mut Node, env: &'a mut Env, decay: bool) -> &'a Node {
             node.ty = node.rhs.clone().unwrap().ty;
             return node;
         }
-        NodeType::EXCLAM => {
+        NodeType::NEG |
+            NodeType::EXCLAM => {
             node.expr = Some(Box::new(walk(&mut *node.expr.clone().unwrap(), env, true).clone()));
             node.ty = node.expr.clone().unwrap().ty;
             return node;
@@ -372,7 +373,8 @@ fn walk<'a>(node: &'a mut Node, env: &'a mut Env, decay: bool) -> &'a Node {
             node.ty = *node.expr.clone().unwrap().ty.ptr_to.unwrap();
             return node;
         }
-        NodeType::RETURN => {
+        NodeType::RETURN |
+            NodeType::EXPR_STMT => {
             node.expr = Some(Box::new(walk(&mut *node.expr.clone().unwrap(), env, true).clone()));
             return node;
         }
@@ -409,10 +411,6 @@ fn walk<'a>(node: &'a mut Node, env: &'a mut Env, decay: bool) -> &'a Node {
             for i in 0..node.stmts.len() {
                 node.stmts[i] = walk(&mut node.stmts[i], &mut newenv, true).clone();
             }
-            return node;
-        }
-        NodeType::EXPR_STMT => {
-            node.expr = Some(Box::new(walk(&mut *node.expr.clone().unwrap(), env, true).clone()));
             return node;
         }
         NodeType::STMT_EXPR => {

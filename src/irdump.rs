@@ -120,6 +120,10 @@ fn init_irinfo() {
         name: "MOD",
         ty: IRInfoType::REG_REG
     });
+    irinfo.insert(IRType::NEG, IRInfo {
+        name: "NEG",
+        ty: IRInfoType::REG
+    });
     irinfo.insert(IRType::MOV, IRInfo {
         name: "MOV",
         ty: IRInfoType::REG_REG

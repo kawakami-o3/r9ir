@@ -162,6 +162,7 @@ pub enum NodeType {
     SHL,       // <<
     SHR,       // >>
     MOD,       // %
+    NEG,       // -
     RETURN,    // "return"
     SIZEOF,    // "sizeof"
     ALIGNOF,   // "_Alignof"
@@ -511,11 +512,14 @@ fn postfix(tokens: &Vec<Token>) -> Node {
 }
 
 fn unary(tokens: &Vec<Token>) -> Node {
+    if consume(TokenType::SUB, tokens) {
+        return new_expr(NodeType::NEG, unary(tokens));
+    }
     if consume(TokenType::MUL, tokens) {
-        return new_expr(NodeType::DEREF, mul(tokens));
+        return new_expr(NodeType::DEREF, unary(tokens));
     }
     if consume(TokenType::AMP, tokens) {
-        return new_expr(NodeType::ADDR, mul(tokens));
+        return new_expr(NodeType::ADDR, unary(tokens));
     }
     if consume(TokenType::EXCLAM, tokens) {
         return new_expr(NodeType::EXCLAM, unary(tokens));
