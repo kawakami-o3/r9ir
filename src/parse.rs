@@ -528,121 +528,93 @@ fn unary(tokens: &Vec<Token>) -> Node {
 fn mul(tokens: &Vec<Token>) -> Node {
     let mut lhs = unary(tokens);
     loop {
-        let t = &tokens[pos()];
-        if t.ty != TokenType::MUL && t.ty != TokenType::DIV {
+        if consume(TokenType::MUL, tokens) {
+            lhs = new_binop(NodeType::MUL, lhs, unary(tokens));
+        } else if consume(TokenType::DIV, tokens) {
+            lhs = new_binop(NodeType::DIV, lhs, unary(tokens));
+        } else {
             return lhs;
         }
-        bump_pos();
-        lhs = new_binop(to_node_type(&t.ty), lhs, unary(tokens));
     }
 }
 
 fn add(tokens: &Vec<Token>) -> Node {
     let mut lhs = mul(tokens);
     loop {
-        let t = &tokens[pos()];
-        if t.ty != TokenType::ADD && t.ty != TokenType::SUB {
+        if consume(TokenType::ADD, tokens) {
+            lhs = new_binop(NodeType::ADD, lhs, mul(tokens));
+        } else if consume(TokenType::SUB, tokens) {
+            lhs = new_binop(NodeType::SUB, lhs, mul(tokens));
+        } else {
             return lhs;
         }
-        bump_pos();
-        lhs = new_binop(to_node_type(&t.ty), lhs, mul(tokens));
     }
 }
 
 fn rel(tokens: &Vec<Token>) -> Node {
     let mut lhs = add(tokens);
     loop {
-        let t = &tokens[pos()];
-        if t.ty == TokenType::LT {
-            bump_pos();
+        if consume(TokenType::LT, tokens) {
             lhs = new_binop(NodeType::LT, lhs, add(tokens));
-            continue;
-        }
-        if t.ty == TokenType::GT {
-            bump_pos();
+        } else if consume(TokenType::GT, tokens) {
             lhs = new_binop(NodeType::LT, add(tokens), lhs);
-            continue;
+        } else {
+            return lhs;
         }
-        return lhs;
     }
 }
 
 fn equality(tokens: &Vec<Token>) -> Node {
     let mut lhs = rel(tokens);
     loop {
-        let t = &tokens[pos()];
-        if t.ty == TokenType::EQ {
-            bump_pos();
+        if consume(TokenType::EQ, tokens) {
             lhs = new_binop(NodeType::EQ, lhs, rel(tokens));
-            continue;
-        }
-        if t.ty == TokenType::NE {
-            bump_pos();
+        } else if consume(TokenType::NE, tokens) {
             lhs = new_binop(NodeType::NE, lhs, rel(tokens));
-            continue;
+        } else {
+            return lhs;
         }
-        return lhs;
     }
 }
 
 fn bit_and(tokens: &Vec<Token>) -> Node {
     let mut lhs = equality(tokens);
-    loop {
-        let t = &tokens[pos()];
-        if t.ty != TokenType::AMP {
-            return lhs;
-        }
-        bump_pos();
+    while consume(TokenType::AMP, tokens) {
         lhs = new_binop(NodeType::AND, lhs, equality(tokens));
     }
+    return lhs;
 }
 
 fn bit_xor(tokens: &Vec<Token>) -> Node {
     let mut lhs = bit_and(tokens);
-    loop {
-        let t = &tokens[pos()];
-        if t.ty != TokenType::HAT {
-            return lhs;
-        }
-        bump_pos();
+    while consume(TokenType::HAT, tokens) {
         lhs = new_binop(NodeType::XOR, lhs, bit_and(tokens));
     }
+    return lhs;
 }
 
 fn bit_or(tokens: &Vec<Token>) -> Node {
     let mut lhs = bit_xor(tokens);
-    loop {
-        let t = &tokens[pos()];
-        if t.ty != TokenType::OR {
-            return lhs;
-        }
-        bump_pos();
+    while consume(TokenType::OR, tokens) {
         lhs = new_binop(NodeType::OR, lhs, bit_xor(tokens));
     }
+    return lhs;
 }
 
 fn logand(tokens: &Vec<Token>) -> Node {
     let mut lhs = bit_or(tokens);
-    loop {
-        let t = &tokens[pos()];
-        if t.ty != TokenType::LOGAND {
-            return lhs;
-        }
-        bump_pos();
+    while consume(TokenType::LOGAND, tokens) {
         lhs = new_binop(NodeType::LOGAND, lhs, bit_or(tokens));
     }
+    return lhs;
 }
 
 fn logor(tokens: &Vec<Token>) -> Node {
     let mut lhs = logand(tokens);
-    loop {
-        let t = &tokens[pos()];
-        if t.ty != TokenType::LOGOR {
-            return lhs;
-        }
-        bump_pos();
+    while consume(TokenType::LOGOR, tokens) {
         lhs = new_binop(NodeType::LOGOR, lhs, logand(tokens));
     }
+    return lhs;
 }
 
 fn conditional(tokens: &Vec<Token>) -> Node {
