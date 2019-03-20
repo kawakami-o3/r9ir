@@ -240,6 +240,12 @@ fn gen(fun: &IR) {
                 println!(" div {}", regs[ir.rhs as usize]);
                 println!(" mov {}, rax", regs[ir.lhs as usize]);
             }
+            IRType::MOD => {
+                println!("  mov rax, {}", regs[ir.lhs as usize]);
+                println!("  cqo");
+                println!("  div {}", regs[ir.rhs as usize]);
+                println!("  mov {}, rdx", regs[ir.lhs as usize]);
+            }
             IRType::NOP => {}
             ref i => {
                 panic!(format!("unknown operator {:?}", i));

@@ -116,6 +116,10 @@ fn init_irinfo() {
         name: "LOAD64",
         ty: IRInfoType::REG_REG
     });
+    irinfo.insert(IRType::MOD, IRInfo {
+        name: "MOD",
+        ty: IRInfoType::REG_REG
+    });
     irinfo.insert(IRType::MOV, IRInfo {
         name: "MOV",
         ty: IRInfoType::REG_REG

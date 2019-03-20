@@ -124,6 +124,7 @@ pub enum TokenType {
     LOGAND,     // &&
     SHL,        // <<
     SHR,        // >>
+    MOD,        // %
     RETURN,     // "return"
     SIZEOF,     // "sizeof"
     ALIGNOF,    // "_Alignof"
@@ -329,7 +330,7 @@ pub fn tokenize(p: &String) -> Vec<Token> {
         }
 
         // Single-letter token
-        if "+-*/;=(),{}<>[]&.!?:|^".contains(c) {
+        if "+-*/;=(),{}<>[]&.!?:|^%".contains(c) {
             let ty = match c {
                 '+' => TokenType::ADD,
                 '-' => TokenType::SUB,
@@ -353,6 +354,7 @@ pub fn tokenize(p: &String) -> Vec<Token> {
                 '!' => TokenType::EXCLAM,
                 '?' => TokenType::QUEST,
                 '.' => TokenType::DOT,
+                '%' => TokenType::MOD,
                 _ => panic!(format!("unknown {}", c)),
             };
             let tok = Token {

@@ -161,6 +161,7 @@ pub enum NodeType {
     LOGOR,     // ||
     SHL,       // <<
     SHR,       // >>
+    MOD,       // %
     RETURN,    // "return"
     SIZEOF,    // "sizeof"
     ALIGNOF,   // "_Alignof"
@@ -535,6 +536,8 @@ fn mul(tokens: &Vec<Token>) -> Node {
             lhs = new_binop(NodeType::MUL, lhs, unary(tokens));
         } else if consume(TokenType::DIV, tokens) {
             lhs = new_binop(NodeType::DIV, lhs, unary(tokens));
+        } else if consume(TokenType::MOD, tokens) {
+            lhs = new_binop(NodeType::MOD, lhs, unary(tokens));
         } else {
             return lhs;
         }

@@ -313,6 +313,7 @@ fn walk<'a>(node: &'a mut Node, env: &'a mut Env, decay: bool) -> &'a Node {
         }
         NodeType::MUL |
             NodeType::DIV |
+            NodeType::MOD |
             NodeType::LT |
             NodeType::OR |
             NodeType::XOR |
