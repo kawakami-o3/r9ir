@@ -42,6 +42,13 @@ fn bump_pos() -> usize {
     return ret;
 }
 
+fn dump_pos() -> usize {
+    let mut pos = POS.lock().unwrap();
+    let ret = *pos;
+    *pos -= 1;
+    return ret;
+}
+
 lazy_static! {
     static ref POS: Mutex<usize> = Mutex::new(0);
     static ref ENV: Mutex<Env> = Mutex::new(new_env(None));
@@ -49,14 +56,45 @@ lazy_static! {
 
 #[derive(Clone)]
 struct Env {
+    typedefs: HashMap<String, Type>,
     tags: HashMap<String, Vec<Node>>,
     next: Option<Box<Env>>,
 }
 
 fn new_env(next: Option<Box<Env>>) -> Env {
     Env{
+        typedefs: HashMap::new(),
         tags: HashMap::new(),
         next: next,
+    }
+}
+
+fn env_typedef_get(key: & String) -> Option<Type> {
+    match ENV.lock() {
+        Ok(env) => {
+            match env.typedefs.get(key) {
+                Some(v) => {
+                    return Some(v.clone());
+                }
+                None => {
+                    return None;
+                }
+            }
+        }
+        Err(_) => {
+            panic!();
+        }
+    }
+}
+
+fn env_typedef_put(key: String, val: Type) {
+    match ENV.lock() {
+        Ok(mut env) => {
+            env.typedefs.insert(key, val);
+        }
+        Err(_) => {
+            panic!();
+        }
     }
 }
 
@@ -129,6 +167,7 @@ pub enum NodeType {
 pub enum CType {
     INT,
     CHAR,
+    VOID,
     PTR,
     ARY,
     STRUCT,
@@ -244,7 +283,7 @@ fn null_stmt() -> Node {
 fn expect(ty: TokenType, tokens: &Vec<Token>) {
     let t = &tokens[pos()];
     if t.ty != ty {
-        panic!(format!("{:?} expected, but got {:?} ", ty, t.ty));
+        panic!(format!("{:?} expected, but got {:?}", ty, t.ty));
     }
     bump_pos();
 }
@@ -255,6 +294,10 @@ fn new_prim_ty(ty: CType, size: i32) -> Type {
     ret.size = size;
     ret.align = size;
     return ret;
+}
+
+fn void_ty() -> Type {
+    return new_prim_ty(CType::VOID, 0);
 }
 
 fn char_ty() -> Type {
@@ -276,22 +319,35 @@ fn consume(ty: TokenType, tokens: &Vec<Token>) -> bool {
 
 fn is_typename(tokens: &Vec<Token>) -> bool {
     let t = &tokens[pos()];
-    return t.ty == TokenType::INT || t.ty == TokenType::CHAR || t.ty == TokenType::STRUCT;
+    if t.ty == TokenType::IDENT {
+        return env_typedef_get(&t.name).is_some();
+    }
+    return t.ty == TokenType::INT ||
+        t.ty == TokenType::CHAR ||
+        t.ty == TokenType::VOID ||
+        t.ty == TokenType::STRUCT;
 }
 
 fn read_type(tokens: &Vec<Token>) -> Option<Type> {
-    let t = &tokens[pos()];
+    let t = &tokens[bump_pos()];
     match t.ty {
+        TokenType::IDENT => {
+            let ty = env_typedef_get(&t.name);
+            if ty.is_none() {
+                dump_pos();
+            }
+            return ty;
+        }
         TokenType::INT => {
-            bump_pos();
             return Some(int_ty());
         }
         TokenType::CHAR => {
-            bump_pos();
             return Some(char_ty());
         }
+        TokenType::VOID => {
+            return Some(void_ty());
+        }
         TokenType::STRUCT => {
-            bump_pos();
 
             let mut tag: Option<String> = None;
             let t = &tokens[pos()];
@@ -328,6 +384,7 @@ fn read_type(tokens: &Vec<Token>) -> Option<Type> {
             return Some(struct_of(&mut members.unwrap()));
         }
         _ => {
+            dump_pos();
             return None;
         }
     }
@@ -527,7 +584,7 @@ fn logand(tokens: &Vec<Token>) -> Node {
             return lhs;
         }
         bump_pos();
-        lhs = new_binop(to_node_type(&t.ty), lhs, equality(tokens));
+        lhs = new_binop(NodeType::LOGAND, lhs, equality(tokens));
     }
 }
 
@@ -539,7 +596,7 @@ fn logor(tokens: &Vec<Token>) -> Node {
             return lhs;
         }
         bump_pos();
-        lhs = new_binop(to_node_type(&t.ty), lhs, logand(tokens));
+        lhs = new_binop(NodeType::LOGOR, lhs, logand(tokens));
     }
 }
 
@@ -593,6 +650,9 @@ fn decl(tokens: &Vec<Token>) -> Node {
 
     // Read the second half of type name (e.g. `[3][5]`).
     node.ty = read_array(&mut node.ty, tokens).clone();
+    if node.ty.ty == CType::VOID {
+        panic!("void variable: {}", node.name);
+    }
 
     // Read an initializer.
     if consume(TokenType::EQL, tokens) {
@@ -621,6 +681,13 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
     let t = &tokens[pos()];
 
     match t.ty {
+        TokenType::TYPEDEF => {
+            bump_pos();
+            let node = decl(tokens);
+            assert!(node.name.len()>0);
+            env_typedef_put(node.name, node.ty);
+            return null_stmt();
+        }
         TokenType::INT |
             TokenType::CHAR |
             TokenType::STRUCT => {
@@ -696,6 +763,9 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             return null_stmt();
         }
         _ => {
+            if is_typename(tokens) {
+                return decl(tokens);
+            }
             return expr_stmt(tokens);
         }
     }

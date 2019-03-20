@@ -28,6 +28,8 @@ fn init_symbols() {
     symbols.push(Symbol { name: "return", ty: TokenType::RETURN });
     symbols.push(Symbol { name: "sizeof", ty: TokenType::SIZEOF });
     symbols.push(Symbol { name: "struct", ty: TokenType::STRUCT });
+    symbols.push(Symbol { name: "typedef", ty: TokenType::TYPEDEF });
+    symbols.push(Symbol { name: "void", ty: TokenType::VOID });
     symbols.push(Symbol { name: "while", ty: TokenType::WHILE });
     symbols.push(Symbol { name: "!=", ty: TokenType::NE });
     symbols.push(Symbol { name: "&&", ty: TokenType::LOGAND });
@@ -93,10 +95,12 @@ pub enum TokenType {
     NUM,        // Number literal
     STR,        // String literal
     IDENT,      // Identifier
-    ARROW,     // "->"
+    ARROW,      // "->"
     EXTERN,     // "extern"
+    TYPEDEF,    // "typedef"
     INT,        // "int"
     CHAR,       // "char"
+    VOID,       // "void"
     STRUCT,     // "struct"
     IF,         // "if"
     ELSE,       // "else"

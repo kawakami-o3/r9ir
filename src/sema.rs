@@ -330,10 +330,15 @@ fn walk<'a>(node: &'a mut Node, env: &'a mut Env, decay: bool) -> &'a Node {
         }
         NodeType::DEREF => {
             node.expr = Some(Box::new(walk(&mut *node.expr.clone().unwrap(), env, true).clone()));
+
             match &mut node.expr {
                 Some(ref expr) => {
                     if expr.ty.ty != CType::PTR {
                         panic!("operand must be a pointer: {:?}", expr);
+                    }
+
+                    if expr.ty.ptr_to.clone().unwrap().ty == CType::VOID {
+                        panic!("operand dereference void pointer");
                     }
                 }
                 None => {}

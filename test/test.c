@@ -1,4 +1,4 @@
-extern int *stderr;
+extern void *stderr;
 
 #define EXPECT(expected, expr)                                  \
   do {                                                          \
@@ -139,6 +139,8 @@ int main() {
         x.a[0].c[1] = 5;
         return x.a[0].b + x.a[0].c[1];
         }));
+
+  EXPECT(3, ({ typedef int foo; foo x = 3; return x; }));
 
   printf("OK\n");
   return 0;
