@@ -342,7 +342,11 @@ fn walk<'a>(node: &'a mut Node, env: &'a mut Env, decay: bool) -> &'a Node {
             node.ty = node.rhs.clone().unwrap().ty;
             return node;
         }
-        NodeType::NEG |
+        NodeType::PRE_INC |
+            NodeType::PRE_DEC |
+            NodeType::POST_INC |
+            NodeType::POST_DEC |
+            NodeType::NEG |
             NodeType::EXCLAM => {
             node.expr = Some(Box::new(walk(&mut *node.expr.clone().unwrap(), env, true).clone()));
             node.ty = node.expr.clone().unwrap().ty;

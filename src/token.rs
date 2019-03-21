@@ -33,6 +33,8 @@ fn init_symbols() {
     symbols.push(Symbol { name: "while", ty: TokenType::WHILE });
     symbols.push(Symbol { name: "!=", ty: TokenType::NE });
     symbols.push(Symbol { name: "&&", ty: TokenType::LOGAND });
+    symbols.push(Symbol { name: "++", ty: TokenType::INC });
+    symbols.push(Symbol { name: "--", ty: TokenType::DEC });
     symbols.push(Symbol { name: "->", ty: TokenType::ARROW });
     symbols.push(Symbol { name: "<<", ty: TokenType::SHL });
     symbols.push(Symbol { name: "<=", ty: TokenType::LE });
@@ -95,6 +97,7 @@ pub enum TokenType {
     S_BRA,      // [
     S_KET,      // ]
     AMP,        // &
+    MOD,        // %
     EXCLAM,     // !
     QUEST,      // ?
     DOT,        // .
@@ -124,7 +127,8 @@ pub enum TokenType {
     LOGAND,     // &&
     SHL,        // <<
     SHR,        // >>
-    MOD,        // %
+    INC,        // ++
+    DEC,        // --
     RETURN,     // "return"
     SIZEOF,     // "sizeof"
     ALIGNOF,    // "_Alignof"

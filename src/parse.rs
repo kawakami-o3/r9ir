@@ -163,6 +163,10 @@ pub enum NodeType {
     SHR,       // >>
     MOD,       // %
     NEG,       // -
+    PRE_INC,   // pre ++
+    PRE_DEC,   // pre --
+    POST_INC,  // post ++
+    POST_DEC,  // post --
     RETURN,    // "return"
     SIZEOF,    // "sizeof"
     ALIGNOF,   // "_Alignof"
@@ -484,21 +488,25 @@ fn postfix(tokens: &Vec<Token>) -> Node {
     let mut lhs = primary(tokens);
 
     loop {
+        if consume(TokenType::INC, tokens) {
+            lhs = new_expr(NodeType::POST_INC, lhs);
+            continue;
+        }
+
+        if consume(TokenType::DEC, tokens) {
+            lhs = new_expr(NodeType::POST_DEC, lhs);
+            continue;
+        }
+
         if consume(TokenType::DOT, tokens) {
-            let mut node = alloc_node();
-            node.op = NodeType::DOT;
-            node.expr = Some(Box::new(lhs));
-            node.name = ident(tokens);
-            lhs = node;
+            lhs = new_expr(NodeType::DOT, lhs);
+            lhs.name = ident(tokens);
             continue;
         }
 
         if consume(TokenType::ARROW, tokens) {
-            let mut node = alloc_node();
-            node.op = NodeType::DOT;
-            node.expr = Some(Box::new(new_expr(NodeType::DEREF, lhs)));
-            node.name = ident(tokens);
-            lhs = node;
+            lhs = new_expr(NodeType::DOT, new_expr(NodeType::DEREF, lhs));
+            lhs.name = ident(tokens);
             continue;
         }
 
@@ -523,6 +531,12 @@ fn unary(tokens: &Vec<Token>) -> Node {
     }
     if consume(TokenType::EXCLAM, tokens) {
         return new_expr(NodeType::EXCLAM, unary(tokens));
+    }
+    if consume(TokenType::INC, tokens) {
+        return new_expr(NodeType::PRE_INC, unary(tokens));
+    }
+    if consume(TokenType::DEC, tokens) {
+        return new_expr(NodeType::PRE_DEC, unary(tokens));
     }
     if consume(TokenType::SIZEOF, tokens) {
         return new_expr(NodeType::SIZEOF, unary(tokens));

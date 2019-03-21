@@ -271,6 +271,32 @@ fn gen_binop(ty: IRType, node: Node) -> i32 {
     return r1;
 }
 
+fn gen_pre_inc(node: Node, num: i32) -> i32 {
+    let addr = gen_lval(*node.expr.clone().unwrap());
+    let val = bump_nreg();
+    add(load_insn(node.clone()), val, addr);
+    let imm = bump_nreg();
+    add(IRType::IMM, imm, num);
+    add(IRType::ADD, val, imm);
+    kill(imm);
+    add(store_insn(node), addr, val);
+    kill(addr);
+    return val;
+}
+
+fn gen_post_inc(node: Node, num: i32) -> i32 {
+    let addr = gen_lval(*node.expr.clone().unwrap());
+    let val = bump_nreg();
+    add(load_insn(node.clone()), val, addr);
+    let imm = bump_nreg();
+    add(IRType::IMM, imm, num);
+    add(IRType::ADD, val, imm);
+    kill(addr);
+    add(IRType::SUB, val, imm);
+    kill(imm);
+    return val;
+}
+
 fn gen_expr(node: Node) -> i32 {
     match node.op {
         NodeType::NUM => {
@@ -445,6 +471,10 @@ fn gen_expr(node: Node) -> i32 {
             kill(gen_expr(*node.lhs.unwrap()));
             return gen_expr(*node.rhs.unwrap());
         }
+        NodeType::PRE_INC => { return gen_pre_inc(node, 1); }
+        NodeType::PRE_DEC => { return gen_pre_inc(node, -1); }
+        NodeType::POST_INC => { return gen_post_inc(node, 1); }
+        NodeType::POST_DEC => { return gen_post_inc(node, -1); }
         NodeType::QUEST => {
             let x = bump_nlabel();
             let y = bump_nlabel();
