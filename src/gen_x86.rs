@@ -207,14 +207,8 @@ fn gen(fun: &IR) {
                     emit!("movzb {}, {}", regs[lhs], regs8[lhs]);
                 }
             }
-            IRType::STORE8 => {
-                emit!("mov [{}], {}", regs[lhs], regs8[rhs]);
-            }
-            IRType::STORE32 => {
-                emit!("mov [{}], {}", regs[lhs], regs32[rhs]);
-            }
-            IRType::STORE64 => {
-                emit!("mov [{}], {}", regs[lhs], regs[rhs]);
+            IRType::STORE => {
+                emit!("mov [{}], {}", regs[lhs], reg(rhs, ir.size));
             }
             IRType::STORE8_ARG => {
                 emit!("mov [rbp-{}], {}", lhs, argreg8[rhs]);

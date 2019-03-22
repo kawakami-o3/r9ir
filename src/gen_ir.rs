@@ -116,9 +116,7 @@ pub enum IRType {
     IF,
     UNLESS,
     LOAD,
-    STORE8,
-    STORE32,
-    STORE64,
+    STORE,
     STORE8_ARG,
     STORE32_ARG,
     STORE64_ARG,
@@ -218,8 +216,12 @@ fn load(node: & Node, dst: i32, src: i32) {
     ir.size = node.ty.size;
 }
 
-fn store_insn(node: & Node) -> IRType {
-    return choose_insn(node, IRType::STORE8, IRType::STORE32, IRType::STORE64);
+fn store(node: & Node, dst: i32, src: i32) {
+    let ir_idx = add(IRType::STORE, dst, src);
+
+    let mut code = CODE.lock().unwrap();
+    let ir = &mut code[ir_idx];
+    ir.size = node.ty.size;
 }
 
 fn store_arg_insn(node: & Node) -> IRType {
@@ -294,7 +296,7 @@ fn gen_pre_inc(node: & Node, num: i32) -> i32 {
     let val = bump_nreg();
     load(&node, val, addr);
     add(IRType::ADD_IMM, val, num * get_inc_scale(&node));
-    add(store_insn(&node), addr, val);
+    store(&node, addr, val);
     kill(addr);
     return val;
 }
@@ -422,7 +424,7 @@ fn gen_expr(node: Node) -> i32 {
         NodeType::EQL => {
             let rhs = gen_expr(*node.clone().rhs.unwrap());
             let lhs = gen_lval(*node.clone().lhs.unwrap());
-            add(store_insn(&node), lhs, rhs);
+            store(&node, lhs, rhs);
             kill(rhs);
             return lhs;
         }
@@ -528,7 +530,7 @@ fn gen_stmt(node: Node) {
             let rhs = gen_expr(*node.init.clone().unwrap());
             let lhs = bump_nreg();
             add(IRType::BPREL, lhs, node.offset);
-            add(store_insn(&node), lhs, rhs);
+            store(&node, lhs, rhs);
             kill(lhs);
             kill(rhs);
         }
