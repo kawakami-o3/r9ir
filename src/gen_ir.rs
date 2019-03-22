@@ -117,9 +117,7 @@ pub enum IRType {
     UNLESS,
     LOAD,
     STORE,
-    STORE8_ARG,
-    STORE32_ARG,
-    STORE64_ARG,
+    STORE_ARG,
     KILL,
     ADD,
     ADD_IMM,
@@ -199,15 +197,6 @@ fn jmp(x: i32) {
     add(IRType::JMP, x, -1);
 }
 
-fn choose_insn(node: & Node, op8: IRType, op32: IRType, op64: IRType) -> IRType {
-    match node.ty.size {
-        1 => op8,
-        4 => op32,
-        8 => op64,
-        _ => panic!(),
-    }
-}
-
 fn load(node: & Node, dst: i32, src: i32) {
     let ir_idx = add(IRType::LOAD, dst, src);
 
@@ -224,8 +213,12 @@ fn store(node: & Node, dst: i32, src: i32) {
     ir.size = node.ty.size;
 }
 
-fn store_arg_insn(node: & Node) -> IRType {
-    return choose_insn(node, IRType::STORE8_ARG, IRType::STORE32_ARG, IRType::STORE64_ARG);
+fn store_arg(node: & Node, bpoff: i32, argreg: i32) {
+    let ir_idx = add(IRType::STORE_ARG, bpoff, argreg);
+
+    let mut code = CODE.lock().unwrap();
+    let ir = &mut code[ir_idx];
+    ir.size = node.ty.size;
 }
 
 // In C, all expressions that can be written on the left-hand side of
@@ -644,7 +637,7 @@ pub fn gen_ir(nodes: Vec<Node>) -> Vec<IR> {
 
         for i in 0..node.args.len() {
             let arg = &node.args[i];
-            add(store_arg_insn(&arg), arg.offset, i as i32);
+            store_arg(&arg, arg.offset, i as i32);
         }
         gen_stmt(*node.body.unwrap());
 

@@ -106,6 +106,15 @@ fn reg(r: usize, size: i32) -> &'static str {
     }
 }
 
+fn argreg(r: usize, size: i32) -> &'static str {
+    match size {
+        1 => argreg8[r],
+        4 => argreg32[r],
+        8 => argreg64[r],
+        _ => panic!(),
+    }
+}
+
 fn gen(fun: &IR) {
     let ret = format!(".Lend{}", bump_nlabel());
 
@@ -210,14 +219,8 @@ fn gen(fun: &IR) {
             IRType::STORE => {
                 emit!("mov [{}], {}", regs[lhs], reg(rhs, ir.size));
             }
-            IRType::STORE8_ARG => {
-                emit!("mov [rbp-{}], {}", lhs, argreg8[rhs]);
-            }
-            IRType::STORE32_ARG => {
-                emit!("mov [rbp-{}], {}", lhs, argreg32[rhs]);
-            }
-            IRType::STORE64_ARG => {
-                emit!("mov [rbp-{}], {}", lhs, argreg64[rhs]);
+            IRType::STORE_ARG => {
+                emit!("mov [rbp-{}], {}", lhs, argreg(rhs, ir.size));
             }
             IRType::ADD => {
                 emit!("add {}, {}", regs[lhs], regs[rhs]);

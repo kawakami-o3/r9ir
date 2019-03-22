@@ -19,7 +19,7 @@ pub enum IRInfoType {
     LABEL_ADDR,
     REG_REG,
     REG_IMM,
-    IMM_IMM,
+    STORE_ARG,
     REG_LABEL,
     CALL,
     NULL,
@@ -64,9 +64,7 @@ fn init_irinfo() {
     irinfo.insert(IRType::NOP, IRInfo { name: "NOP", ty: IRInfoType::NOARG });
     irinfo.insert(IRType::RETURN, IRInfo { name: "RET", ty: IRInfoType::REG });
     irinfo.insert(IRType::STORE, IRInfo { name: "STORE", ty: IRInfoType::REG_REG });
-    irinfo.insert(IRType::STORE8_ARG, IRInfo { name: "STORE8_ARG", ty: IRInfoType::IMM_IMM });
-    irinfo.insert(IRType::STORE32_ARG, IRInfo { name: "STORE32_ARG", ty: IRInfoType::IMM_IMM });
-    irinfo.insert(IRType::STORE64_ARG, IRInfo { name: "STORE64_ARG", ty: IRInfoType::IMM_IMM });
+    irinfo.insert(IRType::STORE_ARG, IRInfo { name: "STORE_ARG", ty: IRInfoType::STORE_ARG });
     irinfo.insert(IRType::SUB, IRInfo { name: "SUB", ty: IRInfoType::REG_REG });
     irinfo.insert(IRType::SUB_IMM, IRInfo { name: "SUB", ty: IRInfoType::REG_IMM });
     irinfo.insert(IRType::BPREL, IRInfo { name: "BPREL", ty: IRInfoType::REG_IMM });
@@ -106,7 +104,7 @@ pub fn tostr(ir: IR) -> String {
         IRInfoType::REG_REG => format!("  {} r{}, r{}", info.name, ir.lhs, ir.rhs),
         IRInfoType::MEM => format!("  {}{} r{}, r{}", info.name, ir.size, ir.lhs, ir.rhs),
         IRInfoType::REG_IMM => format!("  {} r{}, {}", info.name, ir.lhs, ir.rhs),
-        IRInfoType::IMM_IMM => format!("  {} {}, {}", info.name, ir.lhs, ir.rhs),
+        IRInfoType::STORE_ARG => format!("  {}{} {}, {}", info.name, ir.size, ir.lhs, ir.rhs),
         IRInfoType::REG_LABEL => format!("  {} r{}, .L{}", info.name, ir.lhs, ir.rhs),
         IRInfoType::CALL => {
             let mut s = String::new();
