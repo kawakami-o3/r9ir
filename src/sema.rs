@@ -197,9 +197,7 @@ fn maybe_decay(base: & mut Node, decay: bool) -> & mut Node {
 
 fn check_lval(node: & Node) {
     match node.op {
-        NodeType::LVAR | NodeType::GVAR | NodeType::DEREF | NodeType::DOT => {
-            return;
-        }
+        NodeType::LVAR | NodeType::GVAR | NodeType::DEREF | NodeType::DOT => { }
         _ => {
             panic!("not an lvalue: {:?} ({})", node.op, node.name);
         }
@@ -208,7 +206,8 @@ fn check_lval(node: & Node) {
 
 fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
     match node.op {
-        NodeType::NUM => {
+        NodeType::NUM |
+            NodeType::NULL => {
             return node;
         }
         NodeType::STR => {
@@ -462,9 +461,6 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
         NodeType::STMT_EXPR => {
             node.body = Some(Box::new(walk(&mut *node.body.clone().unwrap(), true).clone()));
             node.ty = int_ty();
-            return node;
-        }
-        NodeType::NULL => {
             return node;
         }
         _ => {
