@@ -192,7 +192,7 @@ fn label(x: i32) {
     add(IRType::LABEL, x, -1);
 }
 
-fn choose_insn(node: Node, op8: IRType, op32: IRType, op64: IRType) -> IRType {
+fn choose_insn(node: & Node, op8: IRType, op32: IRType, op64: IRType) -> IRType {
     match node.ty.size {
         1 => op8,
         4 => op32,
@@ -201,15 +201,15 @@ fn choose_insn(node: Node, op8: IRType, op32: IRType, op64: IRType) -> IRType {
     }
 }
 
-fn load_insn(node: Node) -> IRType {
+fn load_insn(node: & Node) -> IRType {
     return choose_insn(node, IRType::LOAD8, IRType::LOAD32, IRType::LOAD64);
 }
 
-fn store_insn(node: Node) -> IRType {
+fn store_insn(node: & Node) -> IRType {
     return choose_insn(node, IRType::STORE8, IRType::STORE32, IRType::STORE64);
 }
 
-fn store_arg_insn(node: Node) -> IRType {
+fn store_arg_insn(node: & Node) -> IRType {
     return choose_insn(node, IRType::STORE8_ARG, IRType::STORE32_ARG, IRType::STORE64_ARG);
 }
 
@@ -269,19 +269,26 @@ fn gen_binop(ty: IRType, node: Node) -> i32 {
     return r1;
 }
 
-fn gen_pre_inc(node: Node, num: i32) -> i32 {
+fn get_inc_scale(node: & Node) -> i32 {
+    if node.ty.ty == CType::PTR {
+        return node.ty.ptr_to.clone().unwrap().size;
+    }
+    return 1;
+}
+
+fn gen_pre_inc(node: & Node, num: i32) -> i32 {
     let addr = gen_lval(*node.expr.clone().unwrap());
     let val = bump_nreg();
-    add(load_insn(node.clone()), val, addr);
-    add(IRType::ADD_IMM, val, num);
-    add(store_insn(node), addr, val);
+    add(load_insn(&node), val, addr);
+    add(IRType::ADD_IMM, val, num * get_inc_scale(&node));
+    add(store_insn(&node), addr, val);
     kill(addr);
     return val;
 }
 
-fn gen_post_inc(node: Node, num: i32) -> i32 {
-    let val = gen_pre_inc(node, num);
-    add(IRType::SUB_IMM, val, num);
+fn gen_post_inc(node: & Node, num: i32) -> i32 {
+    let val = gen_pre_inc(&node, num);
+    add(IRType::SUB_IMM, val, num * get_inc_scale(&node));
     return val;
 }
 
@@ -338,7 +345,7 @@ fn gen_expr(node: Node) -> i32 {
             NodeType::LVAR |
             NodeType::DOT => {
             let r = gen_lval(node.clone());
-            add(load_insn(node), r, r);
+            add(load_insn(&node), r, r);
             return r;
         }
 
@@ -380,7 +387,7 @@ fn gen_expr(node: Node) -> i32 {
 
         NodeType::DEREF => {
             let r = gen_expr(*node.clone().expr.unwrap());
-            add(load_insn(node), r, r);
+            add(load_insn(&node), r, r);
             return r;
         }
 
@@ -402,7 +409,7 @@ fn gen_expr(node: Node) -> i32 {
         NodeType::EQL => {
             let rhs = gen_expr(*node.clone().rhs.unwrap());
             let lhs = gen_lval(*node.clone().lhs.unwrap());
-            add(store_insn(node), lhs, rhs);
+            add(store_insn(&node), lhs, rhs);
             kill(rhs);
             return lhs;
         }
@@ -458,10 +465,10 @@ fn gen_expr(node: Node) -> i32 {
             kill(gen_expr(*node.lhs.unwrap()));
             return gen_expr(*node.rhs.unwrap());
         }
-        NodeType::PRE_INC => { return gen_pre_inc(node, 1); }
-        NodeType::PRE_DEC => { return gen_pre_inc(node, -1); }
-        NodeType::POST_INC => { return gen_post_inc(node, 1); }
-        NodeType::POST_DEC => { return gen_post_inc(node, -1); }
+        NodeType::PRE_INC => { return gen_pre_inc(&node, 1); }
+        NodeType::PRE_DEC => { return gen_pre_inc(&node, -1); }
+        NodeType::POST_INC => { return gen_post_inc(&node, 1); }
+        NodeType::POST_DEC => { return gen_post_inc(&node, -1); }
         NodeType::QUEST => {
             let x = bump_nlabel();
             let y = bump_nlabel();
@@ -508,7 +515,7 @@ fn gen_stmt(node: Node) {
             let rhs = gen_expr(*node.init.clone().unwrap());
             let lhs = bump_nreg();
             add(IRType::BPREL, lhs, node.offset);
-            add(store_insn(node), lhs, rhs);
+            add(store_insn(&node), lhs, rhs);
             kill(lhs);
             kill(rhs);
         }
@@ -622,7 +629,7 @@ pub fn gen_ir(nodes: Vec<Node>) -> Vec<IR> {
 
         for i in 0..node.args.len() {
             let arg = &node.args[i];
-            add(store_arg_insn(arg.clone()), arg.offset, i as i32);
+            add(store_arg_insn(&arg), arg.offset, i as i32);
         }
         gen_stmt(*node.body.unwrap());
 
