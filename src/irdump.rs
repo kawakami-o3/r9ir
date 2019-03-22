@@ -11,6 +11,7 @@ lazy_static! {
 #[derive(Clone, Debug)]
 pub enum IRInfoType {
     NOARG,
+    BINARY,
     REG,
     IMM,
     MEM,
@@ -37,8 +38,7 @@ fn init_irinfo() {
         return;
     }
 
-    irinfo.insert(IRType::ADD, IRInfo { name: "ADD", ty: IRInfoType::REG_REG });
-    irinfo.insert(IRType::ADD_IMM, IRInfo { name: "ADD", ty: IRInfoType::REG_IMM });
+    irinfo.insert(IRType::ADD, IRInfo { name: "ADD", ty: IRInfoType::BINARY });
     irinfo.insert(IRType::CALL, IRInfo { name: "CALL", ty: IRInfoType::CALL });
     irinfo.insert(IRType::DIV, IRInfo { name: "DIV", ty: IRInfoType::REG_REG });
     irinfo.insert(IRType::IMM, IRInfo { name: "IMM", ty: IRInfoType::REG_IMM });
@@ -59,14 +59,12 @@ fn init_irinfo() {
     irinfo.insert(IRType::MOD, IRInfo { name: "MOD", ty: IRInfoType::REG_REG });
     irinfo.insert(IRType::NEG, IRInfo { name: "NEG", ty: IRInfoType::REG });
     irinfo.insert(IRType::MOV, IRInfo { name: "MOV", ty: IRInfoType::REG_REG });
-    irinfo.insert(IRType::MUL, IRInfo { name: "MUL", ty: IRInfoType::REG_REG });
-    irinfo.insert(IRType::MUL_IMM, IRInfo { name: "MUL", ty: IRInfoType::REG_IMM });
+    irinfo.insert(IRType::MUL, IRInfo { name: "MUL", ty: IRInfoType::BINARY });
     irinfo.insert(IRType::NOP, IRInfo { name: "NOP", ty: IRInfoType::NOARG });
     irinfo.insert(IRType::RETURN, IRInfo { name: "RET", ty: IRInfoType::REG });
     irinfo.insert(IRType::STORE, IRInfo { name: "STORE", ty: IRInfoType::REG_REG });
     irinfo.insert(IRType::STORE_ARG, IRInfo { name: "STORE_ARG", ty: IRInfoType::STORE_ARG });
-    irinfo.insert(IRType::SUB, IRInfo { name: "SUB", ty: IRInfoType::REG_REG });
-    irinfo.insert(IRType::SUB_IMM, IRInfo { name: "SUB", ty: IRInfoType::REG_IMM });
+    irinfo.insert(IRType::SUB, IRInfo { name: "SUB", ty: IRInfoType::BINARY });
     irinfo.insert(IRType::BPREL, IRInfo { name: "BPREL", ty: IRInfoType::REG_IMM });
     irinfo.insert(IRType::IF, IRInfo { name: "IF", ty: IRInfoType::REG_LABEL });
     irinfo.insert(IRType::UNLESS, IRInfo { name: "UNLESS", ty: IRInfoType::REG_LABEL });
@@ -96,6 +94,11 @@ pub fn tostr(ir: IR) -> String {
     let info = irinfo.get(&ir.op).unwrap();
 
     match info.ty {
+        IRInfoType::BINARY => if ir.is_imm {
+            format!("  {} r{}, {}", info.name, ir.lhs, ir.rhs)
+        }else {
+            format!("  {} r{}, r{}", info.name, ir.lhs, ir.rhs)
+        },
         IRInfoType::LABEL => format!(".L{}:", ir.lhs),
         IRInfoType::LABEL_ADDR => format!("  {} r{}, {}", info.name, ir.lhs, ir.name),
         IRInfoType::IMM => format!("  {} {}", ir.name, ir.lhs),

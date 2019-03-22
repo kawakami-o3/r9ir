@@ -84,6 +84,12 @@ fn visit(irv: &mut Vec<IR>) {
         let mut ir = &mut irv[i];
 
         match irinfo_get(&ir.op).unwrap().ty {
+            IRInfoType::BINARY => {
+                ir.lhs = alloc(ir.lhs);
+                if !ir.is_imm {
+                    ir.rhs = alloc(ir.rhs);
+                }
+            }
             IRInfoType::REG |
                 IRInfoType::REG_IMM |
                 IRInfoType::REG_LABEL |

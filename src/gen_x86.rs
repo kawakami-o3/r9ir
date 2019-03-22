@@ -223,30 +223,36 @@ fn gen(fun: &IR) {
                 emit!("mov [rbp-{}], {}", lhs, argreg(rhs, ir.size));
             }
             IRType::ADD => {
-                emit!("add {}, {}", regs[lhs], regs[rhs]);
-            }
-            IRType::ADD_IMM => {
-                emit!("add {}, {}", regs[lhs], rhs);
+                if ir.is_imm {
+                    emit!("add {}, {}", regs[lhs], rhs);
+                } else {
+                    emit!("add {}, {}", regs[lhs], regs[rhs]);
+                }
             }
             IRType::SUB => {
-                emit!("sub {}, {}", regs[lhs], regs[rhs]);
-            }
-            IRType::SUB_IMM => {
-                emit!("sub {}, {}", regs[lhs], rhs);
-            }
-            IRType::MUL => {
-                emit!("mov rax, {}", regs[rhs]);
-                emit!("mul {}", regs[lhs]);
-                emit!("mov {}, rax", regs[lhs]);
-            }
-            IRType::MUL_IMM => {
-                if rhs < 256 && rhs.count_ones() == 1 {
-                    emit!("shl {}, {}", regs[lhs], rhs.trailing_zeros());
+                if ir.is_imm {
+                    emit!("sub {}, {}", regs[lhs], rhs);
                 } else {
-                    emit!("mov rax, {}", rhs);
+                    emit!("sub {}, {}", regs[lhs], regs[rhs]);
+                }
+            }
+            IRType::MUL => loop {
+                if !ir.is_imm {
+                    emit!("mov rax, {}", regs[rhs]);
                     emit!("mul {}", regs[lhs]);
                     emit!("mov {}, rax", regs[lhs]);
+                    break;
                 }
+
+                if rhs < 256 && rhs.count_ones() == 1 {
+                    emit!("shl {}, {}", regs[lhs], rhs.trailing_zeros());
+                    break;
+                }
+
+                emit!("mov rax, {}", rhs);
+                emit!("mul {}", regs[lhs]);
+                emit!("mov {}, rax", regs[lhs]);
+                break;
             }
             IRType::DIV => {
                 emit!("mov rax, {}", regs[lhs]);

@@ -120,11 +120,8 @@ pub enum IRType {
     STORE_ARG,
     KILL,
     ADD,
-    ADD_IMM,
     SUB,
-    SUB_IMM,
     MUL,
-    MUL_IMM,
     DIV,
     NOP,
     NULL,
@@ -138,6 +135,9 @@ pub struct IR {
 
     // Load/store size in bytes
     pub size: i32,
+
+    // For binary operator. If true, rhs is an immediate.
+    pub is_imm: bool,
 
     // Function call
     pub name: String,
@@ -157,6 +157,8 @@ fn alloc_ir() -> IR {
         rhs: 0,
 
         size: 0,
+
+        is_imm: false,
 
         name: String::new(),
         nargs: 0,
@@ -183,6 +185,16 @@ fn add(op: IRType, lhs: i32, rhs: i32) -> usize {
             panic!();
         }
     }
+}
+
+fn add_imm(op: IRType, lhs: i32, rhs: i32) -> usize {
+    let ir_idx = add(op, lhs, rhs);
+
+    let mut code = CODE.lock().unwrap();
+    let ir = &mut code[ir_idx];
+    ir.is_imm = true;
+
+    return ir_idx;
 }
 
 fn kill(r: i32) {
@@ -245,7 +257,7 @@ fn gen_lval(node: Node) -> i32 {
 
     if node.op == NodeType::DOT {
         let r = gen_lval(*node.expr.unwrap());
-        add(IRType::ADD_IMM, r, node.offset);
+        add_imm(IRType::ADD, r, node.offset);
         return r;
     }
 
@@ -288,7 +300,7 @@ fn gen_pre_inc(node: & Node, num: i32) -> i32 {
     let addr = gen_lval(*node.expr.clone().unwrap());
     let val = bump_nreg();
     load(&node, val, addr);
-    add(IRType::ADD_IMM, val, num * get_inc_scale(&node));
+    add_imm(IRType::ADD, val, num * get_inc_scale(&node));
     store(&node, addr, val);
     kill(addr);
     return val;
@@ -296,7 +308,7 @@ fn gen_pre_inc(node: & Node, num: i32) -> i32 {
 
 fn gen_post_inc(node: & Node, num: i32) -> i32 {
     let val = gen_pre_inc(&node, num);
-    add(IRType::SUB_IMM, val, num * get_inc_scale(&node));
+    add_imm(IRType::SUB, val, num * get_inc_scale(&node));
     return val;
 }
 
@@ -441,7 +453,7 @@ fn gen_expr(node: Node) -> i32 {
             let rhs = gen_expr(*node.rhs.unwrap());
             match node.lhs {
                 Some(ref lhs) => {
-                    add(IRType::MUL_IMM, rhs, lhs.ty.ptr_to.clone().unwrap().size);
+                    add_imm(IRType::MUL, rhs, lhs.ty.ptr_to.clone().unwrap().size);
                 }
                 None => {
                     panic!();
