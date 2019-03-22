@@ -204,9 +204,6 @@ fn gen(fun: &IR) {
             }
             IRType::STORE8 => {
                 emit!("mov [{}], {}", regs[lhs], regs8[rhs]);
-
-                // fall through in 9cc
-                emit!("mov [{}], {}", regs[lhs], regs32[rhs]);
             }
             IRType::STORE32 => {
                 emit!("mov [{}], {}", regs[lhs], regs32[rhs]);
@@ -241,9 +238,13 @@ fn gen(fun: &IR) {
                 emit!("mov {}, rax", regs[lhs]);
             }
             IRType::MUL_IMM => {
-                emit!("mov rax, {}", rhs);
-                emit!("mul {}", regs[lhs]);
-                emit!("mov {}, rax", regs[lhs]);
+                if rhs < 256 && rhs.count_ones() == 1 {
+                    emit!("shl {}, {}", regs[lhs], rhs.trailing_zeros());
+                } else {
+                    emit!("mov rax, {}", rhs);
+                    emit!("mul {}", regs[lhs]);
+                    emit!("mov {}, rax", regs[lhs]);
+                }
             }
             IRType::DIV => {
                 emit!("mov rax, {}", regs[lhs]);
