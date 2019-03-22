@@ -11,23 +11,11 @@
 // Such infinite number of registers are mapped to a finite registers
 // in a later pass.
 
-#![allow(dead_code, non_camel_case_types)]
+#![allow(non_camel_case_types)]
 
 use crate::parse::*;
 use crate::sema::*;
 use std::sync::Mutex;
-
-fn to_ir_type(node_type: &NodeType) -> IRType {
-    match node_type {
-        NodeType::ADD => IRType::ADD,
-        NodeType::SUB => IRType::SUB,
-        NodeType::MUL => IRType::MUL,
-        NodeType::DIV => IRType::DIV,
-        _ => {
-            panic!(format!("unknown NodeType {:?}", node_type));
-        }
-    }
-}
 
 lazy_static! {
     static ref CODE: Mutex<Vec<IR>> = Mutex::new(Vec::new());
@@ -39,9 +27,9 @@ lazy_static! {
     static ref RETURN_REG: Mutex<i32> = Mutex::new(0);
 }
 
-fn nlabel() -> i32 {
-    *NLABEL.lock().unwrap()
-}
+//fn nlabel() -> i32 {
+//    *NLABEL.lock().unwrap()
+//}
 
 fn bump_nlabel() -> i32 {
     let mut nlabel = NLABEL.lock().unwrap();
@@ -50,14 +38,14 @@ fn bump_nlabel() -> i32 {
     return ret;
 }
 
-fn set_nlabel(i: i32) {
-    let mut nlabel = NLABEL.lock().unwrap();
-    *nlabel = i;
-}
+//fn set_nlabel(i: i32) {
+//    let mut nlabel = NLABEL.lock().unwrap();
+//    *nlabel = i;
+//}
 
-fn nreg() -> i32 {
-    *NREG.lock().unwrap()
-}
+//fn nreg() -> i32 {
+//    *NREG.lock().unwrap()
+//}
 
 fn bump_nreg() -> i32 {
     let mut nreg = NREG.lock().unwrap();
@@ -66,10 +54,10 @@ fn bump_nreg() -> i32 {
     return ret;
 }
 
-fn set_nreg(i: i32) {
-    let mut nreg = NREG.lock().unwrap();
-    *nreg = i;
-}
+//fn set_nreg(i: i32) {
+//    let mut nreg = NREG.lock().unwrap();
+//    *nreg = i;
+//}
 
 fn return_label() -> i32 {
     *RETURN_LABEL.lock().unwrap()
@@ -128,8 +116,11 @@ pub enum IRType {
     STORE64_ARG,
     KILL,
     ADD,
+    ADD_IMM,
     SUB,
+    SUB_IMM,
     MUL,
+    MUL_IMM,
     DIV,
     NOP,
     NULL,
@@ -235,12 +226,9 @@ fn gen_lval(node: Node) -> i32 {
     }
 
     if node.op == NodeType::DOT {
-        let r1 = gen_lval(*node.expr.unwrap());
-        let r2 = bump_nreg();
-        add(IRType::IMM, r2, node.offset);
-        add(IRType::ADD, r1, r2);
-        kill(r2);
-        return r1;
+        let r = gen_lval(*node.expr.unwrap());
+        add(IRType::ADD_IMM, r, node.offset);
+        return r;
     }
 
     if node.op == NodeType::LVAR {
@@ -275,25 +263,15 @@ fn gen_pre_inc(node: Node, num: i32) -> i32 {
     let addr = gen_lval(*node.expr.clone().unwrap());
     let val = bump_nreg();
     add(load_insn(node.clone()), val, addr);
-    let imm = bump_nreg();
-    add(IRType::IMM, imm, num);
-    add(IRType::ADD, val, imm);
-    kill(imm);
+    add(IRType::ADD_IMM, val, num);
     add(store_insn(node), addr, val);
     kill(addr);
     return val;
 }
 
 fn gen_post_inc(node: Node, num: i32) -> i32 {
-    let addr = gen_lval(*node.expr.clone().unwrap());
-    let val = bump_nreg();
-    add(load_insn(node.clone()), val, addr);
-    let imm = bump_nreg();
-    add(IRType::IMM, imm, num);
-    add(IRType::ADD, val, imm);
-    kill(addr);
-    add(IRType::SUB, val, imm);
-    kill(imm);
+    let val = gen_pre_inc(node, num);
+    add(IRType::SUB_IMM, val, num);
     return val;
 }
 
@@ -436,15 +414,14 @@ fn gen_expr(node: Node) -> i32 {
             }
 
             let rhs = gen_expr(*node.rhs.unwrap());
-            let r = bump_nreg();
             match node.lhs {
                 Some(ref lhs) => {
-                    add(IRType::IMM, r, lhs.ty.ptr_to.clone().unwrap().size);
+                    add(IRType::MUL_IMM, rhs, lhs.ty.ptr_to.clone().unwrap().size);
                 }
-                None => {}
+                None => {
+                    panic!();
+                }
             }
-            add(IRType::MUL, rhs, r);
-            kill(r);
 
             let lhs = gen_expr(*node.lhs.unwrap());
             add(insn, lhs, rhs);

@@ -229,11 +229,22 @@ fn gen(fun: &IR) {
             IRType::ADD => {
                 println!("  add {}, {}", regs[ir.lhs as usize], regs[ir.rhs as usize]);
             }
+            IRType::ADD_IMM => {
+                println!("  add {}, {}", regs[ir.lhs as usize], ir.rhs);
+            }
             IRType::SUB => {
                 println!("  sub {}, {}", regs[ir.lhs as usize], regs[ir.rhs as usize]);
             }
+            IRType::SUB_IMM => {
+                println!("  sub {}, {}", regs[ir.lhs as usize], ir.rhs);
+            }
             IRType::MUL => {
                 println!("  mov rax, {}", regs[ir.rhs as usize]);
+                println!("  mul {}", regs[ir.lhs as usize]);
+                println!("  mov {}, rax", regs[ir.lhs as usize]);
+            }
+            IRType::MUL_IMM => {
+                println!("  mov rax, {}", ir.rhs);
                 println!("  mul {}", regs[ir.lhs as usize]);
                 println!("  mov {}, rax", regs[ir.lhs as usize]);
             }

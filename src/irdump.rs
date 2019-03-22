@@ -1,4 +1,4 @@
-#![allow(dead_code, non_camel_case_types)]
+#![allow(non_camel_case_types)]
 
 use crate::gen_ir::*;
 use std::collections::HashMap;
@@ -12,7 +12,7 @@ lazy_static! {
 pub enum IRInfoType {
     NOARG,
     REG,
-    IMM,
+    //IMM,
     JMP,
     LABEL,
     LABEL_ADDR,
@@ -36,154 +36,46 @@ fn init_irinfo() {
         return;
     }
 
-    irinfo.insert(IRType::ADD, IRInfo {
-        name: "ADD",
-        ty: IRInfoType::REG_REG
-    });
-    irinfo.insert(IRType::CALL, IRInfo {
-        name: "CALL",
-        ty: IRInfoType::CALL
-    });
-    irinfo.insert(IRType::DIV, IRInfo {
-        name: "DIV",
-        ty: IRInfoType::REG_REG
-    });
-    irinfo.insert(IRType::IMM, IRInfo {
-        name: "IMM",
-        ty: IRInfoType::REG_IMM
-    });
-    irinfo.insert(IRType::JMP, IRInfo {
-        name: "JMP",
-        ty: IRInfoType::JMP
-    });
-    irinfo.insert(IRType::KILL, IRInfo {
-        name: "KILL",
-        ty: IRInfoType::REG
-    });
-    irinfo.insert(IRType::LABEL, IRInfo {
-        name: "",
-        ty: IRInfoType::LABEL
-    });
-    irinfo.insert(IRType::LABEL_ADDR, IRInfo {
-        name: "LABEL_ADDR",
-        ty: IRInfoType::LABEL_ADDR
-    });
-    irinfo.insert(IRType::EQ, IRInfo {
-        name: "EQ",
-        ty: IRInfoType::REG_REG
-    });
-    irinfo.insert(IRType::NE, IRInfo {
-        name: "NE",
-        ty: IRInfoType::REG_REG
-    });
-    irinfo.insert(IRType::LE, IRInfo {
-        name: "LE",
-        ty: IRInfoType::REG_REG
-    });
-    irinfo.insert(IRType::LT, IRInfo {
-        name: "LT",
-        ty: IRInfoType::REG_REG
-    });
-    irinfo.insert(IRType::AND, IRInfo {
-        name: "AND",
-        ty: IRInfoType::REG_REG
-    });
-    irinfo.insert(IRType::OR, IRInfo {
-        name: "OR",
-        ty: IRInfoType::REG_REG
-    });
-    irinfo.insert(IRType::XOR, IRInfo {
-        name: "XOR",
-        ty: IRInfoType::REG_REG
-    });
-    irinfo.insert(IRType::SHL, IRInfo {
-        name: "SHL",
-        ty: IRInfoType::REG_REG
-    });
-    irinfo.insert(IRType::SHR, IRInfo {
-        name: "SHR",
-        ty: IRInfoType::REG_REG
-    });
-    irinfo.insert(IRType::LOAD8, IRInfo {
-        name: "LOAD8",
-        ty: IRInfoType::REG_REG
-    });
-    irinfo.insert(IRType::LOAD32, IRInfo {
-        name: "LOAD32",
-        ty: IRInfoType::REG_REG
-    });
-    irinfo.insert(IRType::LOAD64, IRInfo {
-        name: "LOAD64",
-        ty: IRInfoType::REG_REG
-    });
-    irinfo.insert(IRType::MOD, IRInfo {
-        name: "MOD",
-        ty: IRInfoType::REG_REG
-    });
-    irinfo.insert(IRType::NEG, IRInfo {
-        name: "NEG",
-        ty: IRInfoType::REG
-    });
-    irinfo.insert(IRType::MOV, IRInfo {
-        name: "MOV",
-        ty: IRInfoType::REG_REG
-    });
-    irinfo.insert(IRType::MUL, IRInfo {
-        name: "MUL",
-        ty: IRInfoType::REG_REG
-    });
-    irinfo.insert(IRType::NOP, IRInfo {
-        name: "NOP",
-        ty: IRInfoType::NOARG
-    });
-    irinfo.insert(IRType::RETURN, IRInfo {
-        name: "RET",
-        ty: IRInfoType::REG
-    });
-    irinfo.insert(IRType::STORE8, IRInfo {
-        name: "STORE8",
-        ty: IRInfoType::REG_REG
-    });
-    irinfo.insert(IRType::STORE32, IRInfo {
-        name: "STORE32",
-        ty: IRInfoType::REG_REG
-    });
-    irinfo.insert(IRType::STORE64, IRInfo {
-        name: "STORE64",
-        ty: IRInfoType::REG_REG
-    });
-    irinfo.insert(IRType::STORE8_ARG, IRInfo {
-        name: "STORE8_ARG",
-        ty: IRInfoType::IMM_IMM
-    });
-    irinfo.insert(IRType::STORE32_ARG, IRInfo {
-        name: "STORE32_ARG",
-        ty: IRInfoType::IMM_IMM
-    });
-    irinfo.insert(IRType::STORE64_ARG, IRInfo {
-        name: "STORE64_ARG",
-        ty: IRInfoType::IMM_IMM
-    });
-    irinfo.insert(IRType::SUB, IRInfo {
-        name: "SUB",
-        ty: IRInfoType::REG_REG
-    });
-    irinfo.insert(IRType::BPREL, IRInfo {
-        name: "BPREL",
-        ty: IRInfoType::REG_IMM
-    });
-    irinfo.insert(IRType::IF, IRInfo {
-        name: "IF",
-        ty: IRInfoType::REG_LABEL
-    });
-    irinfo.insert(IRType::UNLESS, IRInfo {
-        name: "UNLESS",
-        ty: IRInfoType::REG_LABEL
-    });
-    irinfo.insert(IRType::NULL, IRInfo {
-        name: "",
-        ty: IRInfoType::NULL
-    });
+    irinfo.insert(IRType::ADD, IRInfo { name: "ADD", ty: IRInfoType::REG_REG });
+    irinfo.insert(IRType::ADD_IMM, IRInfo { name: "ADD", ty: IRInfoType::REG_IMM });
+    irinfo.insert(IRType::CALL, IRInfo { name: "CALL", ty: IRInfoType::CALL });
+    irinfo.insert(IRType::DIV, IRInfo { name: "DIV", ty: IRInfoType::REG_REG });
+    irinfo.insert(IRType::IMM, IRInfo { name: "IMM", ty: IRInfoType::REG_IMM });
+    irinfo.insert(IRType::JMP, IRInfo { name: "JMP", ty: IRInfoType::JMP });
+    irinfo.insert(IRType::KILL, IRInfo { name: "KILL", ty: IRInfoType::REG });
+    irinfo.insert(IRType::LABEL, IRInfo { name: "", ty: IRInfoType::LABEL });
+    irinfo.insert(IRType::LABEL_ADDR, IRInfo { name: "LABEL_ADDR", ty: IRInfoType::LABEL_ADDR });
+    irinfo.insert(IRType::EQ, IRInfo { name: "EQ", ty: IRInfoType::REG_REG });
+    irinfo.insert(IRType::NE, IRInfo { name: "NE", ty: IRInfoType::REG_REG });
+    irinfo.insert(IRType::LE, IRInfo { name: "LE", ty: IRInfoType::REG_REG });
+    irinfo.insert(IRType::LT, IRInfo { name: "LT", ty: IRInfoType::REG_REG });
+    irinfo.insert(IRType::AND, IRInfo { name: "AND", ty: IRInfoType::REG_REG });
+    irinfo.insert(IRType::OR, IRInfo { name: "OR", ty: IRInfoType::REG_REG });
+    irinfo.insert(IRType::XOR, IRInfo { name: "XOR", ty: IRInfoType::REG_REG });
+    irinfo.insert(IRType::SHL, IRInfo { name: "SHL", ty: IRInfoType::REG_REG });
+    irinfo.insert(IRType::SHR, IRInfo { name: "SHR", ty: IRInfoType::REG_REG });
+    irinfo.insert(IRType::LOAD8, IRInfo { name: "LOAD8", ty: IRInfoType::REG_REG });
+    irinfo.insert(IRType::LOAD32, IRInfo { name: "LOAD32", ty: IRInfoType::REG_REG });
+    irinfo.insert(IRType::LOAD64, IRInfo { name: "LOAD64", ty: IRInfoType::REG_REG });
+    irinfo.insert(IRType::MOD, IRInfo { name: "MOD", ty: IRInfoType::REG_REG });
+    irinfo.insert(IRType::NEG, IRInfo { name: "NEG", ty: IRInfoType::REG });
+    irinfo.insert(IRType::MOV, IRInfo { name: "MOV", ty: IRInfoType::REG_REG });
+    irinfo.insert(IRType::MUL, IRInfo { name: "MUL", ty: IRInfoType::REG_REG });
+    irinfo.insert(IRType::MUL_IMM, IRInfo { name: "MUL", ty: IRInfoType::REG_IMM });
+    irinfo.insert(IRType::NOP, IRInfo { name: "NOP", ty: IRInfoType::NOARG });
+    irinfo.insert(IRType::RETURN, IRInfo { name: "RET", ty: IRInfoType::REG });
+    irinfo.insert(IRType::STORE8, IRInfo { name: "STORE8", ty: IRInfoType::REG_REG });
+    irinfo.insert(IRType::STORE32, IRInfo { name: "STORE32", ty: IRInfoType::REG_REG });
+    irinfo.insert(IRType::STORE64, IRInfo { name: "STORE64", ty: IRInfoType::REG_REG });
+    irinfo.insert(IRType::STORE8_ARG, IRInfo { name: "STORE8_ARG", ty: IRInfoType::IMM_IMM });
+    irinfo.insert(IRType::STORE32_ARG, IRInfo { name: "STORE32_ARG", ty: IRInfoType::IMM_IMM });
+    irinfo.insert(IRType::STORE64_ARG, IRInfo { name: "STORE64_ARG", ty: IRInfoType::IMM_IMM });
+    irinfo.insert(IRType::SUB, IRInfo { name: "SUB", ty: IRInfoType::REG_REG });
+    irinfo.insert(IRType::SUB_IMM, IRInfo { name: "SUB", ty: IRInfoType::REG_IMM });
+    irinfo.insert(IRType::BPREL, IRInfo { name: "BPREL", ty: IRInfoType::REG_IMM });
+    irinfo.insert(IRType::IF, IRInfo { name: "IF", ty: IRInfoType::REG_LABEL });
+    irinfo.insert(IRType::UNLESS, IRInfo { name: "UNLESS", ty: IRInfoType::REG_LABEL });
+    irinfo.insert(IRType::NULL, IRInfo { name: "", ty: IRInfoType::NULL });
 }
 
 pub fn irinfo_get(ty: & IRType) -> Option<IRInfo> {
@@ -211,7 +103,7 @@ pub fn tostr(ir: IR) -> String {
     return match info.ty {
         IRInfoType::LABEL => format!(".L{}:", ir.lhs),
         IRInfoType::LABEL_ADDR => format!("  {} r{}, {}", info.name, ir.lhs, ir.name),
-        IRInfoType::IMM => format!("  {} {}", ir.name, ir.lhs),
+        //IRInfoType::IMM => format!("  {} {}", ir.name, ir.lhs),
         IRInfoType::REG => format!("  {} r{}", info.name, ir.lhs),
         IRInfoType::JMP => format!("  {} .L{}", info.name, ir.lhs),
         IRInfoType::REG_REG => format!("  {} r{}, r{}", info.name, ir.lhs, ir.rhs),

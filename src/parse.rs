@@ -8,27 +8,13 @@
 // `1+2=3`, are accepted by this parser, but that's intentional.
 // Semantic errors are detected in a later pass.
 
-#![allow(dead_code, non_camel_case_types)]
+#![allow(non_camel_case_types)]
 
 use crate::sema::*;
 use crate::token::*;
 use crate::util::*;
 use std::collections::HashMap;
 use std::sync::Mutex;
-
-fn to_node_type(ty: &TokenType) -> NodeType {
-    match ty {
-        TokenType::ADD => NodeType::ADD,
-        TokenType::SUB => NodeType::SUB,
-        TokenType::MUL => NodeType::MUL,
-        TokenType::DIV => NodeType::DIV,
-        TokenType::LOGOR => NodeType::LOGOR,
-        TokenType::LOGAND => NodeType::LOGAND,
-        _ => {
-            panic!(format!("unknown TokenType {:?}", ty));
-        }
-    }
-}
 
 fn pos() -> usize {
     let i = *POS.lock().unwrap();
@@ -134,7 +120,7 @@ pub enum NodeType {
     NUM,       // Number literal
     STR,       // String literal
     IDENT,     // Identifier
-    STRUCT,    // Struct
+    //STRUCT,    // Struct
     VARDEF,    // Variable definition
     LVAR,      // Local variable reference
     GVAR,      // Global variable reference
