@@ -277,8 +277,12 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
         NodeType::FOR => {
             env_push();
             node.init = Some(Box::new(walk(&mut *node.init.clone().unwrap(), true).clone()));
-            node.cond = Some(Box::new(walk(&mut *node.cond.clone().unwrap(), true).clone()));
-            node.inc = Some(Box::new(walk(&mut *node.inc.clone().unwrap(), true).clone()));
+            if let Some(mut cond) = node.cond.clone() {
+                node.cond = Some(Box::new(walk(&mut cond, true).clone()));
+            }
+            if let Some(mut inc) = node.inc.clone() {
+                node.inc = Some(Box::new(walk(&mut inc, true).clone()));
+            }
             node.body = Some(Box::new(walk(&mut *node.body.clone().unwrap(), true).clone()));
             env_pop();
             return node;

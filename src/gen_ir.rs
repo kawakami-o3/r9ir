@@ -499,8 +499,6 @@ fn gen_stmt(node: Node) {
         return;
     }
 
-
-
     match node.op {
         NodeType::VARDEF => {
             if node.init.is_none() {
@@ -547,11 +545,15 @@ fn gen_stmt(node: Node) {
 
             gen_stmt(*node.init.unwrap());
             label(x);
-            let r = gen_expr(*node.cond.unwrap());
-            add(IRType::UNLESS, r, y);
-            kill(r);
+            if node.cond.is_some() {
+                let r = gen_expr(*node.cond.unwrap());
+                add(IRType::UNLESS, r, y);
+                kill(r);
+            }
             gen_stmt(*node.body.unwrap());
-            gen_stmt(*node.inc.unwrap());
+            if node.inc.is_some() {
+                gen_stmt(*node.inc.unwrap());
+            }
             add(IRType::JMP, x, -1);
             label(y);
             label(break_label());

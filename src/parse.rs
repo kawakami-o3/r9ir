@@ -806,15 +806,25 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
         TokenType::FOR => {
             node.op = NodeType::FOR;
             expect(TokenType::BRA, tokens);
+
             if is_typename(tokens) {
                 node.init = Some(Box::new(decl(tokens)));
+            } else if consume(TokenType::SEMI_COLON, tokens) {
+                node.init = Some(Box::new(null_stmt()));
             } else {
                 node.init = Some(Box::new(expr_stmt(tokens)));
             }
-            node.cond = Some(Box::new(expr(tokens)));
-            expect(TokenType::SEMI_COLON, tokens);
-            node.inc = Some(Box::new(new_expr(NodeType::EXPR_STMT, expr(tokens))));
-            expect(TokenType::KET, tokens);
+
+            if !consume(TokenType::SEMI_COLON, tokens) {
+                node.cond = Some(Box::new(expr(tokens)));
+                expect(TokenType::SEMI_COLON, tokens);
+            }
+
+            if !consume(TokenType::KET, tokens) {
+                node.inc = Some(Box::new(new_expr(NodeType::EXPR_STMT, expr(tokens))));
+                expect(TokenType::KET, tokens);
+            }
+
             node.body = Some(Box::new(stmt(tokens)));
             return node;
         }
