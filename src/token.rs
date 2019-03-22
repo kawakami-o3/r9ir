@@ -359,7 +359,7 @@ pub fn tokenize(p: &String) -> Vec<Token> {
                 '?' => TokenType::QUEST,
                 '.' => TokenType::DOT,
                 '%' => TokenType::MOD,
-                _ => panic!(format!("unknown {}", c)),
+                _ => panic!("unknown {}", c),
             };
             let tok = Token {
                 ty: ty,

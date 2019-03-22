@@ -575,7 +575,7 @@ fn gen_stmt(node: Node) {
             }
         }
         _ => {
-            panic!(format!("unknown node: {:?}", node.ty));
+            panic!("unknown node: {:?}", node.ty);
         }
     }
 }

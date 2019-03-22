@@ -307,7 +307,7 @@ fn find_tag(name: String) -> Option<Type> {
 fn expect(ty: TokenType, tokens: &Vec<Token>) {
     let t = &tokens[pos()];
     if t.ty != ty {
-        panic!(format!("{:?} expected, but got {:?}", ty, t.ty));
+        panic!("{:?} expected, but got {:?}", ty, t.ty);
     }
     bump_pos();
 }
@@ -498,7 +498,7 @@ fn primary(tokens: &Vec<Token>) -> Node {
         return node;
     }
 
-    panic!(format!("number expected, but got {}", t.input));
+    panic!("number expected, but got {}", t.input);
 }
 
 fn postfix(tokens: &Vec<Token>) -> Node {
