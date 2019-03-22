@@ -79,9 +79,12 @@ fn escape(s: & String) -> String {
 }
 
 fn emit_cmp(ir: &IR, insn: &str) {
-    println!("  cmp {}, {}", regs[ir.lhs as usize], regs[ir.rhs as usize]);
-    println!("  {} {}", insn, regs8[ir.lhs as usize]);
-    println!("  movzb {}, {}", regs[ir.lhs as usize], regs8[ir.lhs as usize]);
+    let lhs = ir.lhs as usize;
+    let rhs = ir.rhs as usize;
+
+    println!("  cmp {}, {}", regs[lhs], regs[rhs]);
+    println!("  {} {}", insn, regs8[lhs]);
+    println!("  movzb {}, {}", regs[lhs], regs8[lhs]);
 }
 
 fn gen(fun: &IR) {
@@ -100,18 +103,21 @@ fn gen(fun: &IR) {
 
     for i in 0..fun.ir.len() {
         let ir = &fun.ir[i as usize];
+        let lhs = ir.lhs as usize;
+        let rhs = ir.rhs as usize;
+
         match ir.op {
             IRType::IMM => {
-                println!("  mov {}, {}", regs[ir.lhs as usize], ir.rhs);
+                println!("  mov {}, {}", regs[lhs], rhs);
             }
             IRType::BPREL => {
-                println!("  lea {}, [rbp-{}]", regs[ir.lhs as usize], ir.rhs);
+                println!("  lea {}, [rbp-{}]", regs[lhs], rhs);
             }
             IRType::MOV => {
-                println!("  mov {}, {}", regs[ir.lhs as usize], regs[ir.rhs as usize]);
+                println!("  mov {}, {}", regs[lhs], regs[rhs]);
             }
             IRType::RETURN => {
-                println!("  mov rax, {}", regs[ir.lhs as usize]);
+                println!("  mov rax, {}", regs[lhs]);
                 println!("  jmp {}", ret);
             }
             IRType::CALL => {
@@ -126,16 +132,16 @@ fn gen(fun: &IR) {
                 println!("  pop r11");
                 println!("  pop r10");
 
-                println!("  mov {}, rax", regs[ir.lhs as usize]);
+                println!("  mov {}, rax", regs[lhs]);
             }
             IRType::LABEL => {
-                println!(".L{}:", ir.lhs);
+                println!(".L{}:", lhs);
             }
             IRType::LABEL_ADDR => {
-                println!("  lea {}, {}", regs[ir.lhs as usize], ir.name);
+                println!("  lea {}, {}", regs[lhs], ir.name);
             }
             IRType::NEG => {
-                println!("  neg {}", regs[ir.lhs as usize]);
+                println!("  neg {}", regs[lhs]);
             }
             IRType::EQ => {
                 emit_cmp(ir, "sete")
@@ -150,115 +156,97 @@ fn gen(fun: &IR) {
                 emit_cmp(ir, "setle")
             }
             IRType::AND => {
-                println!("  and {}, {}", regs[ir.lhs as usize], regs[ir.rhs as usize]);
+                println!("  and {}, {}", regs[lhs], regs[rhs]);
             }
             IRType::OR => {
-                println!("  or {}, {}", regs[ir.lhs as usize], regs[ir.rhs as usize]);
+                println!("  or {}, {}", regs[lhs], regs[rhs]);
             }
             IRType::XOR => {
-                println!("  xor {}, {}", regs[ir.lhs as usize], regs[ir.rhs as usize]);
+                println!("  xor {}, {}", regs[lhs], regs[rhs]);
             }
             IRType::SHL => {
-                println!("  mov cl, {}", regs8[ir.rhs as usize]);
-                println!("  shl {}, cl", regs[ir.lhs as usize]);
+                println!("  mov cl, {}", regs8[rhs]);
+                println!("  shl {}, cl", regs[lhs]);
             }
             IRType::SHR => {
-                println!("  mov cl, {}", regs8[ir.rhs as usize]);
-                println!("  shr {}, cl", regs[ir.lhs as usize]);
+                println!("  mov cl, {}", regs8[rhs]);
+                println!("  shr {}, cl", regs[lhs]);
             }
             IRType::JMP => {
-                println!("  jmp .L{}", ir.lhs);
+                println!("  jmp .L{}", lhs);
             }
             IRType::IF => {
-                println!("  cmp {}, 0", regs[ir.lhs as usize]);
-                println!("  jne .L{}", ir.rhs);
+                println!("  cmp {}, 0", regs[lhs]);
+                println!("  jne .L{}", rhs);
             }
             IRType::UNLESS => {
-                println!("  cmp {}, 0", regs[ir.lhs as usize]);
-                println!("  je .L{}", ir.rhs);
+                println!("  cmp {}, 0", regs[lhs]);
+                println!("  je .L{}", rhs);
             }
             IRType::LOAD8 => {
-                println!("  mov {}, [{}]", regs8[ir.lhs as usize], regs[ir.rhs as usize]);
-                println!("  movzb {}, {}", regs[ir.lhs as usize], regs8[ir.lhs as usize]);
+                println!("  mov {}, [{}]", regs8[lhs], regs[rhs]);
+                println!("  movzb {}, {}", regs[lhs], regs8[lhs]);
             }
             IRType::LOAD32 => {
-                println!(
-                    "  mov {}, [{}]",
-                    regs32[ir.lhs as usize], regs[ir.rhs as usize]
-                );
+                println!("  mov {}, [{}]", regs32[lhs], regs[rhs]);
             }
             IRType::LOAD64 => {
-                println!(
-                    "  mov {}, [{}]",
-                    regs[ir.lhs as usize], regs[ir.rhs as usize]
-                );
+                println!("  mov {}, [{}]", regs[lhs], regs[rhs]);
             }
             IRType::STORE8 => {
-                println!(
-                    "  mov [{}], {}",
-                    regs[ir.lhs as usize], regs8[ir.rhs as usize]
-                );
+                println!("  mov [{}], {}", regs[lhs], regs8[rhs]);
 
                 // fall through in 9cc
-                println!(
-                    "  mov [{}], {}",
-                    regs[ir.lhs as usize], regs32[ir.rhs as usize]
-                );
+                println!("  mov [{}], {}", regs[lhs], regs32[rhs]);
             }
             IRType::STORE32 => {
-                println!(
-                    "  mov [{}], {}",
-                    regs[ir.lhs as usize], regs32[ir.rhs as usize]
-                );
+                println!("  mov [{}], {}", regs[lhs], regs32[rhs]);
             }
             IRType::STORE64 => {
-                println!(
-                    "  mov [{}], {}",
-                    regs[ir.lhs as usize], regs[ir.rhs as usize]
-                );
+                println!("  mov [{}], {}", regs[lhs], regs[rhs]);
             }
             IRType::STORE8_ARG => {
-                println!("  mov [rbp-{}], {}", ir.lhs, argreg8[ir.rhs as usize]);
+                println!("  mov [rbp-{}], {}", lhs, argreg8[rhs]);
             }
             IRType::STORE32_ARG => {
-                println!("  mov [rbp-{}], {}", ir.lhs, argreg32[ir.rhs as usize]);
+                println!("  mov [rbp-{}], {}", lhs, argreg32[rhs]);
             }
             IRType::STORE64_ARG => {
-                println!("  mov [rbp-{}], {}", ir.lhs, argreg64[ir.rhs as usize]);
+                println!("  mov [rbp-{}], {}", lhs, argreg64[rhs]);
             }
             IRType::ADD => {
-                println!("  add {}, {}", regs[ir.lhs as usize], regs[ir.rhs as usize]);
+                println!("  add {}, {}", regs[lhs], regs[rhs]);
             }
             IRType::ADD_IMM => {
-                println!("  add {}, {}", regs[ir.lhs as usize], ir.rhs);
+                println!("  add {}, {}", regs[lhs], rhs);
             }
             IRType::SUB => {
-                println!("  sub {}, {}", regs[ir.lhs as usize], regs[ir.rhs as usize]);
+                println!("  sub {}, {}", regs[lhs], regs[rhs]);
             }
             IRType::SUB_IMM => {
-                println!("  sub {}, {}", regs[ir.lhs as usize], ir.rhs);
+                println!("  sub {}, {}", regs[lhs], rhs);
             }
             IRType::MUL => {
-                println!("  mov rax, {}", regs[ir.rhs as usize]);
-                println!("  mul {}", regs[ir.lhs as usize]);
-                println!("  mov {}, rax", regs[ir.lhs as usize]);
+                println!("  mov rax, {}", regs[rhs]);
+                println!("  mul {}", regs[lhs]);
+                println!("  mov {}, rax", regs[lhs]);
             }
             IRType::MUL_IMM => {
-                println!("  mov rax, {}", ir.rhs);
-                println!("  mul {}", regs[ir.lhs as usize]);
-                println!("  mov {}, rax", regs[ir.lhs as usize]);
+                println!("  mov rax, {}", rhs);
+                println!("  mul {}", regs[lhs]);
+                println!("  mov {}, rax", regs[lhs]);
             }
             IRType::DIV => {
-                println!(" mov rax, {}", regs[ir.lhs as usize]);
+                println!(" mov rax, {}", regs[lhs]);
                 println!(" cqo");
-                println!(" div {}", regs[ir.rhs as usize]);
-                println!(" mov {}, rax", regs[ir.lhs as usize]);
+                println!(" div {}", regs[rhs]);
+                println!(" mov {}, rax", regs[lhs]);
             }
             IRType::MOD => {
-                println!("  mov rax, {}", regs[ir.lhs as usize]);
+                println!("  mov rax, {}", regs[lhs]);
                 println!("  cqo");
-                println!("  div {}", regs[ir.rhs as usize]);
-                println!("  mov {}, rdx", regs[ir.lhs as usize]);
+                println!("  div {}", regs[rhs]);
+                println!("  mov {}, rdx", regs[lhs]);
             }
             IRType::NOP => {}
             ref i => {
