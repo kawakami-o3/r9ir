@@ -90,7 +90,8 @@ fn visit(irv: &mut Vec<IR>) {
                 IRInfoType::LABEL_ADDR => {
                 ir.lhs = alloc(ir.lhs);
             }
-            IRInfoType::REG_REG => {
+            IRInfoType::MEM |
+                IRInfoType::REG_REG => {
                 ir.lhs = alloc(ir.lhs);
                 ir.rhs = alloc(ir.rhs);
             }

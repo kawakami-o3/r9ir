@@ -49,7 +49,7 @@ struct Env {
 
 impl Env {
     fn find_typedef(& self, name: String) -> Option<Type> {
-        return match self.typedefs.get(&name) {
+        match self.typedefs.get(&name) {
             None => {
                 match self.next {
                     None => None,
@@ -57,11 +57,11 @@ impl Env {
                 }
             }
             ty => Some(ty.unwrap().clone()),
-        };
+        }
     }
 
     fn find_tag(& self, name: String) -> Option<Type> {
-        return match self.tags.get(&name) {
+        match self.tags.get(&name) {
             None => {
                 match self.next {
                     None => None,
@@ -69,7 +69,7 @@ impl Env {
                 }
             }
             ty => Some(ty.unwrap().clone()),
-        };
+        }
     }
 }
 

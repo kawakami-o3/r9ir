@@ -97,6 +97,15 @@ fn emit_cmp(insn: &str, ir: &IR) {
     emit!("movzb {}, {}", regs[lhs], regs8[lhs]);
 }
 
+fn reg(r: usize, size: i32) -> &'static str {
+    match size {
+        1 => regs8[r],
+        4 => regs32[r],
+        8 => regs[r],
+        _ => panic!(),
+    }
+}
+
 fn gen(fun: &IR) {
     let ret = format!(".Lend{}", bump_nlabel());
 
@@ -192,15 +201,11 @@ fn gen(fun: &IR) {
                 emit!("cmp {}, 0", regs[lhs]);
                 emit!("je .L{}", rhs);
             }
-            IRType::LOAD8 => {
-                emit!("mov {}, [{}]", regs8[lhs], regs[rhs]);
-                emit!("movzb {}, {}", regs[lhs], regs8[lhs]);
-            }
-            IRType::LOAD32 => {
-                emit!("mov {}, [{}]", regs32[lhs], regs[rhs]);
-            }
-            IRType::LOAD64 => {
-                emit!("mov {}, [{}]", regs[lhs], regs[rhs]);
+            IRType::LOAD => {
+                emit!("mov {}, [{}]", reg(lhs, ir.size), regs[rhs]);
+                if ir.size == 1 {
+                    emit!("movzb {}, {}", regs[lhs], regs8[lhs]);
+                }
             }
             IRType::STORE8 => {
                 emit!("mov [{}], {}", regs[lhs], regs8[rhs]);

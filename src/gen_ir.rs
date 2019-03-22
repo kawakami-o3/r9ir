@@ -115,9 +115,7 @@ pub enum IRType {
     JMP,
     IF,
     UNLESS,
-    LOAD8,
-    LOAD32,
-    LOAD64,
+    LOAD,
     STORE8,
     STORE32,
     STORE64,
@@ -142,6 +140,10 @@ pub struct IR {
     pub lhs: i32,
     pub rhs: i32,
 
+    // Load/store size in bytes
+    pub size: i32,
+
+    // Function call
     pub name: String,
     pub nargs: usize,
     pub args: [i32; 6],
@@ -157,7 +159,9 @@ fn alloc_ir() -> IR {
         op: IRType::NOP,
         lhs: 0,
         rhs: 0,
-        
+
+        size: 0,
+
         name: String::new(),
         nargs: 0,
         args: [0; 6],
@@ -167,6 +171,7 @@ fn alloc_ir() -> IR {
         globals: Vec::new(),
     };
 }
+
 fn add(op: IRType, lhs: i32, rhs: i32) -> usize {
     let mut ir = alloc_ir();
     ir.op = op;
@@ -205,8 +210,12 @@ fn choose_insn(node: & Node, op8: IRType, op32: IRType, op64: IRType) -> IRType 
     }
 }
 
-fn load_insn(node: & Node) -> IRType {
-    return choose_insn(node, IRType::LOAD8, IRType::LOAD32, IRType::LOAD64);
+fn load(node: & Node, dst: i32, src: i32) {
+    let ir_idx = add(IRType::LOAD, dst, src);
+
+    let mut code = CODE.lock().unwrap();
+    let ir = &mut code[ir_idx];
+    ir.size = node.ty.size;
 }
 
 fn store_insn(node: & Node) -> IRType {
@@ -283,7 +292,7 @@ fn get_inc_scale(node: & Node) -> i32 {
 fn gen_pre_inc(node: & Node, num: i32) -> i32 {
     let addr = gen_lval(*node.expr.clone().unwrap());
     let val = bump_nreg();
-    add(load_insn(&node), val, addr);
+    load(&node, val, addr);
     add(IRType::ADD_IMM, val, num * get_inc_scale(&node));
     add(store_insn(&node), addr, val);
     kill(addr);
@@ -349,7 +358,7 @@ fn gen_expr(node: Node) -> i32 {
             NodeType::LVAR |
             NodeType::DOT => {
             let r = gen_lval(node.clone());
-            add(load_insn(&node), r, r);
+            load(&node, r, r);
             return r;
         }
 
@@ -391,7 +400,7 @@ fn gen_expr(node: Node) -> i32 {
 
         NodeType::DEREF => {
             let r = gen_expr(*node.clone().expr.unwrap());
-            add(load_insn(&node), r, r);
+            load(&node, r, r);
             return r;
         }
 

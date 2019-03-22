@@ -164,7 +164,7 @@ fn bump_str_label() -> i32 {
 }
 
 fn find_var(name: String) -> Option<Var> {
-    return match ENV.lock() {
+    match ENV.lock() {
         Ok(ref env) => {
             match env.find(&name) {
                 Some(v) => Some(v.clone()),

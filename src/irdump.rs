@@ -1,4 +1,4 @@
-#![allow(non_camel_case_types)]
+#![allow(dead_code, non_camel_case_types)]
 
 use crate::gen_ir::*;
 use std::collections::HashMap;
@@ -12,7 +12,8 @@ lazy_static! {
 pub enum IRInfoType {
     NOARG,
     REG,
-    //IMM,
+    IMM,
+    MEM,
     JMP,
     LABEL,
     LABEL_ADDR,
@@ -54,9 +55,7 @@ fn init_irinfo() {
     irinfo.insert(IRType::XOR, IRInfo { name: "XOR", ty: IRInfoType::REG_REG });
     irinfo.insert(IRType::SHL, IRInfo { name: "SHL", ty: IRInfoType::REG_REG });
     irinfo.insert(IRType::SHR, IRInfo { name: "SHR", ty: IRInfoType::REG_REG });
-    irinfo.insert(IRType::LOAD8, IRInfo { name: "LOAD8", ty: IRInfoType::REG_REG });
-    irinfo.insert(IRType::LOAD32, IRInfo { name: "LOAD32", ty: IRInfoType::REG_REG });
-    irinfo.insert(IRType::LOAD64, IRInfo { name: "LOAD64", ty: IRInfoType::REG_REG });
+    irinfo.insert(IRType::LOAD, IRInfo { name: "LOAD", ty: IRInfoType::REG_REG });
     irinfo.insert(IRType::MOD, IRInfo { name: "MOD", ty: IRInfoType::REG_REG });
     irinfo.insert(IRType::NEG, IRInfo { name: "NEG", ty: IRInfoType::REG });
     irinfo.insert(IRType::MOV, IRInfo { name: "MOV", ty: IRInfoType::REG_REG });
@@ -100,13 +99,14 @@ pub fn tostr(ir: IR) -> String {
     let irinfo = IRINFO.lock().unwrap();
     let info = irinfo.get(&ir.op).unwrap();
 
-    return match info.ty {
+    match info.ty {
         IRInfoType::LABEL => format!(".L{}:", ir.lhs),
         IRInfoType::LABEL_ADDR => format!("  {} r{}, {}", info.name, ir.lhs, ir.name),
-        //IRInfoType::IMM => format!("  {} {}", ir.name, ir.lhs),
+        IRInfoType::IMM => format!("  {} {}", ir.name, ir.lhs),
         IRInfoType::REG => format!("  {} r{}", info.name, ir.lhs),
         IRInfoType::JMP => format!("  {} .L{}", info.name, ir.lhs),
         IRInfoType::REG_REG => format!("  {} r{}, r{}", info.name, ir.lhs, ir.rhs),
+        IRInfoType::MEM => format!("  {}{} r{}, r{}", info.name, ir.size, ir.lhs, ir.rhs),
         IRInfoType::REG_IMM => format!("  {} r{}, {}", info.name, ir.lhs, ir.rhs),
         IRInfoType::IMM_IMM => format!("  {} {}, {}", info.name, ir.lhs, ir.rhs),
         IRInfoType::REG_LABEL => format!("  {} r{}, .L{}", info.name, ir.lhs, ir.rhs),
@@ -122,7 +122,7 @@ pub fn tostr(ir: IR) -> String {
         _ => {
             panic!("unknown ir {:?}", info.ty);
         }
-    };
+    }
 }
 
 pub fn dump_ir(irv: Vec<IR>) {
