@@ -776,23 +776,16 @@ fn expr_stmt(tokens: &Vec<Token>) -> Node {
 
 pub fn stmt(tokens: &Vec<Token>) -> Node {
     let mut node = alloc_node();
-    let t = &tokens[pos()];
+    let t = &tokens[bump_pos()];
 
     match t.ty {
         TokenType::TYPEDEF => {
-            bump_pos();
             let node = decl(tokens);
             assert!(node.name.len()>0);
             env_typedef_put(node.name, node.ty);
             return null_stmt();
         }
-        TokenType::INT |
-            TokenType::CHAR |
-            TokenType::STRUCT => {
-            return decl(tokens);
-        }
         TokenType::IF => {
-            bump_pos();
             node.op = NodeType::IF;
             expect(TokenType::BRA, tokens);
             node.cond = Some(Box::new(expr(tokens)));
@@ -804,7 +797,6 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             return node;
         }
         TokenType::FOR => {
-            bump_pos();
             node.op = NodeType::FOR;
             expect(TokenType::BRA, tokens);
             if is_typename(tokens) {
@@ -820,7 +812,6 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             return node;
         }
         TokenType::WHILE => {
-            bump_pos();
             node.op = NodeType::FOR;
             node.init = Some(Box::new(null_stmt()));
             node.inc = Some(Box::new(null_stmt()));
@@ -831,7 +822,6 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             return node;
         }
         TokenType::DO => {
-            bump_pos();
             node.op = NodeType::DO_WHILE;
             node.body = Some(Box::new(stmt(tokens)));
             expect(TokenType::WHILE, tokens);
@@ -842,14 +832,12 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             return node;
         }
         TokenType::RETURN => {
-            bump_pos();
             node.op = NodeType::RETURN;
             node.expr = Some(Box::new(expr(tokens)));
             expect(TokenType::SEMI_COLON, tokens);
             return node;
         }
         TokenType::C_BRA => {
-            bump_pos();
             node.op = NodeType::COMP_STMT;
             while !consume(TokenType::C_KET, tokens) {
                 node.stmts.push(stmt(tokens));
@@ -857,10 +845,10 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             return node;
         }
         TokenType::SEMI_COLON => {
-            bump_pos();
             return null_stmt();
         }
         _ => {
+            dump_pos();
             if is_typename(tokens) {
                 return decl(tokens);
             }
