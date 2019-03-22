@@ -192,6 +192,10 @@ fn label(x: i32) {
     add(IRType::LABEL, x, -1);
 }
 
+fn jmp(x: i32) {
+    add(IRType::JMP, x, -1);
+}
+
 fn choose_insn(node: & Node, op8: IRType, op32: IRType, op64: IRType) -> IRType {
     match node.ty.size {
         1 => op8,
@@ -329,7 +333,7 @@ fn gen_expr(node: Node) -> i32 {
             let r1 = gen_expr(*node.lhs.unwrap());
             add(IRType::UNLESS, r1, x);
             add(IRType::IMM, r1, 1);
-            add(IRType::JMP, y, -1);
+            jmp(y);
             label(x);
 
             let r2 = gen_expr(*node.rhs.unwrap());
@@ -478,7 +482,7 @@ fn gen_expr(node: Node) -> i32 {
             let r2 = gen_expr(*node.then.unwrap());
             add(IRType::MOV, r, r2);
             kill(r2);
-            add(IRType::JMP, y, -1);
+            jmp(y);
 
             label(x);
             let r3 = gen_expr(*node.els.unwrap());
@@ -529,7 +533,7 @@ fn gen_stmt(node: Node) {
                 add(IRType::UNLESS, r, x);
                 kill(r);
                 gen_stmt(then.clone());
-                add(IRType::JMP, y, -1);
+                jmp(y);
                 label(x);
                 gen_stmt(*node.els.unwrap());
                 label(y);
@@ -561,7 +565,7 @@ fn gen_stmt(node: Node) {
             if node.inc.is_some() {
                 gen_stmt(*node.inc.unwrap());
             }
-            add(IRType::JMP, x, -1);
+            jmp(x);
             label(y);
             label(break_label());
             set_break_label(orig);
@@ -582,7 +586,7 @@ fn gen_stmt(node: Node) {
             if break_label() == 0 {
                 panic!("stray 'break' statement");
             }
-            add(IRType::JMP, break_label(), -1);
+            jmp(break_label());
         }
         NodeType::RETURN => {
             let r = gen_expr(*node.expr.unwrap());
@@ -591,7 +595,7 @@ fn gen_stmt(node: Node) {
             if return_label() != 0 {
                 add(IRType::MOV, return_reg(), r);
                 kill(r);
-                add(IRType::JMP, return_label(), -1);
+                jmp(return_label());
                 return;
             }
 
