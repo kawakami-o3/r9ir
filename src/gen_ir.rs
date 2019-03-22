@@ -489,21 +489,21 @@ fn gen_stmt(node: Node) {
         return;
     }
 
-    if node.op == NodeType::VARDEF {
-        if node.init.is_none() {
-            return;
-        }
 
-        let rhs = gen_expr(*node.init.clone().unwrap());
-        let lhs = bump_nreg();
-        add(IRType::BPREL, lhs, node.offset);
-        add(store_insn(node), lhs, rhs);
-        kill(lhs);
-        kill(rhs);
-        return;
-    }
 
     match node.op {
+        NodeType::VARDEF => {
+            if node.init.is_none() {
+                return;
+            }
+
+            let rhs = gen_expr(*node.init.clone().unwrap());
+            let lhs = bump_nreg();
+            add(IRType::BPREL, lhs, node.offset);
+            add(store_insn(node), lhs, rhs);
+            kill(lhs);
+            kill(rhs);
+        }
         NodeType::IF => {
             let cond = *node.cond.unwrap();
             let then = *node.then.unwrap();
