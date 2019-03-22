@@ -25,6 +25,7 @@ lazy_static! {
 
     static ref RETURN_LABEL: Mutex<i32> = Mutex::new(0);
     static ref RETURN_REG: Mutex<i32> = Mutex::new(0);
+    static ref BREAK_LABEL: Mutex<i32> = Mutex::new(0);
 }
 
 //fn nlabel() -> i32 {
@@ -75,6 +76,15 @@ fn return_reg() -> i32 {
 fn set_return_reg(i: i32) {
     let mut return_reg = RETURN_REG.lock().unwrap();
     *return_reg = i;
+}
+
+fn break_label() -> i32 {
+    *BREAK_LABEL.lock().unwrap()
+}
+
+fn set_break_label(i: i32) {
+    let mut break_label = BREAK_LABEL.lock().unwrap();
+    *break_label = i;
 }
 
 fn init_code() {
@@ -532,6 +542,8 @@ fn gen_stmt(node: Node) {
         NodeType::FOR => {
             let x = bump_nlabel();
             let y = bump_nlabel();
+            let orig = break_label();
+            set_break_label(bump_nlabel());
 
             gen_stmt(*node.init.unwrap());
             label(x);
@@ -542,14 +554,26 @@ fn gen_stmt(node: Node) {
             gen_stmt(*node.inc.unwrap());
             add(IRType::JMP, x, -1);
             label(y);
+            label(break_label());
+            set_break_label(orig);
         }
         NodeType::DO_WHILE => {
             let x = bump_nlabel();
+            let orig = break_label();
+            set_break_label(bump_nlabel());
             label(x);
             gen_stmt(*node.body.unwrap());
             let r = gen_expr(*node.cond.unwrap());
             add(IRType::IF, r, x);
             kill(r);
+            label(break_label());
+            set_break_label(orig);
+        }
+        NodeType::BREAK => {
+            if break_label() == 0 {
+                panic!("stray 'break' statement");
+            }
+            add(IRType::JMP, break_label(), -1);
         }
         NodeType::RETURN => {
             let r = gen_expr(*node.expr.unwrap());

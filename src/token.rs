@@ -18,6 +18,7 @@ fn init_symbols() {
     let mut symbols = SYMBOLS.lock().unwrap();
 
     symbols.push(Symbol { name: "_Alignof", ty: TokenType::ALIGNOF });
+    symbols.push(Symbol { name: "break", ty: TokenType::BREAK });
     symbols.push(Symbol { name: "char", ty: TokenType::CHAR });
     symbols.push(Symbol { name: "do", ty: TokenType::DO });
     symbols.push(Symbol { name: "else", ty: TokenType::ELSE });
@@ -119,6 +120,7 @@ pub enum TokenType {
     FOR,        // "for"
     DO,         // "do"
     WHILE,      // "while"
+    BREAK,      // "break"
     EQ,         // ==
     NE,         // !=
     LE,         // <=

@@ -22,9 +22,9 @@ use std::mem;
 use std::sync::Mutex;
 
 lazy_static! {
+    static ref GLOBALS: Mutex<Vec<Var>> = Mutex::new(Vec::new());
     static ref ENV: Mutex<Env> = Mutex::new(new_env(None));
     static ref STR_LABEL: Mutex<i32> = Mutex::new(0);
-    static ref GLOBALS: Mutex<Vec<Var>> = Mutex::new(Vec::new());
     static ref STACKSIZE: Mutex<i32> = Mutex::new(0);
 }
 
@@ -207,7 +207,8 @@ fn check_lval(node: & Node) {
 fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
     match node.op {
         NodeType::NUM |
-            NodeType::NULL => {
+            NodeType::NULL |
+            NodeType::BREAK => {
             return node;
         }
         NodeType::STR => {
@@ -468,7 +469,7 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
             return node;
         }
         _ => {
-            panic!("unknown node type");
+            panic!("unknown node type: {:?}", node);
         }
     }
 }

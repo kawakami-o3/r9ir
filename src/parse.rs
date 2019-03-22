@@ -126,7 +126,8 @@ pub enum NodeType {
     GVAR,      // Global variable reference
     IF,        // "if"
     FOR,       // "for"
-    DO_WHILE,  // do ~ while
+    DO_WHILE,  // do ... while
+    BREAK,     // break
     ADDR,      // address-of operator ("&")
     DEREF,     // pointer dereference ("*")
     DOT,       // Struct member access
@@ -291,6 +292,12 @@ pub fn alloc_node() -> Node {
 fn null_stmt() -> Node {
     let mut node = alloc_node();
     node.op = NodeType::NULL;
+    return node;
+}
+
+fn break_stmt() -> Node {
+    let mut node = alloc_node();
+    node.op = NodeType::BREAK;
     return node;
 }
 
@@ -830,6 +837,9 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             expect(TokenType::KET, tokens);
             expect(TokenType::SEMI_COLON, tokens);
             return node;
+        }
+        TokenType::BREAK => {
+            return break_stmt();
         }
         TokenType::RETURN => {
             node.op = NodeType::RETURN;
