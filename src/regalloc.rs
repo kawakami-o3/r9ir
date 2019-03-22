@@ -56,6 +56,10 @@ fn init_reg_map() {
 }
 
 fn alloc(ir_reg: i32) -> i32 {
+    if reg_map_size <= ir_reg as usize {
+        panic!("program too big");
+    }
+
     let mut reg_map = REG_MAP.lock().unwrap();
     if reg_map[ir_reg as usize] != -1 {
         let r = reg_map[ir_reg as usize];
@@ -64,7 +68,7 @@ fn alloc(ir_reg: i32) -> i32 {
     }
 
     let mut used = USED.lock().unwrap();
-    for i in 0..regs.len() {
+    for i in 0..reg_map_size {
         if used[i] {
             continue;
         }
