@@ -57,8 +57,34 @@ lazy_static! {
 #[derive(Clone)]
 struct Env {
     typedefs: HashMap<String, Type>,
-    tags: HashMap<String, Vec<Node>>,
+    tags: HashMap<String, Type>,
     next: Option<Box<Env>>,
+}
+
+impl Env {
+    fn find_typedef(& self, name: String) -> Option<Type> {
+        return match self.typedefs.get(&name) {
+            None => {
+                match self.next {
+                    None => None,
+                    Some(ref next) => next.find_typedef(name),
+                }
+            }
+            ty => Some(ty.unwrap().clone()),
+        };
+    }
+
+    fn find_tag(& self, name: String) -> Option<Type> {
+        return match self.tags.get(&name) {
+            None => {
+                match self.next {
+                    None => None,
+                    Some(ref next) => next.find_tag(name),
+                }
+            }
+            ty => Some(ty.unwrap().clone()),
+        };
+    }
 }
 
 fn new_env(next: Option<Box<Env>>) -> Env {
@@ -66,24 +92,6 @@ fn new_env(next: Option<Box<Env>>) -> Env {
         typedefs: HashMap::new(),
         tags: HashMap::new(),
         next: next,
-    }
-}
-
-fn env_typedef_get(key: & String) -> Option<Type> {
-    match ENV.lock() {
-        Ok(env) => {
-            match env.typedefs.get(key) {
-                Some(v) => {
-                    return Some(v.clone());
-                }
-                None => {
-                    return None;
-                }
-            }
-        }
-        Err(_) => {
-            panic!();
-        }
     }
 }
 
@@ -98,25 +106,7 @@ fn env_typedef_put(key: String, val: Type) {
     }
 }
 
-fn env_tag_get(key: & String) -> Option<Vec<Node>> {
-    match ENV.lock() {
-        Ok(env) => {
-            match env.tags.get(key) {
-                Some(v) => {
-                    return Some(v.clone());
-                }
-                None => {
-                    return None;
-                }
-            }
-        }
-        Err(_) => {
-            panic!();
-        }
-    }
-}
-
-fn env_tag_put(key: String, val: Vec<Node>) {
+fn env_tag_put(key: String, val: Type) {
     match ENV.lock() {
         Ok(mut env) => {
             env.tags.insert(key, val);
@@ -202,8 +192,31 @@ pub struct Type {
     pub len: i32,
 
     // Struct
-    pub members: Vec<Node>,
+    pub members: Option<Vec<Node>>,
     pub offset: i32,
+}
+
+impl Type {
+    fn add_members(&mut self, members: Vec<Node>) {
+        let mut off = 0;
+        let mut ms = members.clone();
+        for node in ms.iter_mut() {
+            assert!(node.op == NodeType::VARDEF);
+
+            let node_align = node.ty.align;
+            let mut t = &mut node.ty;
+            off = roundup(off, t.align);
+            t.offset = off;
+            off += t.size;
+
+            if self.align < node_align {
+                self.align = node_align;
+            }
+        }
+
+        self.members = Some(ms.clone());
+        self.size = roundup(off, self.align);
+    }
 }
 
 pub fn alloc_type() -> Type {
@@ -214,7 +227,7 @@ pub fn alloc_type() -> Type {
         ptr_to: None,
         ary_of: None,
         len: 0,
-        members: Vec::new(),
+        members: None,
         offset: 0,
     } 
 }
@@ -295,6 +308,16 @@ fn null_stmt() -> Node {
     return node;
 }
 
+fn find_typedef(name: String) -> Option<Type> {
+    let env = ENV.lock().unwrap();
+    return env.find_typedef(name)
+}
+
+fn find_tag(name: String) -> Option<Type> {
+    let env = ENV.lock().unwrap();
+    return env.find_tag(name)
+}
+
 fn expect(ty: TokenType, tokens: &Vec<Token>) {
     let t = &tokens[pos()];
     if t.ty != ty {
@@ -335,7 +358,7 @@ fn consume(ty: TokenType, tokens: &Vec<Token>) -> bool {
 fn is_typename(tokens: &Vec<Token>) -> bool {
     let t = &tokens[pos()];
     if t.ty == TokenType::IDENT {
-        return env_typedef_get(&t.name).is_some();
+        return find_typedef(t.name.clone()).is_some();
     }
     return t.ty == TokenType::INT ||
         t.ty == TokenType::CHAR ||
@@ -347,7 +370,7 @@ fn read_type(tokens: &Vec<Token>) -> Option<Type> {
     let t = &tokens[bump_pos()];
     match t.ty {
         TokenType::IDENT => {
-            let ty = env_typedef_get(&t.name);
+            let ty = find_typedef(t.name.clone());
             if ty.is_none() {
                 dump_pos();
             }
@@ -380,23 +403,31 @@ fn read_type(tokens: &Vec<Token>) -> Option<Type> {
                 members = Some(ms);
             }
 
-            match (tag, members.clone()) {
-                (None, None) => {
-                    panic!("bad struct definition");
-                }
-                (Some(tag), Some(members)) => {
-                    env_tag_put(tag, members);
-                }
-                (Some(tag), None) => {
-                    members = env_tag_get(&tag);
-                    if members.is_none() {
-                        panic!("incomplete type: {}", tag);
-                    }
-                }
-                _ => { }
+            if tag.is_none() && members.is_none() {
+                panic!("bad struct definition");
             }
 
-            return Some(struct_of(&mut members.unwrap()));
+            let mut ty: Option<Type> = None;
+            if tag.is_some() && members.is_none() {
+                ty = find_tag(tag.clone().unwrap());
+            }
+
+            if ty.is_none() {
+                let mut ty_tmp = alloc_type();
+                ty_tmp.ty = CType::STRUCT;
+                ty = Some(ty_tmp);
+            }
+
+            if members.is_some() {
+                let mut ty_tmp = ty.clone().unwrap();
+                ty_tmp.add_members(members.unwrap());
+                if tag.is_some() {
+                    env_tag_put(tag.unwrap(), ty_tmp.clone());
+                }
+
+                ty = Some(ty_tmp.clone());
+            }
+            return ty;
         }
         _ => {
             dump_pos();
@@ -695,7 +726,7 @@ fn do_type(tokens: &Vec<Token>) -> Type {
     if ty_opt.is_none() {
         panic!("typename expected, but got {}", t.input);
     }
-    let mut ty = ty_opt.unwrap();
+    let mut ty = ty_opt.unwrap().clone();
 
     while consume(TokenType::MUL, tokens) {
         ty = ptr_to(ty);
@@ -878,7 +909,8 @@ pub fn compound_stmt(tokens: &Vec<Token>) -> Node {
     return node;
 }
 
-fn toplevel(tokens: &Vec<Token>) -> Node {
+fn toplevel(tokens: &Vec<Token>) -> Option<Node> {
+    let is_typedef = consume(TokenType::TYPEDEF, tokens);
     let is_extern = consume(TokenType::EXTERN, tokens);
     let ty = do_type(tokens);
     // if (!ty) ... // 'do_type' panics when it fails to parse a type name.
@@ -889,8 +921,8 @@ fn toplevel(tokens: &Vec<Token>) -> Node {
     if consume(TokenType::BRA, tokens) {
         let mut node = alloc_node();
         node.op = NodeType::FUNC;
-        node.ty = ty;
-        node.name = name;
+        node.ty = ty.clone();
+        node.name = name.clone();
 
         if !consume(TokenType::KET, tokens) {
             node.args.push(param(tokens));
@@ -901,18 +933,30 @@ fn toplevel(tokens: &Vec<Token>) -> Node {
         }
 
         expect(TokenType::C_BRA, tokens);
+        if is_typedef {
+            panic!("typedef {} has function definition", name);
+        }
         node.body = Some(Box::new(compound_stmt(tokens)));
-        return node;
+        return Some(node);
+    }
+
+    let mut ty_tmp = ty.clone();
+    let ty = read_array(&mut ty_tmp, tokens);
+    expect(TokenType::SEMI_COLON, tokens);
+
+    if is_typedef {
+        env_typedef_put(name, ty.clone());
+        return None;
     }
 
     // Global variable
     let mut node = alloc_node();
     node.op = NodeType::VARDEF;
-    node.ty = read_array(&mut ty.clone(), tokens).clone();
+    node.ty = ty.clone();
     node.name = name;
-    if is_extern {
-        node.is_extern = true;
-    } else {
+    node.is_extern = is_extern;
+
+    if !is_extern {
         let mut data = String::new();
         for _i in 0..node.ty.size {
             data.push(char::from(0));
@@ -920,22 +964,21 @@ fn toplevel(tokens: &Vec<Token>) -> Node {
         node.data = data;
         node.len = ty.size as usize;
     }
-    expect(TokenType::SEMI_COLON, tokens);
-    return node;
+    return Some(node);
 }
 
 pub fn parse(tokens: &Vec<Token>) -> Vec<Node> {
     let mut v = Vec::new();
-    match ENV.lock() {
-        Ok(mut env) => {
-            *env = new_env(Some(Box::new(env.clone())));
+
+    loop {
+        let t = &tokens[pos()];
+        if t.ty == TokenType::EOF {
+            return v;
         }
-        Err(_) => {
-            panic!();
+
+        let node = toplevel(tokens);
+        if node.is_some() {
+            v.push(node.unwrap());
         }
     }
-    while tokens[pos()].ty != TokenType::EOF {
-        v.push(toplevel(tokens));
-    }
-    return v;
 }

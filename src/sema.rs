@@ -293,7 +293,11 @@ fn walk<'a>(node: &'a mut Node, env: &'a mut Env, decay: bool) -> &'a Node {
             }
 
             let ty = node.expr.clone().unwrap().ty;
-            for m in ty.members.iter() {
+            if ty.members == None {
+                panic!("incomplete type: {:?}", node.expr);
+            }
+
+            for m in ty.members.unwrap().iter() {
                 if m.name != node.name {
                     continue;
                 }

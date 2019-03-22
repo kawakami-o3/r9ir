@@ -21,29 +21,6 @@ pub fn ary_of(base: Type, len: i32) -> Type {
     return ty;
 }
 
-pub fn struct_of(members: &mut Vec<Node>) -> Type {
-    let mut ty = alloc_type();
-    ty.ty = CType::STRUCT;
-
-    let mut off = 0;
-    for node in members.iter_mut() {
-        assert!(node.op == NodeType::VARDEF);
-
-        let ty_tmp = node.ty.clone();
-        let t = &mut node.ty;
-        off = roundup(off, t.align);
-        t.offset = off;
-        off += t.size;
-
-        if ty.align < ty_tmp.align {
-            ty.align = ty_tmp.align;
-        }
-    }
-    ty.members = members.clone();
-    ty.size = roundup(off, ty.align);
-    return ty;
-}
-
 pub fn roundup(x: i32, align: i32) -> i32 {
     return (x + align - 1) & (!(align - 1));
 }
