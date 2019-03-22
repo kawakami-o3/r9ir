@@ -222,7 +222,7 @@ fn read_string(p: &String, idx: usize) -> StrInfo {
         len += 1;
         c = char::from(char_bytes[idx+len]);
         if c == '\0' {
-            panic!("PREMATURE end of input");
+            panic!("premature end of input");
         }
         match escaped(c) {
             Some(esc) => ret.push(esc),
@@ -263,22 +263,18 @@ pub fn tokenize(p: &String) -> Vec<Token> {
             continue;
         }
 
-        if c == '/' && char::from(char_bytes[idx+1]) == '*' {
+        // Block comment
+        if &p[idx..idx+2] == "/*" {
             idx += 2;
-            loop {
-                if p.len() <= idx {
-                    panic!("premature end of input");
-                }
-                let c1 = char::from(char_bytes[idx]);
-                let c2 = char::from(char_bytes[idx+1]);
-                if c1 == '*' && c2 == '/' {
-                    idx += 2;
-                    break;
-                } else {
+            while idx < p.len() {
+                if &p[idx..idx+2] != "*/" {
                     idx += 1;
+                    continue;
                 }
+                idx += 2;
+                continue 'outer;
             }
-            continue;
+            panic!("unclosed comment");
         }
 
         // Character literal

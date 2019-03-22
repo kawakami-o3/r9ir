@@ -2,6 +2,10 @@
 
 use crate::parse::*;
 
+pub fn roundup(x: i32, align: i32) -> i32 {
+    return (x + align - 1) & (!(align - 1));
+}
+
 pub fn ptr_to(base: Type) -> Type {
     let mut ty = alloc_type();
     ty.ty = CType::PTR;
@@ -21,6 +25,3 @@ pub fn ary_of(base: Type, len: i32) -> Type {
     return ty;
 }
 
-pub fn roundup(x: i32, align: i32) -> i32 {
-    return (x + align - 1) & (!(align - 1));
-}
