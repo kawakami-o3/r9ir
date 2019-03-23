@@ -23,9 +23,26 @@ use std::env;
 use std::fs;
 use std::sync::Mutex;
 
+lazy_static! {
+    static ref FILENAME: Mutex<String> = Mutex::new(String::new());
+}
+
+pub fn filename() -> String {
+    let filename = FILENAME.lock().unwrap();
+    return filename.clone();
+}
+
+fn set_filename(s: String) {
+    let mut filename = FILENAME.lock().unwrap();
+    *filename = s;
+}
+
 fn read_file(filename: String) -> String {
     match fs::read_to_string(filename) {
-        Ok(content) => {
+        Ok(mut content) => {
+            if &content[content.len()-1..] != "\n" {
+                content.push('\n');
+            }
             return content;
         }
         Err(_) => {
@@ -68,29 +85,28 @@ fn main() {
     let mut dump_node = false;
     let mut dump_ir1 = false;
     let mut dump_ir2 = false;
-    let filename: String;
 
     if argv.len() == 3 && argv[1] == "-dump-node" {
         dump_node = true;
-        filename = argv[2].clone();
+        set_filename(argv[2].clone());
     } else if argv.len() == 3 && argv[1] == "-dump-ir1" {
         dump_ir1 = true;
-        filename = argv[2].clone();
+        set_filename(argv[2].clone());
     } else if argv.len() == 3 && argv[1] == "-dump-ir2" {
         dump_ir2 = true;
-        filename = argv[2].clone();
+        set_filename(argv[2].clone());
     } else {
         if argv.len() != 2 {
             panic!("Usage: rcc [-test] [-dump-ir1] [-dump-ir2] <file>");
         }
-        filename = argv[1].clone();
+        set_filename(argv[1].clone());
     }
 
     // Token -> Node -> IR -> asm
     // token -> parse -> sema -> gen_ir(irdump) -> regalloc -> gen_x86
 
     // Tokenize and parse.
-    let input = read_file(filename);
+    let input = read_file(filename());
     let tokens = tokenize(&input);
     //for i in tokens.iter() { eprintln!(">> {}", i.input); }
     let mut nodes = parse(&tokens);

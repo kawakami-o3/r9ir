@@ -5,6 +5,7 @@
 
 #![allow(non_camel_case_types)]
 
+use crate::*;
 use std::cmp;
 use std::sync::Mutex;
 use std::collections::HashMap;
@@ -12,6 +13,18 @@ use std::collections::HashMap;
 lazy_static! {
     static ref SYMBOLS: Mutex<Vec<Symbol>> = Mutex::new(Vec::new());
     static ref ESCAPED: Mutex<HashMap<char, char>> = Mutex::new(HashMap::new());
+
+    static ref INPUT_FILE: Mutex<String> = Mutex::new(String::new());
+}
+
+fn input_file() -> String {
+    let input = INPUT_FILE.lock().unwrap();
+    return input.clone();
+}
+
+fn set_input_file(s: String) {
+    let mut input = INPUT_FILE.lock().unwrap();
+    *input = s;
 }
 
 fn init_symbols() {
@@ -148,19 +161,22 @@ pub struct Token {
     pub ty: TokenType, // Token type
     pub val: i32,      // Nuber literal
     pub name: String,  // Identifier
-    pub input: String, // Token string (for error reporting)
 
     // String literal
     pub str_cnt: String,
     pub len: usize,
+    
+    // For error reporting
+    pub start: usize,
 }
 
-fn new_token(ty: TokenType) -> Token {
+fn new_token(ty: TokenType, idx: usize) -> Token {
     Token{
         ty: ty,
         val: 0,
         name: String::new(),
-        input: String::new(),
+        //start: String::new(),
+        start: idx,
         str_cnt: String::new(),
         len: 0,
     }
@@ -169,6 +185,54 @@ fn new_token(ty: TokenType) -> Token {
 struct CharInfo {
     chr: char,
     len: usize,
+}
+
+fn print_line(t: & Token) {
+    let mut line = 0;
+    let mut col = 0;
+
+    let mut target = String::new();
+    let mut idx = 0;
+    let input = input_file();
+    let bytes = input.as_bytes();
+    while idx < bytes.len() {
+        let p = char::from(bytes[idx]);
+        if p == '\n' {
+            target = String::new();
+            line+=1;
+            col = 0;
+            idx += 1;
+            continue;
+        }
+
+        if idx != t.start {
+            target.push(p);
+            col += 1;
+            idx += 1;
+            continue;
+        }
+
+        eprintln!("error at {}:{}:{}", filename(), line+1, col+1);
+        eprintln!();
+
+        idx += 1;
+        while char::from(bytes[idx]) != '\n' {
+            target.push(char::from(bytes[idx]));
+        }
+        eprintln!("{}", target);
+
+        for _i in 0..col {
+            eprint!(" ");
+        }
+        eprintln!("^");
+        eprintln!();
+        return;
+    }
+}
+
+pub fn bad_token(t: & Token, msg: String) {
+    print_line(t);
+    panic!(msg);
 }
 
 fn read_char(p: &String, idx: usize) -> CharInfo {
@@ -270,6 +334,7 @@ fn keyword_map() -> HashMap<String, TokenType> {
 pub fn tokenize(p: &String) -> Vec<Token> {
     init_symbols();
     init_escaped();
+    set_input_file(p.clone());
 
     let keywords = keyword_map();
     let mut tokens = Vec::new();
@@ -306,7 +371,7 @@ pub fn tokenize(p: &String) -> Vec<Token> {
 
         // Character literal
         if c == '\'' {
-            let mut t = new_token(TokenType::NUM);
+            let mut t = new_token(TokenType::NUM, idx);
             idx += 1;
             let info = read_char(p, idx);
             t.val = u32::from(info.chr) as i32;
@@ -318,7 +383,7 @@ pub fn tokenize(p: &String) -> Vec<Token> {
 
         // String literal
         if c == '"' {
-            let mut t = new_token(TokenType::STR);
+            let mut t = new_token(TokenType::STR, idx);
             idx += 1;
 
             let info = read_string(p, idx);
@@ -340,15 +405,7 @@ pub fn tokenize(p: &String) -> Vec<Token> {
                         continue;
                     }
 
-                    tokens.push(Token{
-                        ty: s.ty,
-                        val: 0,
-                        name: String::from(s.name),
-                        input: String::from(s.name),
-                        str_cnt: String::new(),
-                        len: 0,
-                    });
-
+                    tokens.push(new_token(s.ty, idx));
                     idx += s.name.len();
                     continue 'outer;
                 }
@@ -387,16 +444,7 @@ pub fn tokenize(p: &String) -> Vec<Token> {
                 '~' => TokenType::TILDA,
                 _ => panic!("unknown {}", c),
             };
-            let tok = Token {
-                ty: ty,
-                val: 0,
-                name: String::new(),
-                input: format!("{}", c),
-                str_cnt: String::new(),
-                len: 0,
-            };
-
-            tokens.push(tok);
+            tokens.push(new_token(ty, idx));
 
             idx += 1;
             continue;
@@ -422,15 +470,9 @@ pub fn tokenize(p: &String) -> Vec<Token> {
                 None => TokenType::IDENT,
             };
 
-            let tok = Token {
-                ty: ty,
-                val: 0,
-                name: name.clone(),
-                input: name.clone(),
-                str_cnt: String::new(),
-                len: 0,
-            };
-
+            let mut tok = new_token(ty, idx);
+            tok.name = name.clone();
+            //tok.start = name.clone();
             tokens.push(tok);
             continue;
         }
@@ -449,14 +491,9 @@ pub fn tokenize(p: &String) -> Vec<Token> {
                     break;
                 }
             }
-            let tok = Token {
-                ty: TokenType::NUM,
-                val: i32::from_str_radix(&s, 10).unwrap(),
-                name: String::new(),
-                input: s,
-                str_cnt: String::new(),
-                len: 0,
-            };
+            let mut tok = new_token(TokenType::NUM, idx);
+            tok.val = i32::from_str_radix(&s, 10).unwrap();
+            //tok.start = s;
 
             tokens.push(tok);
             continue;
@@ -465,15 +502,7 @@ pub fn tokenize(p: &String) -> Vec<Token> {
         panic!("cannot tokenize: {}", c);
     }
 
-    let tok = Token {
-        ty: TokenType::EOF,
-        val: 0,
-        name: String::new(),
-        input: String::new(),
-        str_cnt: String::new(),
-        len: 0,
-    };
-    tokens.push(tok);
+    tokens.push(new_token(TokenType::EOF, 0));
 
     return tokens;
 }

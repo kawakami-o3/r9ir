@@ -322,10 +322,16 @@ fn find_tag(name: String) -> Option<Type> {
 
 fn expect(ty: TokenType, tokens: &Vec<Token>) {
     let t = &tokens[pos()];
-    if t.ty != ty {
-        panic!("{:?} expected, but got {:?}", ty, t.ty);
+    if t.ty == ty {
+        bump_pos();
+        return;
     }
-    bump_pos();
+
+    if ty != TokenType::EOF {
+        bad_token(t, format!("{:?} expected", ty).to_string());
+    }
+    assert!(ty == TokenType::WHILE);
+    bad_token(t, format!("'while' expected").to_string());
 }
 
 fn new_prim_ty(ty: CType, size: i32) -> Type {
@@ -406,7 +412,7 @@ fn read_type(tokens: &Vec<Token>) -> Option<Type> {
             }
 
             if tag.is_none() && members.is_none() {
-                panic!("bad struct definition");
+                bad_token(t, "bad struct definition".to_string());
             }
 
             let mut ty: Option<Type> = None;
@@ -464,7 +470,7 @@ fn new_num(val: i32) -> Node {
 fn ident(tokens: &Vec<Token>) -> String {
     let t = &tokens[bump_pos()];
     if t.ty != TokenType::IDENT {
-        panic!("identifier expected, but got {}", t.input);
+        bad_token(t, "identifier expected".to_string());
     }
     return t.name.clone();
 }
@@ -519,7 +525,8 @@ fn primary(tokens: &Vec<Token>) -> Node {
         return node;
     }
 
-    panic!("number expected, but got {}", t.input);
+    bad_token(t, "primary expression expected".to_string());
+    panic!(); // To avoid compile error.
 }
 
 fn postfix(tokens: &Vec<Token>) -> Node {
@@ -765,7 +772,7 @@ fn do_type(tokens: &Vec<Token>) -> Type {
     let t = &tokens[pos()];
     let ty_opt = read_type(tokens);
     if ty_opt.is_none() {
-        panic!("typename expected, but got {}", t.input);
+        bad_token(t, "typename expected".to_string());
     }
     let mut ty = ty_opt.unwrap().clone();
 
@@ -778,9 +785,10 @@ fn do_type(tokens: &Vec<Token>) -> Type {
 fn read_array<'a>(ty: &'a mut Type, tokens: &Vec<Token>) -> &'a Type {
     let mut v = Vec::new();
     while consume(TokenType::S_BRA, tokens) {
+        let t = &tokens[pos()];
         let len = expr(tokens);
         if len.op != NodeType::NUM {
-            panic!("number expected");
+            bad_token(t, "number expected".to_string());
         }
         v.push(len);
         expect(TokenType::S_KET, tokens);
@@ -802,9 +810,10 @@ fn decl(tokens: &Vec<Token>) -> Node {
     node.name = ident(tokens);
 
     // Read the second half of type name (e.g. `[3][5]`).
+    let t = &tokens[pos()];
     node.ty = read_array(&mut node.ty, tokens).clone();
     if node.ty.ty == CType::VOID {
-        panic!("void variable: {}", node.name);
+        bad_token(t, "void variable".to_string());
     }
 
     // Read an initializer.
@@ -954,6 +963,8 @@ pub fn compound_stmt(tokens: &Vec<Token>) -> Node {
 fn toplevel(tokens: &Vec<Token>) -> Option<Node> {
     let is_typedef = consume(TokenType::TYPEDEF, tokens);
     let is_extern = consume(TokenType::EXTERN, tokens);
+
+    let t = &tokens[pos()];
     let ty = do_type(tokens);
     // if (!ty) ... // 'do_type' panics when it fails to parse a type name.
 
@@ -976,7 +987,7 @@ fn toplevel(tokens: &Vec<Token>) -> Option<Node> {
 
         expect(TokenType::C_BRA, tokens);
         if is_typedef {
-            panic!("typedef {} has function definition", name);
+            bad_token(t, format!("typedef {} has function definition", name).to_string());
         }
         node.body = Some(Box::new(compound_stmt(tokens)));
         return Some(node);
