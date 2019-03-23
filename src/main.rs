@@ -21,6 +21,8 @@ use crate::sema::*;
 use crate::token::*;
 use std::env;
 use std::fs;
+use std::io;
+use std::io::Read;
 use std::sync::Mutex;
 
 lazy_static! {
@@ -38,6 +40,12 @@ fn set_filename(s: String) {
 }
 
 fn read_file(filename: String) -> String {
+    if filename == "-" {
+        let mut buffer = String::new();
+        io::stdin().read_to_string(&mut buffer).unwrap();
+        return buffer;
+    }
+
     match fs::read_to_string(filename) {
         Ok(mut content) => {
             if &content[content.len()-1..] != "\n" {
@@ -80,8 +88,17 @@ fn print_node(node: Node, offset: usize) {
     if node.body.is_some() { print_node(*node.body.clone().unwrap(), offset+2); }
 }
 
+fn usage() {
+    panic!("Usage: rcc [-test] [-dump-ir1] [-dump-ir2] <file>");
+}
+
+
 fn main() {
     let argv: Vec<String> = env::args().collect();
+    if argv.len() == 1 {
+        usage();
+    }
+
     let mut dump_node = false;
     let mut dump_ir1 = false;
     let mut dump_ir2 = false;
@@ -97,7 +114,7 @@ fn main() {
         set_filename(argv[2].clone());
     } else {
         if argv.len() != 2 {
-            panic!("Usage: rcc [-test] [-dump-ir1] [-dump-ir2] <file>");
+            usage();
         }
         set_filename(argv[1].clone());
     }
