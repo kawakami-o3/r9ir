@@ -27,7 +27,7 @@ fn init_used() {
     match USED.lock() {
         Ok(mut used) => {
             *used = Vec::new();
-            for _i in 0..regs.len() {
+            for _i in 0..num_regs() {
                 used.push(false);
             }
         }
@@ -64,8 +64,7 @@ fn alloc(ir_reg: i32) -> i32 {
     }
 
     let mut used = USED.lock().unwrap();
-    //for i in 0..reg_map_size {
-    for i in 0..nregs() {
+    for i in 0..num_regs() {
         if used[i] {
             continue;
         }

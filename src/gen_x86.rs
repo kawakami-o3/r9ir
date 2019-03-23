@@ -34,7 +34,7 @@ pub const regs: [&'static str; 7] = ["r10", "r11", "rbx", "r12", "r13", "r14", "
 pub const regs8: [&'static str; 7] = ["r10b", "r11b", "bl", "r12b", "r13b", "r14b", "r15b"];
 pub const regs32: [&'static str; 7] = ["r10d", "r11d", "ebx", "r12d", "r13d", "r14d", "r15d"];
 
-pub fn nregs() -> usize {
+pub fn num_regs() -> usize {
     return regs.len();
 }
 
