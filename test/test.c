@@ -7,7 +7,7 @@ extern void *stderr;
     if (e1 == e2) {                                             \
       fprintf(stderr, "%s => %d\n", #expr, e2);                 \
     } else {                                                    \
-      fprintf(stderr, "line %d: %s: %d expected, but got %d\n",      \
+      fprintf(stderr, "line %d: %s: %d expected, but got %d\n", \
               __LINE__, #expr, e1, e2);                         \
       exit(1);                                                  \
     }                                                           \
@@ -86,7 +86,7 @@ int main() {
 
   EXPECT(8, 1 << 3);
   EXPECT(4, 16 >> 2);
-  
+
   EXPECT(4, 19 % 5);
   EXPECT(0, 9 % 3);
 
@@ -160,32 +160,42 @@ int main() {
   EXPECT(8, ({ return 3 + ({ return 5; }); }));
   EXPECT(1, ({; return 1; }));
 
-  EXPECT(4, ({struct { int a; } x; return sizeof(x); }));
-  EXPECT(8, ({struct { char a; int b; } x; return sizeof(x); }));
-  EXPECT(12, ({struct { char a; char b; int c; char d; } x; return sizeof(x); }));
+  EXPECT(4, ({ struct { int a; } x; return sizeof(x); }));
+  EXPECT(8, ({ struct { char a; int b; } x; return sizeof(x); }));
+  EXPECT(12, ({ struct { char a; char b; int c; char d; } x; return sizeof(x); }));
   EXPECT(3, ({ struct { int a; } x; x.a=3; return x.a; }));
   EXPECT(8, ({ struct { char a; int b; } x; x.a=3; x.b=5; return x.a+x.b; }));
   EXPECT(8, ({ struct { char a; int b; } x; struct { char a; int b; } *p = &x; x.a=3; x.b=5; return p->a+p->b; }));
   EXPECT(8, ({ struct tag { char a; int b; } x; struct tag *p = &x; x.a=3; x.b=5; return p->a+p->b; }));
-
   EXPECT(48, ({ struct { struct { int b; int c[5]; } a[2]; } x; return sizeof(x); }));
 
   EXPECT(8, ({
-        struct {
-          struct {
-            int b;
-            int c[5];
-          } a[2];
-        } x;
-        x.a[0].b = 3;
-        x.a[0].c[1] = 5;
-        return x.a[0].b + x.a[0].c[1];
-        }));
+	struct {
+	  struct {
+	    int b;
+	    int c[5];
+	  } a[2];
+	} x;
+	x.a[0].b = 3;
+	x.a[0].c[1] = 5;
+	return x.a[0].b + x.a[0].c[1];
+      }));
 
   EXPECT(3, ({ typedef int foo; foo x = 3; return x; }));
   EXPECT(4, ({ myint foo = 3; return sizeof(foo); }));
 
   EXPECT(1, ({ typedef struct foo_ foo; return 1; }));
+
+  EXPECT(15, ({ int i=5; i*=3; return i; }));
+  EXPECT(1, ({ int i=5; i/=3; return i; }));
+  EXPECT(2, ({ int i=5; i%=3; return i; }));
+  EXPECT(8, ({ int i=5; i+=3; return i; }));
+  EXPECT(2, ({ int i=5; i-=3; return i; }));
+  EXPECT(40, ({ int i=5; i<<=3; return i; }));
+  EXPECT(0, ({ int i=5; i>>=3; return i; }));
+  EXPECT(1, ({ int i=5; i&=3; return i; }));
+  EXPECT(6, ({ int i=5; i^=3; return i; }));
+  EXPECT(7, ({ int i=5; i|=3; return i; }));
 
   printf("OK\n");
   return 0;

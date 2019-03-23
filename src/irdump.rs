@@ -55,7 +55,7 @@ fn init_irinfo() {
     irinfo.insert(IRType::XOR, IRInfo { name: "XOR", ty: IRInfoType::REG_REG });
     irinfo.insert(IRType::SHL, IRInfo { name: "SHL", ty: IRInfoType::REG_REG });
     irinfo.insert(IRType::SHR, IRInfo { name: "SHR", ty: IRInfoType::REG_REG });
-    irinfo.insert(IRType::LOAD, IRInfo { name: "LOAD", ty: IRInfoType::REG_REG });
+    irinfo.insert(IRType::LOAD, IRInfo { name: "LOAD", ty: IRInfoType::MEM });
     irinfo.insert(IRType::MOD, IRInfo { name: "MOD", ty: IRInfoType::REG_REG });
     irinfo.insert(IRType::NEG, IRInfo { name: "NEG", ty: IRInfoType::REG });
     irinfo.insert(IRType::MOV, IRInfo { name: "MOV", ty: IRInfoType::REG_REG });

@@ -144,6 +144,16 @@ pub enum NodeType {
     PRE_DEC,   // pre --
     POST_INC,  // post ++
     POST_DEC,  // post --
+    MUL_EQ,    // *=
+    DIV_EQ,    // /=
+    MOD_EQ,    // %=
+    ADD_EQ,    // +=
+    SUB_EQ,    // -=
+    SHL_EQ,    // <<=
+    SHR_EQ,    // >>=
+    BITAND_EQ, // &=
+    XOR_EQ,    // ^=
+    BITOR_EQ,  // |=
     RETURN,    // "return"
     SIZEOF,    // "sizeof"
     ALIGNOF,   // "_Alignof"
@@ -697,12 +707,41 @@ fn conditional(tokens: &Vec<Token>) -> Node {
     return node;
 }
 
+fn assignment_op(tokens: &Vec<Token>) -> Option<NodeType> {
+    if consume(TokenType::EQL, tokens) {
+        Some(NodeType::EQL)
+    } else if consume(TokenType::MUL_EQ, tokens) {
+        Some(NodeType::MUL_EQ)
+    } else if consume(TokenType::DIV_EQ, tokens) {
+        Some(NodeType::DIV_EQ)
+    } else if consume(TokenType::MOD_EQ, tokens) {
+        Some(NodeType::MOD_EQ)
+    } else if consume(TokenType::ADD_EQ, tokens) {
+        Some(NodeType::ADD_EQ)
+    } else if consume(TokenType::SUB_EQ, tokens) {
+        Some(NodeType::SUB_EQ)
+    } else if consume(TokenType::SHL_EQ, tokens) {
+        Some(NodeType::SHL_EQ)
+    } else if consume(TokenType::SHR_EQ, tokens) {
+        Some(NodeType::SHR_EQ)
+    } else if consume(TokenType::BITAND_EQ, tokens) {
+        Some(NodeType::BITAND_EQ)
+    } else if consume(TokenType::XOR_EQ, tokens) {
+        Some(NodeType::XOR_EQ)
+    } else if consume(TokenType::BITOR_EQ, tokens) {
+        Some(NodeType::BITOR_EQ)
+    } else {
+        None
+    }
+}
+
 fn assign(tokens: &Vec<Token>) -> Node {
     let lhs = conditional(tokens);
-    if !consume(TokenType::EQL, tokens) {
-        return lhs;
+    let op = assignment_op(tokens);
+    if let Some(o) = op {
+        return new_binop(o, lhs, conditional(tokens));
     }
-    return new_binop(NodeType::EQL, lhs, conditional(tokens));
+    return lhs;
 }
 
 fn expr(tokens: &Vec<Token>) -> Node {

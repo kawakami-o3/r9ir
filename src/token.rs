@@ -17,22 +17,8 @@ lazy_static! {
 fn init_symbols() {
     let mut symbols = SYMBOLS.lock().unwrap();
 
-//    symbols.push(Symbol { name: "_Alignof", ty: TokenType::ALIGNOF });
-//    symbols.push(Symbol { name: "break", ty: TokenType::BREAK });
-//    symbols.push(Symbol { name: "char", ty: TokenType::CHAR });
-//    symbols.push(Symbol { name: "do", ty: TokenType::DO });
-//    symbols.push(Symbol { name: "else", ty: TokenType::ELSE });
-//    symbols.push(Symbol { name: "extern", ty: TokenType::EXTERN });
-//    symbols.push(Symbol { name: "for", ty: TokenType::FOR });
-//    symbols.push(Symbol { name: "if", ty: TokenType::IF });
-//    symbols.push(Symbol { name: "int", ty: TokenType::INT });
-//    symbols.push(Symbol { name: "return", ty: TokenType::RETURN });
-//    symbols.push(Symbol { name: "sizeof", ty: TokenType::SIZEOF });
-//    symbols.push(Symbol { name: "struct", ty: TokenType::STRUCT });
-//    symbols.push(Symbol { name: "typedef", ty: TokenType::TYPEDEF });
-//    symbols.push(Symbol { name: "void", ty: TokenType::VOID });
-//    symbols.push(Symbol { name: "while", ty: TokenType::WHILE });
-
+    symbols.push(Symbol { name: "<<=", ty: TokenType::SHL_EQ });
+    symbols.push(Symbol { name: ">>=", ty: TokenType::SHR_EQ });
     symbols.push(Symbol { name: "!=", ty: TokenType::NE });
     symbols.push(Symbol { name: "&&", ty: TokenType::LOGAND });
     symbols.push(Symbol { name: "++", ty: TokenType::INC });
@@ -49,8 +35,6 @@ fn init_symbols() {
     symbols.push(Symbol { name: "%=", ty: TokenType::MOD_EQ });
     symbols.push(Symbol { name: "+=", ty: TokenType::ADD_EQ });
     symbols.push(Symbol { name: "-=", ty: TokenType::SUB_EQ });
-    symbols.push(Symbol { name: "<<=", ty: TokenType::SHL_EQ });
-    symbols.push(Symbol { name: ">>=", ty: TokenType::SHR_EQ });
     symbols.push(Symbol { name: "&=", ty: TokenType::BITAND_EQ });
     symbols.push(Symbol { name: "^=", ty: TokenType::XOR_EQ });
     symbols.push(Symbol { name: "|=", ty: TokenType::BITOR_EQ });

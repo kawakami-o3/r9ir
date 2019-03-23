@@ -323,7 +323,17 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
 
             return node;
         }
-        NodeType::EQL => {
+        NodeType::EQL |
+            NodeType::MUL_EQ |
+            NodeType::DIV_EQ |
+            NodeType::MOD_EQ |
+            NodeType::ADD_EQ |
+            NodeType::SUB_EQ |
+            NodeType::SHL_EQ |
+            NodeType::SHR_EQ |
+            NodeType::BITAND_EQ |
+            NodeType::XOR_EQ |
+            NodeType::BITOR_EQ => {
             node.lhs = Some(Box::new(walk(&mut *node.lhs.clone().unwrap(), false).clone()));
             check_lval(& *node.lhs.clone().unwrap());
 
