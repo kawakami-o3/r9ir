@@ -13,6 +13,9 @@
 //   Recall that, in C, "array of T" is automatically converted to
 //   "pointer to T" in most contexts.
 //
+// - Scales operands for pointer arithmetic. E.g. ptr+1 becomes ptr+4
+//   for integer and becomes ptr+8 for pointer.
+//
 // - Reject bad assignments, such as `1=2+3`.
 
 use crate::parse::*;
@@ -195,13 +198,21 @@ fn maybe_decay(base: & mut Node, decay: bool) -> & mut Node {
     return base;
 }
 
-fn check_lval(node: & Node) {
+fn check_lval(node: Box<Node>) {
     match node.op {
         NodeType::LVAR | NodeType::GVAR | NodeType::DEREF | NodeType::DOT => { }
         _ => {
             panic!("not an lvalue: {:?} ({})", node.op, node.name);
         }
     }
+}
+
+fn scale_ptr(node: Node, ty: Type) -> Node {
+    let mut e = alloc_node();
+    e.op = NodeType::MUL;
+    e.lhs = Some(Box::new(node.clone()));
+    e.rhs = Some(Box::new(new_int(ty.ptr_to.unwrap().size)));
+    return e;
 }
 
 fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
@@ -304,38 +315,52 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
                 }
                 _ => {}
             }
-            match node.rhs {
-                Some(ref rhs) => {
-                    if rhs.ty.ty == CType::PTR {
-                        panic!("'pointer {:?} pointer' is not defined", node.op);
-                    }
+
+            if let Some(ref rhs) = node.rhs {
+                if rhs.ty.ty == CType::PTR {
+                    panic!("'pointer {:?} pointer' is not defined", node.op);
                 }
-                None => {
+            }
+        
+            if let Some(ref lhs) = node.lhs {
+                if lhs.ty.ty == CType::PTR {
+                    node.rhs = Some(Box::new(scale_ptr(*node.rhs.clone().unwrap(), lhs.ty.clone())));
                 }
             }
 
-            match node.lhs {
-                Some(ref lhs) => {
-                    node.ty = lhs.ty.clone();
-                }
-                None => { }
+            if let Some(ref lhs) = node.lhs {
+                node.ty = lhs.ty.clone();
             }
-
             return node;
         }
+        NodeType::ADD_EQ |
+            NodeType::SUB_EQ => {
+                node.lhs = Some(Box::new(walk(&mut *node.lhs.clone().unwrap(), false).clone()));
+                check_lval(node.lhs.clone().unwrap());
+                node.rhs = Some(Box::new(walk(&mut *node.rhs.clone().unwrap(), true).clone()));
+                if let Some(ref lhs) = node.lhs {
+                    node.ty = lhs.ty.clone();
+                }
+
+                if let Some(ref lhs) = node.lhs {
+                    if lhs.ty.ty == CType::PTR {
+                        node.rhs = Some(Box::new(scale_ptr(*node.rhs.clone().unwrap(), lhs.ty.clone())));
+                    }
+                }
+                return node;
+        }
+
         NodeType::EQL |
             NodeType::MUL_EQ |
             NodeType::DIV_EQ |
             NodeType::MOD_EQ |
-            NodeType::ADD_EQ |
-            NodeType::SUB_EQ |
             NodeType::SHL_EQ |
             NodeType::SHR_EQ |
             NodeType::BITAND_EQ |
             NodeType::XOR_EQ |
             NodeType::BITOR_EQ => {
             node.lhs = Some(Box::new(walk(&mut *node.lhs.clone().unwrap(), false).clone()));
-            check_lval(& *node.lhs.clone().unwrap());
+            check_lval(node.lhs.clone().unwrap());
 
             node.rhs = Some(Box::new(walk(&mut *node.rhs.clone().unwrap(), true).clone()));
             node.ty = node.lhs.clone().unwrap().ty;
@@ -401,9 +426,7 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
             node.ty = node.rhs.clone().unwrap().ty;
             return node;
         }
-        NodeType::PRE_INC |
-            NodeType::PRE_DEC |
-            NodeType::POST_INC |
+        NodeType::POST_INC |
             NodeType::POST_DEC |
             NodeType::NEG |
             NodeType::EXCLAM => {
@@ -413,7 +436,7 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
         }
         NodeType::ADDR => {
             node.expr = Some(Box::new(walk(&mut *node.expr.clone().unwrap(), true).clone()));
-            check_lval(& *node.expr.clone().unwrap());
+            check_lval(node.expr.clone().unwrap());
             node.ty = ptr_to(node.expr.clone().unwrap().ty);
             return node;
         }

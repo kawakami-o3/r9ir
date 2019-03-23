@@ -476,39 +476,8 @@ fn gen_expr(node: Node) -> i32 {
             kill(lhs);
             return rhs;
         }
-        NodeType::ADD | NodeType::SUB => {
-            let insn = match node.op {
-                NodeType::ADD => IRType::ADD,
-                NodeType::SUB => IRType::SUB,
-                _ => {
-                    panic!();
-                }
-            };
-            match node.lhs {
-                Some(ref lhs) => {
-                    if lhs.ty.ty != CType::PTR {
-                        return gen_binop(insn, node.clone());
-                    }
-                }
-                None => {}
-            }
-
-            let rhs = gen_expr(*node.rhs.unwrap());
-            match node.lhs {
-                Some(ref lhs) => {
-                    add_imm(IRType::MUL, rhs, lhs.ty.ptr_to.clone().unwrap().size);
-                }
-                None => {
-                    panic!();
-                }
-            }
-
-            let lhs = gen_expr(*node.lhs.unwrap());
-            add(insn, lhs, rhs);
-            kill(rhs);
-
-            return lhs;
-        }
+        NodeType::ADD => { return gen_binop(IRType::ADD, node); }
+        NodeType::SUB => { return gen_binop(IRType::SUB, node); }
         NodeType::MUL => { return gen_binop(IRType::MUL, node); }
         NodeType::DIV => { return gen_binop(IRType::DIV, node); }
         NodeType::MOD => { return gen_binop(IRType::MOD, node); }
@@ -528,8 +497,6 @@ fn gen_expr(node: Node) -> i32 {
             kill(gen_expr(*node.lhs.unwrap()));
             return gen_expr(*node.rhs.unwrap());
         }
-        NodeType::PRE_INC => { return gen_pre_inc(&node, 1); }
-        NodeType::PRE_DEC => { return gen_pre_inc(&node, -1); }
         NodeType::POST_INC => { return gen_post_inc(&node, 1); }
         NodeType::POST_DEC => { return gen_post_inc(&node, -1); }
         NodeType::QUEST => {

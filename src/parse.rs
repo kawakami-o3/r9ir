@@ -140,8 +140,6 @@ pub enum NodeType {
     SHR,       // >>
     MOD,       // %
     NEG,       // -
-    PRE_INC,   // pre ++
-    PRE_DEC,   // pre --
     POST_INC,  // post ++
     POST_DEC,  // post --
     MUL_EQ,    // *=
@@ -454,6 +452,14 @@ fn new_expr(op: NodeType, expr: Node) -> Node {
     return node;
 }
 
+fn new_num(val: i32) -> Node {
+    let mut node = alloc_node();
+    node.op = NodeType::NUM;
+    node.ty = int_ty();
+    node.val = val;
+    return node;
+}
+
 fn ident(tokens: &Vec<Token>) -> String {
     let t = &tokens[bump_pos()];
     if t.ty != TokenType::IDENT {
@@ -480,10 +486,7 @@ fn primary(tokens: &Vec<Token>) -> Node {
 
     let mut node = alloc_node();
     if t.ty == TokenType::NUM {
-        node.ty = int_ty();
-        node.op = NodeType::NUM;
-        node.val = t.val;
-        return node;
+        return new_num(t.val);
     }
 
     if t.ty == TokenType::STR {
@@ -566,18 +569,20 @@ fn unary(tokens: &Vec<Token>) -> Node {
     if consume(TokenType::EXCLAM, tokens) {
         return new_expr(NodeType::EXCLAM, unary(tokens));
     }
-    if consume(TokenType::INC, tokens) {
-        return new_expr(NodeType::PRE_INC, unary(tokens));
-    }
-    if consume(TokenType::DEC, tokens) {
-        return new_expr(NodeType::PRE_DEC, unary(tokens));
-    }
     if consume(TokenType::SIZEOF, tokens) {
         return new_expr(NodeType::SIZEOF, unary(tokens));
     }
     if consume(TokenType::ALIGNOF, tokens) {
         return new_expr(NodeType::ALIGNOF, unary(tokens));
     }
+
+    if consume(TokenType::INC, tokens) {
+        return new_binop(NodeType::ADD_EQ, unary(tokens), new_num(1));
+    }
+    if consume(TokenType::DEC, tokens) {
+        return new_binop(NodeType::SUB_EQ, unary(tokens), new_num(1));
+    }
+
     return postfix(tokens);
 }
 
