@@ -473,8 +473,8 @@ fn gen_expr(node: Node) -> i32 {
             let rhs = gen_expr(*node.clone().rhs.unwrap());
             let lhs = gen_lval(*node.clone().lhs.unwrap());
             store(&node, lhs, rhs);
-            kill(rhs);
-            return lhs;
+            kill(lhs);
+            return rhs;
         }
         NodeType::ADD | NodeType::SUB => {
             let insn = match node.op {

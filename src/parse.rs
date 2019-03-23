@@ -739,7 +739,7 @@ fn assign(tokens: &Vec<Token>) -> Node {
     let lhs = conditional(tokens);
     let op = assignment_op(tokens);
     if let Some(o) = op {
-        return new_binop(o, lhs, conditional(tokens));
+        return new_binop(o, lhs, assign(tokens));
     }
     return lhs;
 }
