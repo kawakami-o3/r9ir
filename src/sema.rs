@@ -429,7 +429,8 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
         NodeType::POST_INC |
             NodeType::POST_DEC |
             NodeType::NEG |
-            NodeType::EXCLAM => {
+            NodeType::EXCLAM |
+            NodeType::NOT => {
             node.expr = Some(Box::new(walk(&mut *node.expr.clone().unwrap(), true).clone()));
             node.ty = node.expr.clone().unwrap().ty;
             return node;

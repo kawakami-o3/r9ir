@@ -112,6 +112,7 @@ pub enum NodeType {
     EQL,       // =
     LT,        // <
     OR,        // |
+    NOT,       // ~
     XOR,       // ^
     AND,       // &
     EXCLAM,    // !
@@ -568,6 +569,9 @@ fn unary(tokens: &Vec<Token>) -> Node {
     }
     if consume(TokenType::EXCLAM, tokens) {
         return new_expr(NodeType::EXCLAM, unary(tokens));
+    }
+    if consume(TokenType::TILDA, tokens) {
+        return new_expr(NodeType::NOT, unary(tokens));
     }
     if consume(TokenType::SIZEOF, tokens) {
         return new_expr(NodeType::SIZEOF, unary(tokens));

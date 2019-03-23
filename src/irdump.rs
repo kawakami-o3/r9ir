@@ -52,7 +52,7 @@ fn init_irinfo() {
     irinfo.insert(IRType::LT, IRInfo { name: "LT", ty: IRInfoType::REG_REG });
     irinfo.insert(IRType::AND, IRInfo { name: "AND", ty: IRInfoType::REG_REG });
     irinfo.insert(IRType::OR, IRInfo { name: "OR", ty: IRInfoType::REG_REG });
-    irinfo.insert(IRType::XOR, IRInfo { name: "XOR", ty: IRInfoType::REG_REG });
+    irinfo.insert(IRType::XOR, IRInfo { name: "XOR", ty: IRInfoType::BINARY });
     irinfo.insert(IRType::SHL, IRInfo { name: "SHL", ty: IRInfoType::REG_REG });
     irinfo.insert(IRType::SHR, IRInfo { name: "SHR", ty: IRInfoType::REG_REG });
     irinfo.insert(IRType::LOAD, IRInfo { name: "LOAD", ty: IRInfoType::MEM });

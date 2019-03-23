@@ -488,6 +488,11 @@ fn gen_expr(node: Node) -> i32 {
         NodeType::XOR => { return gen_binop(IRType::XOR, node); }
         NodeType::SHL => { return gen_binop(IRType::SHL, node); }
         NodeType::SHR => { return gen_binop(IRType::SHR, node); }
+        NodeType::NOT => {
+            let r = gen_expr(*node.expr.unwrap());
+            add_imm(IRType::XOR, r, -1);
+            return r;
+        }
         NodeType::NEG => {
             let r = gen_expr(*node.expr.unwrap());
             add(IRType::NEG, r, -1);

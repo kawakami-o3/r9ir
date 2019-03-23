@@ -86,6 +86,7 @@ pub enum TokenType {
     GT,         // >
     OR,         // |
     HAT,        // ^
+    TILDA,      // ~
     BRA,        // (
     KET,        // )
     C_BRA,      // {
@@ -358,7 +359,7 @@ pub fn tokenize(p: &String) -> Vec<Token> {
         }
 
         // Single-letter symbol
-        if "+-*/;=(),{}<>[]&.!?:|^%".contains(c) {
+        if "+-*/;=(),{}<>[]&.!?:|^%~".contains(c) {
             let ty = match c {
                 '+' => TokenType::ADD,
                 '-' => TokenType::SUB,
@@ -383,6 +384,7 @@ pub fn tokenize(p: &String) -> Vec<Token> {
                 '?' => TokenType::QUEST,
                 '.' => TokenType::DOT,
                 '%' => TokenType::MOD,
+                '~' => TokenType::TILDA,
                 _ => panic!("unknown {}", c),
             };
             let tok = Token {

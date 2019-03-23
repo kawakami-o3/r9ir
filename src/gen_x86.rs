@@ -195,7 +195,11 @@ fn gen(fun: &IR) {
                 emit!("or {}, {}", regs[lhs as usize], regs[rhs as usize]);
             }
             IRType::XOR => {
-                emit!("xor {}, {}", regs[lhs as usize], regs[rhs as usize]);
+                if ir.is_imm {
+                    emit!("xor {}, {}", regs[lhs as usize], rhs);
+                } else {
+                    emit!("xor {}, {}", regs[lhs as usize], regs[rhs as usize]);
+                }
             }
             IRType::SHL => {
                 emit!("mov cl, {}", regs8[rhs as usize]);
