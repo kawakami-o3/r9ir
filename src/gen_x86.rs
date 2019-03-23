@@ -3,7 +3,6 @@
 
 #![allow(non_upper_case_globals)]
 
-use crate::regalloc::*;
 use crate::util::*;
 use crate::*;
 use std::collections::HashMap;
@@ -31,10 +30,17 @@ fn bump_nlabel() -> usize {
     return ret;
 }
 
+pub const regs: [&'static str; 7] = ["r10", "r11", "rbx", "r12", "r13", "r14", "r15"];
+pub const regs8: [&'static str; 7] = ["r10b", "r11b", "bl", "r12b", "r13b", "r14b", "r15b"];
+pub const regs32: [&'static str; 7] = ["r10d", "r11d", "ebx", "r12d", "r13d", "r14d", "r15d"];
 
-const argreg8: [&'static str; 6] = ["dil", "sil", "dl", "cl", "r8b", "r9b"];
-const argreg32: [&'static str; 6] = ["edi", "esi", "edx", "ecx", "r8d", "r9d"];
-const argreg64: [&'static str; 6] = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
+pub fn nregs() -> usize {
+    return regs.len();
+}
+
+const argregs: [&'static str; 6] = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
+const argregs8: [&'static str; 6] = ["dil", "sil", "dl", "cl", "r8b", "r9b"];
+const argregs32: [&'static str; 6] = ["edi", "esi", "edx", "ecx", "r8d", "r9d"];
 
 fn init_escaped() {
     let mut escaped = ESCAPED.lock().unwrap();
@@ -68,7 +74,7 @@ fn escaped(c: char) -> Option<char> {
     return ret;
 }
 
-fn escape(s: & String) -> String {
+fn backslash_escape(s: & String) -> String {
     init_escaped();
 
     let mut buf = String::new();
@@ -108,9 +114,9 @@ fn reg(r: usize, size: i32) -> &'static str {
 
 fn argreg(r: usize, size: i32) -> &'static str {
     match size {
-        1 => argreg8[r],
-        4 => argreg32[r],
-        8 => argreg64[r],
+        1 => argregs8[r],
+        4 => argregs32[r],
+        8 => argregs[r],
         _ => panic!(),
     }
 }
@@ -149,7 +155,7 @@ fn gen(fun: &IR) {
             }
             IRType::CALL => {
                 for i in 0..ir.nargs {
-                    emit!("mov {}, {}", argreg64[i], regs[ir.args[i] as usize]);
+                    emit!("mov {}, {}", argregs[i], regs[ir.args[i] as usize]);
                 }
 
                 emit!("push r10");
@@ -291,7 +297,7 @@ pub fn gen_x86(globals: Vec<Var>, fns: &Vec<IR>) {
             continue;
         }
         println!("{}:", var.name);
-        emit!(".ascii \"{}\"", escape(&var.data));
+        emit!(".ascii \"{}\"", backslash_escape(&var.data));
     }
 
     println!(".text");

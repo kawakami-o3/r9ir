@@ -23,10 +23,6 @@ lazy_static! {
 
 const reg_map_size: usize = 8192;
 
-pub const regs: [&'static str; 7] = ["r10", "r11", "rbx", "r12", "r13", "r14", "r15"];
-pub const regs8: [&'static str; 7] = ["r10b", "r11b", "bl", "r12b", "r13b", "r14b", "r15b"];
-pub const regs32: [&'static str; 7] = ["r10d", "r11d", "ebx", "r12d", "r13d", "r14d", "r15d"];
-
 fn init_used() {
     match USED.lock() {
         Ok(mut used) => {
@@ -68,7 +64,8 @@ fn alloc(ir_reg: i32) -> i32 {
     }
 
     let mut used = USED.lock().unwrap();
-    for i in 0..reg_map_size {
+    //for i in 0..reg_map_size {
+    for i in 0..nregs() {
         if used[i] {
             continue;
         }
