@@ -17,21 +17,22 @@ lazy_static! {
 fn init_symbols() {
     let mut symbols = SYMBOLS.lock().unwrap();
 
-    symbols.push(Symbol { name: "_Alignof", ty: TokenType::ALIGNOF });
-    symbols.push(Symbol { name: "break", ty: TokenType::BREAK });
-    symbols.push(Symbol { name: "char", ty: TokenType::CHAR });
-    symbols.push(Symbol { name: "do", ty: TokenType::DO });
-    symbols.push(Symbol { name: "else", ty: TokenType::ELSE });
-    symbols.push(Symbol { name: "extern", ty: TokenType::EXTERN });
-    symbols.push(Symbol { name: "for", ty: TokenType::FOR });
-    symbols.push(Symbol { name: "if", ty: TokenType::IF });
-    symbols.push(Symbol { name: "int", ty: TokenType::INT });
-    symbols.push(Symbol { name: "return", ty: TokenType::RETURN });
-    symbols.push(Symbol { name: "sizeof", ty: TokenType::SIZEOF });
-    symbols.push(Symbol { name: "struct", ty: TokenType::STRUCT });
-    symbols.push(Symbol { name: "typedef", ty: TokenType::TYPEDEF });
-    symbols.push(Symbol { name: "void", ty: TokenType::VOID });
-    symbols.push(Symbol { name: "while", ty: TokenType::WHILE });
+//    symbols.push(Symbol { name: "_Alignof", ty: TokenType::ALIGNOF });
+//    symbols.push(Symbol { name: "break", ty: TokenType::BREAK });
+//    symbols.push(Symbol { name: "char", ty: TokenType::CHAR });
+//    symbols.push(Symbol { name: "do", ty: TokenType::DO });
+//    symbols.push(Symbol { name: "else", ty: TokenType::ELSE });
+//    symbols.push(Symbol { name: "extern", ty: TokenType::EXTERN });
+//    symbols.push(Symbol { name: "for", ty: TokenType::FOR });
+//    symbols.push(Symbol { name: "if", ty: TokenType::IF });
+//    symbols.push(Symbol { name: "int", ty: TokenType::INT });
+//    symbols.push(Symbol { name: "return", ty: TokenType::RETURN });
+//    symbols.push(Symbol { name: "sizeof", ty: TokenType::SIZEOF });
+//    symbols.push(Symbol { name: "struct", ty: TokenType::STRUCT });
+//    symbols.push(Symbol { name: "typedef", ty: TokenType::TYPEDEF });
+//    symbols.push(Symbol { name: "void", ty: TokenType::VOID });
+//    symbols.push(Symbol { name: "while", ty: TokenType::WHILE });
+
     symbols.push(Symbol { name: "!=", ty: TokenType::NE });
     symbols.push(Symbol { name: "&&", ty: TokenType::LOGAND });
     symbols.push(Symbol { name: "++", ty: TokenType::INC });
@@ -43,6 +44,16 @@ fn init_symbols() {
     symbols.push(Symbol { name: ">=", ty: TokenType::GE });
     symbols.push(Symbol { name: ">>", ty: TokenType::SHR });
     symbols.push(Symbol { name: "||", ty: TokenType::LOGOR });
+    symbols.push(Symbol { name: "*=", ty: TokenType::MUL_EQ });
+    symbols.push(Symbol { name: "/=", ty: TokenType::DIV_EQ });
+    symbols.push(Symbol { name: "%=", ty: TokenType::MOD_EQ });
+    symbols.push(Symbol { name: "+=", ty: TokenType::ADD_EQ });
+    symbols.push(Symbol { name: "-=", ty: TokenType::SUB_EQ });
+    symbols.push(Symbol { name: "<<=", ty: TokenType::SHL_EQ });
+    symbols.push(Symbol { name: ">>=", ty: TokenType::SHR_EQ });
+    symbols.push(Symbol { name: "&=", ty: TokenType::BITAND_EQ });
+    symbols.push(Symbol { name: "^=", ty: TokenType::XOR_EQ });
+    symbols.push(Symbol { name: "|=", ty: TokenType::BITOR_EQ });
 }
 
 fn init_escaped() {
@@ -131,6 +142,16 @@ pub enum TokenType {
     SHR,        // >>
     INC,        // ++
     DEC,        // --
+    MUL_EQ,     // *=
+    DIV_EQ,     // /=
+    MOD_EQ,     // %=
+    ADD_EQ,     // +=
+    SUB_EQ,     // -=
+    SHL_EQ,     // <<=
+    SHR_EQ,     // >>=
+    BITAND_EQ,  // &=
+    XOR_EQ,     // ^=
+    BITOR_EQ,   // |=
     RETURN,     // "return"
     SIZEOF,     // "sizeof"
     ALIGNOF,    // "_Alignof"
@@ -241,10 +262,31 @@ fn read_string(p: &String, idx: usize) -> StrInfo {
     };
 }
 
+fn keyword_map() -> HashMap<String, TokenType> {
+    let mut keywords = HashMap::new();
+    keywords.insert("_Alignof".to_string(), TokenType::ALIGNOF);
+    keywords.insert("break".to_string(), TokenType::BREAK);
+    keywords.insert("char".to_string(), TokenType::CHAR);
+    keywords.insert("do".to_string(), TokenType::DO);
+    keywords.insert("else".to_string(), TokenType::ELSE);
+    keywords.insert("extern".to_string(), TokenType::EXTERN);
+    keywords.insert("for".to_string(), TokenType::FOR);
+    keywords.insert("if".to_string(), TokenType::IF);
+    keywords.insert("int".to_string(), TokenType::INT);
+    keywords.insert("return".to_string(), TokenType::RETURN);
+    keywords.insert("sizeof".to_string(), TokenType::SIZEOF);
+    keywords.insert("struct".to_string(), TokenType::STRUCT);
+    keywords.insert("typedef".to_string(), TokenType::TYPEDEF);
+    keywords.insert("void".to_string(), TokenType::VOID);
+    keywords.insert("while".to_string(), TokenType::WHILE);
+    return keywords;
+} 
+
 pub fn tokenize(p: &String) -> Vec<Token> {
     init_symbols();
     init_escaped();
 
+    let keywords = keyword_map();
     let mut tokens = Vec::new();
     let char_bytes = p.as_bytes();
     let mut idx = 0;
@@ -304,7 +346,7 @@ pub fn tokenize(p: &String) -> Vec<Token> {
             continue;
         }
 
-        // Multi-letter token
+        // Multi-letter symbol
         match SYMBOLS.lock() {
             Ok(symbols) => {
                 for s in symbols.iter() {
@@ -331,7 +373,7 @@ pub fn tokenize(p: &String) -> Vec<Token> {
             }
         }
 
-        // Single-letter token
+        // Single-letter symbol
         if "+-*/;=(),{}<>[]&.!?:|^%".contains(c) {
             let ty = match c {
                 '+' => TokenType::ADD,
@@ -374,26 +416,31 @@ pub fn tokenize(p: &String) -> Vec<Token> {
             continue;
         }
 
-        // Identifier
+        // Keyword or identifier
         if c.is_alphabetic() || c == '_' {
-            let mut s = String::new();
-            s.push(c);
+            let mut name = String::new();
+            name.push(c);
             idx += 1;
             while idx < char_bytes.len() {
                 let d = char::from(char_bytes[idx]);
                 if d.is_alphabetic() || d.is_digit(10) || d == '_' {
-                    s.push(d);
+                    name.push(d);
                     idx += 1;
                 } else {
                     break;
                 }
             }
 
+            let ty = match keywords.get(&name) {
+                Some(k) => *k,
+                None => TokenType::IDENT,
+            };
+
             let tok = Token {
-                ty: TokenType::IDENT,
+                ty: ty,
                 val: 0,
-                name: s.clone(),
-                input: s.clone(),
+                name: name.clone(),
+                input: name.clone(),
                 str_cnt: String::new(),
                 len: 0,
             };
