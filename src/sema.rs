@@ -462,13 +462,6 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
             node.ty = int_ty();
             return node;
         }
-        NodeType::FUNC => {
-            for i in 0..node.args.len() {
-                node.args[i] = walk(&mut node.args[i], true).clone();
-            }
-            node.body = Some(Box::new(walk(&mut *node.body.clone().unwrap(), true).clone()));
-            return node;
-        }
         NodeType::COMP_STMT => {
             env_push();
             for i in 0..node.stmts.len() {
@@ -490,7 +483,6 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
 
 pub fn sema(nodes: &mut Vec<Node>) -> Vec<Var> {
     init_globals();
-    //let mut topenv = new_env(None);
 
     for node in nodes.iter_mut() {
         if node.op == NodeType::VARDEF {
@@ -504,7 +496,11 @@ pub fn sema(nodes: &mut Vec<Node>) -> Vec<Var> {
         assert!(node.op == NodeType::FUNC);
 
         init_stacksize();
-        walk(node, true);
+        for i in 0..node.args.len() {
+            node.args[i] = walk(&mut node.args[i], true).clone();
+        }
+        node.body = Some(Box::new(walk(&mut *node.body.clone().unwrap(), true).clone()));
+
         node.stacksize = stacksize();
     }
     return globals();
