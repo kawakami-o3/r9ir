@@ -175,7 +175,7 @@ fn add(op: IRType, lhs: i32, rhs: i32) -> usize {
     ir.op = op;
     ir.lhs = lhs;
     ir.rhs = rhs;
-        
+
     match CODE.lock() {
         Ok(mut code) => {
             (*code).push(ir);

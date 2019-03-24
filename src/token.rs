@@ -15,6 +15,9 @@ lazy_static! {
     static ref ESCAPED: Mutex<HashMap<char, char>> = Mutex::new(HashMap::new());
 
     static ref INPUT_FILE: Mutex<String> = Mutex::new(String::new());
+
+    static ref TOKENS: Mutex<Vec<Token>> = Mutex::new(Vec::new());
+    static ref KEYWORDS: Mutex<HashMap<String, TokenType>> = Mutex::new(HashMap::new());
 }
 
 fn input_file() -> String {
@@ -25,6 +28,35 @@ fn input_file() -> String {
 fn set_input_file(s: String) {
     let mut input = INPUT_FILE.lock().unwrap();
     *input = s;
+}
+
+fn tokens() -> Vec<Token> {
+    let tokens = TOKENS.lock().unwrap();
+    return tokens.clone();
+}
+
+fn add(t: Token) {
+    let mut tokens = TOKENS.lock().unwrap();
+    tokens.push(t);
+}
+
+fn keywords_get(name: &String) -> Option<TokenType> {
+    match KEYWORDS.lock() {
+        Ok(ref keywords) => {
+            match keywords.get(name) {
+                Some(ty) => Some(ty.clone()),
+                None => None,
+            }
+        }
+        Err(_) => {
+            panic!();
+        }
+    }
+}
+
+fn set_keywords(m: HashMap<String, TokenType>) {
+    let mut keywords = KEYWORDS.lock().unwrap();
+    *keywords = m;
 }
 
 fn init_symbols() {
@@ -156,7 +188,7 @@ pub enum TokenType {
     EOF,        // End marker
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Token {
     pub ty: TokenType, // Token type
     pub val: i32,      // Nuber literal
@@ -175,19 +207,17 @@ fn new_token(ty: TokenType, idx: usize) -> Token {
         ty: ty,
         val: 0,
         name: String::new(),
-        //start: String::new(),
         start: idx,
         str_cnt: String::new(),
         len: 0,
     }
 }
 
-struct CharInfo {
-    chr: char,
-    len: usize,
-}
+// Error reporting
 
-fn print_line(t: & Token) {
+// Finds a line pointed by a given pointer from the input file
+// to print it out.
+fn print_line(pos: usize) {
     let mut line = 0;
     let mut col = 0;
 
@@ -197,27 +227,28 @@ fn print_line(t: & Token) {
     let bytes = input.as_bytes();
     while idx < bytes.len() {
         let p = char::from(bytes[idx]);
-        if p == '\n' {
+        if p == '\n' && idx != pos {
             target = String::new();
-            line+=1;
+            line += 1;
             col = 0;
             idx += 1;
             continue;
         }
 
-        if idx != t.start {
+        if idx != pos {
             target.push(p);
             col += 1;
             idx += 1;
             continue;
         }
 
+
         eprintln!("error at {}:{}:{}", filename(), line+1, col+1);
         eprintln!();
 
-        idx += 1;
         while char::from(bytes[idx]) != '\n' {
             target.push(char::from(bytes[idx]));
+            idx += 1;
         }
         eprintln!("{}", target);
 
@@ -231,84 +262,21 @@ fn print_line(t: & Token) {
 }
 
 pub fn bad_token(t: & Token, msg: String) {
-    print_line(t);
+    print_line(t.start);
     panic!(msg);
 }
 
-fn read_char(p: &String, idx: usize) -> CharInfo {
-    if p.len() <= idx {
-        panic!("premature end of input");
-    }
-
-    let char_bytes = p.as_bytes();
-    let mut len = 0;
-    let mut c = char::from(char_bytes[idx]);
-    if c != '\\' {
-        len += 1;
-    } else {
-        len += 1;
-        if p.len() <= idx + len {
-            panic!("premature end of input");
-        }
-        c = char::from(char_bytes[idx+len]);
-        match escaped(c) {
-            Some(esc) => {
-                c = esc;
-            }
-            None => { }
-        }
-        len += 1;
-    }
-    
-    if char::from(char_bytes[idx+len]) != '\'' {
-        panic!("unclosed character literal");
-    }
-    len += 1;
-    return CharInfo {
-        chr: c,
-        len: len,
-    };
-}
-
-struct StrInfo {
-    cnt: String,
-    len: usize,
-}
-
-fn read_string(p: &String, idx: usize) -> StrInfo {
-    let mut len = 0;
-    let mut ret = String::new();
-
-    let char_bytes = p.as_bytes();
-    while (idx+len) < p.len() && char::from(char_bytes[idx+len]) != '"' {
-        let mut c = char::from(char_bytes[idx+len]);
-
-        if c != '\\' {
-            ret.push(c);
-            len += 1;
+fn block_comment(p: &String, idx: usize) -> usize {
+    let mut ret = idx + 2;
+    while ret < p.len() {
+        if &p[ret..ret+2] != "*/" {
+            ret += 1;
             continue;
         }
-
-        len += 1;
-        c = char::from(char_bytes[idx+len]);
-        if c == '\0' {
-            panic!("premature end of input");
-        }
-        match escaped(c) {
-            Some(esc) => ret.push(esc),
-            None => ret.push(c),
-        }
-        len += 1;
+        ret += 2;
+        return ret - idx;
     }
-    if (idx+len) >= p.len() {
-        panic!("premature end of input: {}", ret);
-    }
-    //ret.push(&format!("\\{:03o}", u32::from(c)));
-    ret.push(char::from(0));
-    return StrInfo{
-        cnt: ret,
-        len: len,
-    };
+    panic!("unclosed comment");
 }
 
 fn keyword_map() -> HashMap<String, TokenType> {
@@ -331,13 +299,164 @@ fn keyword_map() -> HashMap<String, TokenType> {
     return keywords;
 } 
 
-pub fn tokenize(p: &String) -> Vec<Token> {
+struct TokenInfo {
+    token: Token,
+    len: usize,
+}
+
+macro_rules! error_char {
+    ($t:expr) => {
+        bad_token($t, "unclosed character literal".to_string());
+    };
+}
+
+fn char_literal(p: &String, idx: usize) -> TokenInfo {
+    let mut t = new_token(TokenType::NUM, idx);
+    let mut len = 1;
+
+    if p.len() <= idx + len {
+        error_char!(&t);
+    }
+
+    let char_bytes = p.as_bytes();
+    let mut c = char::from(char_bytes[idx+len]);
+    if c != '\\' {
+        len += 1;
+        t.val = u32::from(c) as i32;
+    } else {
+        if p.len() <= idx + len + 1 {
+            error_char!(&t);
+        }
+        c = char::from(char_bytes[idx+len+1]);
+        match escaped(c) {
+            Some(esc) => {
+                c = esc;
+            }
+            None => { }
+        }
+        len += 2;
+        t.val = u32::from(c) as i32;
+    }
+    
+    if char::from(char_bytes[idx+len]) != '\'' {
+        error_char!(&t);
+    }
+    len += 1;
+    return TokenInfo {
+        token: t,
+        len: len,
+    };
+}
+
+macro_rules! error_str {
+    ($t:expr) => {
+        bad_token($t, "unclosed string literal".to_string());
+    };
+}
+
+fn string_literal(p: &String, idx: usize) -> TokenInfo {
+    let mut t = new_token(TokenType::STR, idx);
+
+    let mut len = 1;
+    let mut ret = String::new();
+
+    let char_bytes = p.as_bytes();
+    while (idx+len) < p.len() && char::from(char_bytes[idx+len]) != '"' {
+        let mut c = char::from(char_bytes[idx+len]);
+
+        if c != '\\' {
+            ret.push(c);
+            len += 1;
+            continue;
+        }
+
+        len += 1;
+        c = char::from(char_bytes[idx+len]);
+        if c == '\0' {
+            error_str!(&t);
+        }
+        match escaped(c) {
+            Some(esc) => ret.push(esc),
+            None => ret.push(c),
+        }
+        len += 1;
+    }
+    if (idx+len) >= p.len() {
+        error_str!(&t);
+    }
+    //ret.push(&format!("\\{:03o}", u32::from(c)));
+    ret.push(char::from(0));
+    t.str_cnt = ret;
+    t.len = len;
+    return TokenInfo{
+        token: t,
+        len: len,
+    };
+}
+
+fn ident(p: &String, idx: usize) -> TokenInfo {
+    let mut ret = idx;
+
+    let mut name = String::new();
+    name.push_str(&p[ret..ret+1]);
+    ret += 1;
+    while ret < p.len() {
+        let b = &p[ret..ret+1].as_bytes();
+        let d = char::from(b[0]);
+        if d.is_alphabetic() || d.is_digit(10) || d == '_' {
+            name.push(d);
+            ret += 1;
+        } else {
+            break;
+        }
+    }
+
+    let ty = match keywords_get(&name) {
+        Some(k) => k,
+        None => TokenType::IDENT,
+    };
+
+    let mut t = new_token(ty, idx);
+    t.name = name.clone();
+
+    return TokenInfo{
+        token: t,
+        len: ret - idx,
+    };
+}
+
+fn number(p: &String, idx: usize) -> TokenInfo {
+    let mut ret = idx;
+
+    let mut s = String::new();
+    s.push_str(&p[ret..ret+1]);
+    ret += 1;
+    while ret < p.len() {
+        let b = &p[ret..ret+1].as_bytes();
+        let d = char::from(b[0]);
+        if d.is_digit(10) {
+            s.push(d);
+            ret += 1;
+        } else {
+            break;
+        }
+    }
+    let mut t = new_token(TokenType::NUM, ret);
+    t.val = i32::from_str_radix(&s, 10).unwrap();
+    //tok.start = s;
+
+    return TokenInfo {
+        token: t,
+        len: ret - idx,
+    };
+}
+
+fn scan() {
     init_symbols();
     init_escaped();
-    set_input_file(p.clone());
 
-    let keywords = keyword_map();
-    let mut tokens = Vec::new();
+    let p = &input_file();
+
     let char_bytes = p.as_bytes();
     let mut idx = 0;
     'outer: while idx < char_bytes.len() {
@@ -357,42 +476,23 @@ pub fn tokenize(p: &String) -> Vec<Token> {
 
         // Block comment
         if &p[idx..idx+2] == "/*" {
-            idx += 2;
-            while idx < p.len() {
-                if &p[idx..idx+2] != "*/" {
-                    idx += 1;
-                    continue;
-                }
-                idx += 2;
-                continue 'outer;
-            }
-            panic!("unclosed comment");
+            idx += block_comment(p, idx);
+            continue;
         }
 
         // Character literal
         if c == '\'' {
-            let mut t = new_token(TokenType::NUM, idx);
-            idx += 1;
-            let info = read_char(p, idx);
-            t.val = u32::from(info.chr) as i32;
-
-            tokens.push(t);
+            let info = char_literal(p, idx);
+            add(info.token);
             idx += info.len;
             continue;
         }
 
         // String literal
         if c == '"' {
-            let mut t = new_token(TokenType::STR, idx);
-            idx += 1;
-
-            let info = read_string(p, idx);
-            let s = info.cnt;
-            let len = info.len;
-            t.str_cnt = s;
-            t.len = len;
-            tokens.push(t);
-            idx += len + 1;
+            let info = string_literal(p, idx);
+            add(info.token);
+            idx += info.len + 1;
             continue;
         }
 
@@ -405,7 +505,7 @@ pub fn tokenize(p: &String) -> Vec<Token> {
                         continue;
                     }
 
-                    tokens.push(new_token(s.ty, idx));
+                    add(new_token(s.ty, idx));
                     idx += s.name.len();
                     continue 'outer;
                 }
@@ -444,7 +544,7 @@ pub fn tokenize(p: &String) -> Vec<Token> {
                 '~' => TokenType::TILDA,
                 _ => panic!("unknown {}", c),
             };
-            tokens.push(new_token(ty, idx));
+            add(new_token(ty, idx));
 
             idx += 1;
             continue;
@@ -452,58 +552,31 @@ pub fn tokenize(p: &String) -> Vec<Token> {
 
         // Keyword or identifier
         if c.is_alphabetic() || c == '_' {
-            let mut name = String::new();
-            name.push(c);
-            idx += 1;
-            while idx < char_bytes.len() {
-                let d = char::from(char_bytes[idx]);
-                if d.is_alphabetic() || d.is_digit(10) || d == '_' {
-                    name.push(d);
-                    idx += 1;
-                } else {
-                    break;
-                }
-            }
-
-            let ty = match keywords.get(&name) {
-                Some(k) => *k,
-                None => TokenType::IDENT,
-            };
-
-            let mut tok = new_token(ty, idx);
-            tok.name = name.clone();
-            //tok.start = name.clone();
-            tokens.push(tok);
+            let info = ident(p, idx);
+            add(info.token);
+            idx += info.len;
             continue;
         }
 
         // Number
         if c.is_digit(10) {
-            let mut s = String::new();
-            s.push(c);
-            idx += 1;
-            while idx < char_bytes.len() {
-                let d = char::from(char_bytes[idx]);
-                if d.is_digit(10) {
-                    s.push(d);
-                    idx += 1;
-                } else {
-                    break;
-                }
-            }
-            let mut tok = new_token(TokenType::NUM, idx);
-            tok.val = i32::from_str_radix(&s, 10).unwrap();
-            //tok.start = s;
-
-            tokens.push(tok);
+            let info = number(p, idx);
+            add(info.token);
+            idx += info.len;
             continue;
         }
 
         panic!("cannot tokenize: {}", c);
     }
 
-    tokens.push(new_token(TokenType::EOF, 0));
-
-    return tokens;
+    add(new_token(TokenType::EOF, 0));
 }
 
+pub fn tokenize(p: &String) -> Vec<Token> {
+    set_keywords(keyword_map());
+    set_input_file(p.clone());
+
+    scan();
+
+    return tokens();
+}

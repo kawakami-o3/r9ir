@@ -124,8 +124,9 @@ fn main() {
 
     // Tokenize and parse.
     let input = read_file(filename());
+    //eprintln!("{}", input);
     let tokens = tokenize(&input);
-    //for i in tokens.iter() { eprintln!(">> {}", i.input); }
+    //for i in tokens.iter() { eprintln!(">> {:?}", i); }
     let mut nodes = parse(&tokens);
     //eprintln!("nodes> {:?}", nodes);
     if dump_node {
