@@ -437,7 +437,33 @@ fn ident(p: &String, idx: usize) -> TokenInfo {
     };
 }
 
+fn hexadecimal(p: &String, idx: usize) -> TokenInfo {
+    let mut t = new_token(TokenType::NUM, idx);
+    let mut ret = idx + 2;
+
+    if !char::from((&p[ret..ret+1].as_bytes())[0]).is_ascii_hexdigit() {
+        bad_token(&t, "bad hexadecimal number".to_string());
+    }
+
+    loop {
+        let c = char::from((&p[ret..ret+1].as_bytes())[0]);
+        if let Some(i) = c.to_digit(16) {
+            t.val = t.val * 16 + i as i32;
+            ret += 1;
+        } else {
+            return TokenInfo {
+                token: t,
+                len: ret - idx,
+            };
+        }
+    }
+}
+
 fn number(p: &String, idx: usize) -> TokenInfo {
+    if &p[idx..idx+2].to_lowercase() == "0x" {
+        return hexadecimal(p, idx);
+    }
+
     let mut ret = idx;
 
     let mut s = String::new();
