@@ -459,34 +459,44 @@ fn hexadecimal(p: &String, idx: usize) -> TokenInfo {
     }
 }
 
-fn number(p: &String, idx: usize) -> TokenInfo {
-    if &p[idx..idx+2].to_lowercase() == "0x" {
-        return hexadecimal(p, idx);
-    }
+fn octal(p: &String, idx: usize) -> TokenInfo {
+    let mut t = new_token(TokenType::NUM, idx);
+    let mut ret = idx + 1;
 
-    let mut ret = idx;
-
-    let mut s = String::new();
-    s.push_str(&p[ret..ret+1]);
-    ret += 1;
-    while ret < p.len() {
-        let b = &p[ret..ret+1].as_bytes();
-        let d = char::from(b[0]);
-        if d.is_digit(10) {
-            s.push(d);
-            ret += 1;
-        } else {
-            break;
-        }
+    while let Some(i) = util::first_char(&p[ret..ret+1]).to_digit(8) {
+        t.val = t.val * 8 + i as i32;
+        ret += 1;
     }
-    let mut t = new_token(TokenType::NUM, ret);
-    t.val = i32::from_str_radix(&s, 10).unwrap();
-    //tok.start = s;
 
     return TokenInfo {
         token: t,
         len: ret - idx,
     };
+}
+
+fn decimal(p: &String, idx: usize) -> TokenInfo {
+    let mut t = new_token(TokenType::NUM, idx);
+    let mut ret = idx;
+
+    while let Some(i) = util::first_char(&p[ret..ret+1]).to_digit(10) {
+        t.val = t.val * 10 + i as i32;
+        ret += 1;
+    }
+
+    return TokenInfo {
+        token: t,
+        len: ret - idx,
+    };
+}
+
+fn number(p: &String, idx: usize) -> TokenInfo {
+    if &p[idx..idx+2].to_lowercase() == "0x" {
+        return hexadecimal(p, idx);
+    }
+    if &p[idx..idx+1] == "0" {
+        return octal(p, idx);
+    }
+    return decimal(p, idx);
 }
 
 fn scan() {

@@ -2,6 +2,13 @@
 
 use crate::parse::*;
 
+pub fn first_char(s: &str) -> char {
+    if s.len() == 0 {
+        return '\0';
+    }
+    return char::from((&s[0..1].as_bytes())[0]);
+}
+
 pub fn roundup(x: i32, align: i32) -> i32 {
     return (x + align - 1) & (!(align - 1));
 }
