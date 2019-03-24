@@ -458,7 +458,7 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
             }
 
             node.ty = *node.expr.clone().unwrap().ty.ptr_to.unwrap();
-            return node;
+            return maybe_decay(node, decay);
         }
         NodeType::RETURN |
             NodeType::EXPR_STMT => {
