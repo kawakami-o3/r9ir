@@ -587,10 +587,13 @@ fn scan() {
 fn remove_backslash_newline() {
     let p = input_file();
     let mut cnt = String::new();
-    for i in 0..p.len() {
-        if &p[i..i+2] != "\\\n" {
-            cnt.push_str(&p[i..i+1]);
+    let mut i = 0;
+    while i < p.len() {
+        if i+1 < p.len() && &p[i..i+2] == "\\\n" {
+            i += 2;
         }
+        cnt.push_str(&p[i..i+1]);
+        i += 1;
     }
     set_input_file(cnt);
 }
@@ -615,6 +618,7 @@ pub fn tokenize(p: &String) -> Vec<Token> {
     set_keywords(keyword_map());
     set_input_file(p.clone());
 
+    remove_backslash_newline();
     scan();
     join_string_literals();
     return tokens();
