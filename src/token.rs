@@ -598,6 +598,20 @@ fn remove_backslash_newline() {
     set_input_file(cnt);
 }
 
+fn canonicalize_newline() {
+    let p = input_file();
+    let mut cnt = String::new();
+    let mut i = 0;
+    while i < p.len() {
+        if i+1 < p.len() && &p[i..i+2] == "\r\n" {
+            i += 1;
+        }
+        cnt.push_str(&p[i..i+1]);
+        i += 1;
+    }
+    set_input_file(cnt);
+}
+
 fn join_string_literals() {
     let mut v: Vec<Token> = Vec::new();
 
@@ -618,6 +632,7 @@ pub fn tokenize(p: &String) -> Vec<Token> {
     set_keywords(keyword_map());
     set_input_file(p.clone());
 
+    canonicalize_newline();
     remove_backslash_newline();
     scan();
     join_string_literals();
