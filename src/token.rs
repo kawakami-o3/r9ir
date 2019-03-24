@@ -3,7 +3,7 @@
 // The tokenizer splits an input string into tokens.
 // Spaces and comments are removed by the tokenizer.
 
-#![allow(non_camel_case_types)]
+#![allow(dead_code, non_camel_case_types)]
 
 use crate::*;
 use std::cmp;
@@ -33,6 +33,11 @@ fn set_input_file(s: String) {
 fn tokens() -> Vec<Token> {
     let tokens = TOKENS.lock().unwrap();
     return tokens.clone();
+}
+
+fn set_tokens(ts: Vec<Token>) {
+    let mut tokens = TOKENS.lock().unwrap();
+    *tokens = ts;
 }
 
 fn add(t: Token) {
@@ -200,6 +205,13 @@ pub struct Token {
     
     // For error reporting
     pub start: usize,
+}
+
+impl Token {
+    fn append(&mut self, t: & Token) {
+        self.str_cnt.pop(); // pop '\0'
+        self.str_cnt.push_str(&t.str_cnt);
+    }
 }
 
 fn new_token(ty: TokenType, idx: usize) -> Token {
@@ -572,11 +584,38 @@ fn scan() {
     add(new_token(TokenType::EOF, 0));
 }
 
+fn remove_backslash_newline() {
+    let p = input_file();
+    let mut cnt = String::new();
+    for i in 0..p.len() {
+        if &p[i..i+2] != "\\\n" {
+            cnt.push_str(&p[i..i+1]);
+        }
+    }
+    set_input_file(cnt);
+}
+
+fn join_string_literals() {
+    let mut v: Vec<Token> = Vec::new();
+
+    let ts = tokens();
+    for t in ts.iter() {
+        if v.len() > 0 && v.last().unwrap().ty == TokenType::STR && t.ty == TokenType::STR {
+            v.last_mut().unwrap().append(t);
+            continue;
+        }
+
+        v.push(t.clone());
+    }
+
+    set_tokens(v);
+}
+
 pub fn tokenize(p: &String) -> Vec<Token> {
     set_keywords(keyword_map());
     set_input_file(p.clone());
 
     scan();
-
+    join_string_literals();
     return tokens();
 }
