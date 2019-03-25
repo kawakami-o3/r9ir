@@ -780,17 +780,23 @@ fn expr(tokens: &Vec<Token>) -> Node {
 
 fn read_array<'a>(ty: &'a mut Type, tokens: &Vec<Token>) -> &'a mut Type {
     let mut v = Vec::new();
+
     while consume(TokenType::S_BRA, tokens) {
+        if consume(TokenType::S_KET, tokens) {
+            v.push(-1);
+            continue;
+        }
+
         let t = &tokens[pos()];
         let len = expr(tokens);
         if len.op != NodeType::NUM {
             bad_token(t, "number expected".to_string());
         }
-        v.push(len);
+        v.push(len.val);
         expect(TokenType::S_KET, tokens);
     }
-    for len in v.iter() {
-        *ty = ary_of(ty.clone(), len.val);
+    for len in v.iter().rev() {
+        *ty = ary_of(ty.clone(), *len);
     }
     return ty;
 }
@@ -839,7 +845,12 @@ fn declaration(tokens: &Vec<Token>) -> Node {
 
 fn param_declaration(tokens: &Vec<Token>) -> Node {
     let ty = decl_specifiers(tokens);
-    return declarator(Rc::new(RefCell::new(ty)), tokens);
+    let mut node = declarator(Rc::new(RefCell::new(ty)), tokens);
+    if node.ty.borrow().ty == CType::ARY {
+        let tmp = Rc::new(RefCell::new(*node.ty.borrow().ary_of.clone().unwrap()));
+        node.ty = Rc::new(RefCell::new(ptr_to(tmp)));
+    }
+    return node;
 }
 
 fn expr_stmt(tokens: &Vec<Token>) -> Node {
