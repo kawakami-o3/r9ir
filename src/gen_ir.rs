@@ -662,7 +662,7 @@ pub fn gen_ir(nodes: Vec<Node>) -> Vec<IR> {
     for i in 0..nodes.len() {
         let node = nodes[i].clone();
 
-        if node.op == NodeType::VARDEF {
+        if node.op == NodeType::VARDEF || node.op == NodeType::DECL {
             continue;
         }
 

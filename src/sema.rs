@@ -175,9 +175,9 @@ fn bump_str_label() -> i32 {
     })
 }
 
-fn find_var(name: String) -> Option<Var> {
+fn find_var(name: & String) -> Option<Var> {
     ENV.with(|env| {
-        match (*env.borrow()).find(&name) {
+        match (*env.borrow()).find(name) {
             Some(v) => Some(v.clone()),
             None => None,
         }
@@ -247,7 +247,7 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
             return maybe_decay(node, decay);
         }
         NodeType::IDENT => {
-            let var = match find_var(node.name.clone()) {
+            let var = match find_var(&node.name) {
                 None => panic!("undefined variable: {}", node.name),
                 Some(var) => var,
             };
@@ -492,10 +492,17 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
             return node;
         }
         NodeType::CALL => {
+            let var = find_var(&node.name);
+            if var.is_some() && var.clone().unwrap().ty.ty == CType::FUNC {
+                node.ty = Rc::new(RefCell::new(*var.unwrap().ty.returning.unwrap()));
+            } else {
+                eprintln!("bad function: {}", node.name);
+                node.ty = Rc::new(RefCell::new(int_ty()));
+            }
+
             for i in 0..node.args.len() {
                 node.args[i] = walk(&mut node.args[i], true).clone();
             }
-            node.ty = Rc::new(RefCell::new(int_ty()));
             return node;
         }
         NodeType::COMP_STMT => {
@@ -529,7 +536,14 @@ pub fn sema(nodes: &mut Vec<Node>) -> Vec<Var> {
             continue;
         }
 
-        assert!(node.op == NodeType::FUNC);
+        assert!(node.op == NodeType::DECL || node.op == NodeType::FUNC);
+
+        let var = new_global(node.ty.borrow().clone(), node.name.clone(), "".to_string(), 0);
+        env_var_put(node.name.clone(), var);
+
+        if node.op == NodeType::DECL {
+            continue;
+        }
 
         init_stacksize();
         for i in 0..node.args.len() {

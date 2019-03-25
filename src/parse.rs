@@ -131,6 +131,7 @@ pub enum NodeType {
     STR,       // String literal
     IDENT,     // Identifier
     //STRUCT,    // Struct
+    DECL,      // declaration
     VARDEF,    // Variable definition
     LVAR,      // Local variable reference
     GVAR,      // Global variable reference
@@ -181,13 +182,14 @@ pub enum CType {
     PTR,
     ARY,
     STRUCT,
+    FUNC,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Type {
     pub ty: CType,
-    pub size: i32,
-    pub align: i32,
+    pub align: i32, // sizeof
+    pub size: i32,  // alignof
 
     // Pointer
     pub ptr_to: Option<Rc<RefCell<Type>>>,
@@ -199,6 +201,8 @@ pub struct Type {
     // Struct
     pub members: Option<Vec<Node>>,
     pub offset: i32,
+
+    pub returning: Option<Box<Type>>,
 }
 
 impl Type {
@@ -226,13 +230,14 @@ impl Type {
 pub fn alloc_type() -> Type {
     Type {
         ty: CType::INT,
-        size: 0,
         align: 0,
+        size: 0,
         ptr_to: None,
         ary_of: None,
         len: 0,
         members: None,
         offset: 0,
+        returning: None,
     } 
 }
 
@@ -983,8 +988,12 @@ fn toplevel(tokens: &Vec<Token>) -> Option<Node> {
     if consume(TokenType::BRA, tokens) {
         let mut node = alloc_node();
         node.op = NodeType::FUNC;
-        node.ty = Rc::new(RefCell::new(ty));
         node.name = name.clone();
+
+        let mut node_ty = alloc_type();
+        node_ty.ty = CType::FUNC;
+        node_ty.returning = Some(Box::new(ty));
+        *node.ty.borrow_mut() = node_ty;
 
         if !consume(TokenType::KET, tokens) {
             node.args.push(param_declaration(tokens));
@@ -994,6 +1003,12 @@ fn toplevel(tokens: &Vec<Token>) -> Option<Node> {
             expect(TokenType::KET, tokens);
         }
 
+        if consume(TokenType::SEMI_COLON, tokens) {
+            node.op = NodeType::DECL;
+            return Some(node);
+        }
+
+        node.op = NodeType::FUNC;
         let t = &tokens[pos()];
         expect(TokenType::C_BRA, tokens);
         if is_typedef {
