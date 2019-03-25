@@ -20,23 +20,26 @@ use crate::regalloc::*;
 use crate::sema::*;
 use crate::token::*;
 use std::env;
+use std::cell::RefCell;
 use std::fs;
 use std::io;
 use std::io::Read;
 use std::sync::Mutex;
 
-lazy_static! {
-    static ref FILENAME: Mutex<String> = Mutex::new(String::new());
+thread_local! {
+    static FILENAME: RefCell<String> = RefCell::new(String::new());
 }
 
 pub fn filename() -> String {
-    let filename = FILENAME.lock().unwrap();
-    return filename.clone();
+    FILENAME.with(|f| {
+        return f.borrow().clone()
+    })
 }
 
 fn set_filename(s: String) {
-    let mut filename = FILENAME.lock().unwrap();
-    *filename = s;
+    FILENAME.with(|filename| {
+        *filename.borrow_mut() = s;
+    })
 }
 
 fn read_file(filename: String) -> String {
@@ -63,7 +66,7 @@ fn print_node(node: Node, offset: usize) {
     for _i in 0..offset {
         eprint!(" ");
     }
-    eprintln!("{:?} {} '{}' {:?}", node.op, node.val, node.name, node.ty.ty);
+    eprintln!("{:?} {} '{}' {:?}", node.op, node.val, node.name, node.ty);
     //eprintln!("{:?}", node);
     if node.rhs.is_some() {
         print_node(*node.rhs.clone().unwrap(), offset+2);
@@ -86,6 +89,10 @@ fn print_node(node: Node, offset: usize) {
     if node.init.is_some() { print_node(*node.init.clone().unwrap(), offset+2); }
     if node.inc.is_some() { print_node(*node.inc.clone().unwrap(), offset+2); }
     if node.body.is_some() { print_node(*node.body.clone().unwrap(), offset+2); }
+
+    for i in node.args.iter() {
+        print_node(i.clone(), offset+2);
+    }
 }
 
 fn usage() {

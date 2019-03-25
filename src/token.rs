@@ -6,120 +6,125 @@
 #![allow(dead_code, non_camel_case_types)]
 
 use crate::*;
+use std::cell::RefCell;
 use std::cmp;
-use std::sync::Mutex;
 use std::collections::HashMap;
 
-lazy_static! {
-    static ref SYMBOLS: Mutex<Vec<Symbol>> = Mutex::new(Vec::new());
-    static ref ESCAPED: Mutex<HashMap<char, char>> = Mutex::new(HashMap::new());
+thread_local! {
+    static SYMBOLS: RefCell<Vec<Symbol>> = RefCell::new(Vec::new());
+    static ESCAPED: RefCell<HashMap<char, char>> = RefCell::new(HashMap::new());
 
-    static ref INPUT_FILE: Mutex<String> = Mutex::new(String::new());
+    static INPUT_FILE: RefCell<String> = RefCell::new(String::new());
 
-    static ref TOKENS: Mutex<Vec<Token>> = Mutex::new(Vec::new());
-    static ref KEYWORDS: Mutex<HashMap<String, TokenType>> = Mutex::new(HashMap::new());
+    static TOKENS: RefCell<Vec<Token>> = RefCell::new(Vec::new());
+    static KEYWORDS: RefCell<HashMap<String, TokenType>> = RefCell::new(HashMap::new());
 }
 
 fn input_file() -> String {
-    let input = INPUT_FILE.lock().unwrap();
-    return input.clone();
+    INPUT_FILE.with(|input| {
+        input.clone().into_inner()
+    })
 }
 
 fn set_input_file(s: String) {
-    let mut input = INPUT_FILE.lock().unwrap();
-    *input = s;
+    INPUT_FILE.with(|input| {
+        *input.borrow_mut() = s;
+    })
 }
 
 fn tokens() -> Vec<Token> {
-    let tokens = TOKENS.lock().unwrap();
-    return tokens.clone();
+    TOKENS.with(|tokens| {
+        tokens.clone().into_inner()
+    })
 }
 
 fn set_tokens(ts: Vec<Token>) {
-    let mut tokens = TOKENS.lock().unwrap();
-    *tokens = ts;
+    TOKENS.with(|tokens| {
+        *tokens.borrow_mut() = ts;
+    })
 }
 
 fn add(t: Token) {
-    let mut tokens = TOKENS.lock().unwrap();
-    tokens.push(t);
+    TOKENS.with(|tokens| {
+        (*tokens.borrow_mut()).push(t);
+    })
 }
 
 fn keywords_get(name: &String) -> Option<TokenType> {
-    match KEYWORDS.lock() {
-        Ok(ref keywords) => {
-            match keywords.get(name) {
-                Some(ty) => Some(ty.clone()),
-                None => None,
-            }
+    KEYWORDS.with(|keywords| {
+        match (*keywords.borrow()).get(name) {
+            Some(ty) => Some(ty.clone()),
+            None => None,
         }
-        Err(_) => {
-            panic!();
-        }
-    }
+    })
 }
 
 fn set_keywords(m: HashMap<String, TokenType>) {
-    let mut keywords = KEYWORDS.lock().unwrap();
-    *keywords = m;
+    KEYWORDS.with(|keywords| {
+        *keywords.borrow_mut() = m;
+    })
+}
+
+fn symbols() -> Vec<Symbol> {
+    SYMBOLS.with(|s| {
+        s.clone().into_inner()
+    })
 }
 
 fn init_symbols() {
-    let mut symbols = SYMBOLS.lock().unwrap();
+    SYMBOLS.with(|s| {
+        let symbols =&mut *s.borrow_mut();
 
-    symbols.push(Symbol { name: "<<=", ty: TokenType::SHL_EQ });
-    symbols.push(Symbol { name: ">>=", ty: TokenType::SHR_EQ });
-    symbols.push(Symbol { name: "!=", ty: TokenType::NE });
-    symbols.push(Symbol { name: "&&", ty: TokenType::LOGAND });
-    symbols.push(Symbol { name: "++", ty: TokenType::INC });
-    symbols.push(Symbol { name: "--", ty: TokenType::DEC });
-    symbols.push(Symbol { name: "->", ty: TokenType::ARROW });
-    symbols.push(Symbol { name: "<<", ty: TokenType::SHL });
-    symbols.push(Symbol { name: "<=", ty: TokenType::LE });
-    symbols.push(Symbol { name: "==", ty: TokenType::EQ });
-    symbols.push(Symbol { name: ">=", ty: TokenType::GE });
-    symbols.push(Symbol { name: ">>", ty: TokenType::SHR });
-    symbols.push(Symbol { name: "||", ty: TokenType::LOGOR });
-    symbols.push(Symbol { name: "*=", ty: TokenType::MUL_EQ });
-    symbols.push(Symbol { name: "/=", ty: TokenType::DIV_EQ });
-    symbols.push(Symbol { name: "%=", ty: TokenType::MOD_EQ });
-    symbols.push(Symbol { name: "+=", ty: TokenType::ADD_EQ });
-    symbols.push(Symbol { name: "-=", ty: TokenType::SUB_EQ });
-    symbols.push(Symbol { name: "&=", ty: TokenType::BITAND_EQ });
-    symbols.push(Symbol { name: "^=", ty: TokenType::XOR_EQ });
-    symbols.push(Symbol { name: "|=", ty: TokenType::BITOR_EQ });
+        symbols.push(Symbol { name: "<<=", ty: TokenType::SHL_EQ });
+        symbols.push(Symbol { name: ">>=", ty: TokenType::SHR_EQ });
+        symbols.push(Symbol { name: "!=", ty: TokenType::NE });
+        symbols.push(Symbol { name: "&&", ty: TokenType::LOGAND });
+        symbols.push(Symbol { name: "++", ty: TokenType::INC });
+        symbols.push(Symbol { name: "--", ty: TokenType::DEC });
+        symbols.push(Symbol { name: "->", ty: TokenType::ARROW });
+        symbols.push(Symbol { name: "<<", ty: TokenType::SHL });
+        symbols.push(Symbol { name: "<=", ty: TokenType::LE });
+        symbols.push(Symbol { name: "==", ty: TokenType::EQ });
+        symbols.push(Symbol { name: ">=", ty: TokenType::GE });
+        symbols.push(Symbol { name: ">>", ty: TokenType::SHR });
+        symbols.push(Symbol { name: "||", ty: TokenType::LOGOR });
+        symbols.push(Symbol { name: "*=", ty: TokenType::MUL_EQ });
+        symbols.push(Symbol { name: "/=", ty: TokenType::DIV_EQ });
+        symbols.push(Symbol { name: "%=", ty: TokenType::MOD_EQ });
+        symbols.push(Symbol { name: "+=", ty: TokenType::ADD_EQ });
+        symbols.push(Symbol { name: "-=", ty: TokenType::SUB_EQ });
+        symbols.push(Symbol { name: "&=", ty: TokenType::BITAND_EQ });
+        symbols.push(Symbol { name: "^=", ty: TokenType::XOR_EQ });
+        symbols.push(Symbol { name: "|=", ty: TokenType::BITOR_EQ });
+    })
 }
 
 fn init_escaped() {
-    let mut escaped = ESCAPED.lock().unwrap();
+    ESCAPED.with(|e| {
+        let escaped = &mut *e.borrow_mut();
 
-    escaped.insert('a', char::from(7));  // \a
-    escaped.insert('b', char::from(8));  // \b
-    escaped.insert('f', char::from(12)); // \f
-    escaped.insert('n', char::from(10)); // \n
-    escaped.insert('r', char::from(13)); // \r
-    escaped.insert('t', char::from(9));  // \t
-    escaped.insert('v', char::from(11)); // \v
-    escaped.insert('e', char::from(27)); // \033
-    escaped.insert('E', char::from(27)); // \033
+        escaped.insert('a', char::from(7));  // \a
+        escaped.insert('b', char::from(8));  // \b
+        escaped.insert('f', char::from(12)); // \f
+        escaped.insert('n', char::from(10)); // \n
+        escaped.insert('r', char::from(13)); // \r
+        escaped.insert('t', char::from(9));  // \t
+        escaped.insert('v', char::from(11)); // \v
+        escaped.insert('e', char::from(27)); // \033
+        escaped.insert('E', char::from(27)); // \033
+    })
 }
 
 fn escaped(c: char) -> Option<char> {
-    let mut ret = None;
-    match ESCAPED.lock() {
-        Ok(escaped) => {
-            match escaped.get(&c) {
-                Some(c) => {
-                    ret = Some(*c);
-                }
-                None => { }
-            }
+    ESCAPED.with(|escaped| {
+        match (*escaped.borrow()).get(&c) {
+            Some(c) => Some(*c),
+            None => None,
         }
-        Err(_) => { }
-    }
-    return ret;
+    })
 }
 
+#[derive(Clone)]
 struct Symbol {
     name: &'static str,
     ty: TokenType,
@@ -502,6 +507,7 @@ fn number(p: &String, idx: usize) -> TokenInfo {
 fn scan() {
     init_symbols();
     init_escaped();
+    let symbols = symbols();
 
     let p = &input_file();
 
@@ -545,22 +551,15 @@ fn scan() {
         }
 
         // Multi-letter symbol
-        match SYMBOLS.lock() {
-            Ok(symbols) => {
-                for s in symbols.iter() {
-                    let bs = &char_bytes[idx..cmp::min(idx+s.name.len(), char_bytes.len())];
-                    if s.name.as_bytes() != bs {
-                        continue;
-                    }
+        for s in symbols.iter() {
+            let bs = &char_bytes[idx..cmp::min(idx+s.name.len(), char_bytes.len())];
+            if s.name.as_bytes() != bs {
+                continue;
+            }
 
-                    add(new_token(s.ty, idx));
-                    idx += s.name.len();
-                    continue 'outer;
-                }
-            }
-            Err(_) => {
-                panic!();
-            }
+            add(new_token(s.ty, idx));
+            idx += s.name.len();
+            continue 'outer;
         }
 
         // Single-letter symbol

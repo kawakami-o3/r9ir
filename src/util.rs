@@ -1,6 +1,8 @@
 // util
 
 use crate::parse::*;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 pub fn first_char(s: &str) -> char {
     if s.len() == 0 {
@@ -13,12 +15,12 @@ pub fn roundup(x: i32, align: i32) -> i32 {
     return (x + align - 1) & (!(align - 1));
 }
 
-pub fn ptr_to(base: Type) -> Type {
+pub fn ptr_to(base: Rc<RefCell<Type>>) -> Type {
     let mut ty = alloc_type();
     ty.ty = CType::PTR;
     ty.size = 8;
     ty.align = 8;
-    ty.ptr_to = Some(Box::new(base));
+    ty.ptr_to = Some(base);
     return ty;
 }
 

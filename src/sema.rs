@@ -21,14 +21,15 @@
 use crate::parse::*;
 use crate::util::*;
 use std::collections::HashMap;
+use std::cell::RefCell;
 use std::mem;
-use std::sync::Mutex;
+use std::rc::Rc;
 
-lazy_static! {
-    static ref GLOBALS: Mutex<Vec<Var>> = Mutex::new(Vec::new());
-    static ref ENV: Mutex<Env> = Mutex::new(new_env(None));
-    static ref STR_LABEL: Mutex<i32> = Mutex::new(0);
-    static ref STACKSIZE: Mutex<i32> = Mutex::new(0);
+thread_local! {
+    static GLOBALS: RefCell<Vec<Var>> = RefCell::new(Vec::new());
+    static ENV: RefCell<Env> = RefCell::new(new_env(None));
+    static STR_LABEL: RefCell<i32> = RefCell::new(0);
+    static STACKSIZE: RefCell<i32> = RefCell::new(0);
 }
 
 #[derive(Clone, Debug)]
@@ -49,30 +50,29 @@ fn new_env(next: Option<Env>) -> Env {
 }
 
 fn env_var_put(name: String, var: Var) {
-    match ENV.lock() {
-        Ok(ref mut env) => {
-            env.vars.insert(name, var);
-        }
-        Err(_) => {
-            panic!();
-        }
-    }
+    ENV.with(|env| {
+        env.borrow_mut().vars.insert(name, var);
+    })
 }
 
 fn env_push() {
-    let mut env = ENV.lock().unwrap();
-    *env = new_env(Some(env.clone()));
+    ENV.with(|env| {
+        let e = env.borrow().clone();
+        *env.borrow_mut() = new_env(Some(e));
+    })
 }
 
 fn env_pop() {
-    let mut env = ENV.lock().unwrap();
-    *env = *env.next.clone().unwrap();
+    ENV.with(|env| {
+        let e = env.borrow().next.clone().unwrap();
+        *env.borrow_mut() = *e;
+    })
 }
 
 fn new_int(val: i32) -> Node {
     let mut node = alloc_node();
     node.op = NodeType::NUM;
-    node.ty = int_ty();
+    node.ty = Rc::new(RefCell::new(int_ty()));
     node.val = val;
     return node;
 }
@@ -128,56 +128,60 @@ fn new_global(ty: Type, name: String, data: String, len: usize) -> Var {
 }
 
 fn init_globals() {
-    *GLOBALS.lock().unwrap() = Vec::new();
+    GLOBALS.with(|globals| {
+        *globals.borrow_mut() = Vec::new();
+    })
 }
 
 fn globals() -> Vec<Var> {
-    GLOBALS.lock().unwrap().clone()
+    GLOBALS.with(|globals| {
+        globals.borrow().clone()
+    })
 }
 
 fn globals_push(var: Var) {
-    let mut globals = GLOBALS.lock().unwrap();
-    globals.push(var);
+    GLOBALS.with(|globals| {
+        (*globals.borrow_mut()).push(var);
+    })
 }
 
 fn stacksize() -> i32 {
-    *STACKSIZE.lock().unwrap()
+    STACKSIZE.with(|stacksize| {
+        *stacksize.borrow()
+    })
 }
 
 fn init_stacksize() {
-    let mut stacksize = STACKSIZE.lock().unwrap();
-    *stacksize = 0;
+    set_stacksize(0);
 }
 
 fn set_stacksize(i: i32) {
-    let mut stacksize = STACKSIZE.lock().unwrap();
-    *stacksize = i;
+    STACKSIZE.with(|stacksize| {
+        *stacksize.borrow_mut() = i;
+    })
 }
 
 fn add_stacksize(i: i32) {
-    let mut stacksize = STACKSIZE.lock().unwrap();
-    *stacksize += i;
+    STACKSIZE.with(|stacksize| {
+        *stacksize.borrow_mut() += i;
+    })
 }
 
 fn bump_str_label() -> i32 {
-    let mut str_label = STR_LABEL.lock().unwrap();
-    let ret = *str_label;
-    *str_label += 1;
-    return ret;
+    STR_LABEL.with(|str_label| {
+        let ret = *str_label.borrow();
+        *str_label.borrow_mut() += 1;
+        return ret;
+    })
 }
 
 fn find_var(name: String) -> Option<Var> {
-    match ENV.lock() {
-        Ok(ref env) => {
-            match env.find(&name) {
-                Some(v) => Some(v.clone()),
-                None => None,
-            }
+    ENV.with(|env| {
+        match (*env.borrow()).find(&name) {
+            Some(v) => Some(v.clone()),
+            None => None,
         }
-        Err(_) => {
-            panic!();
-        }
-    }
+    })
 }
 
 fn swap(p: &mut Node, q: &mut Node) {
@@ -185,14 +189,17 @@ fn swap(p: &mut Node, q: &mut Node) {
 }
 
 fn maybe_decay(base: & mut Node, decay: bool) -> & mut Node {
-    if !decay || base.ty.ty != CType::ARY {
+    if !decay || base.ty.borrow().ty != CType::ARY {
         return base;
     }
 
     let tmp = base.clone();
     *base = alloc_node();
     base.op = NodeType::ADDR;
-    base.ty = ptr_to(*tmp.clone().ty.ary_of.unwrap());
+
+    let node_ty = tmp.clone().ty;
+    let ty_tmp = *node_ty.borrow().clone().ary_of.unwrap();
+    base.ty = Rc::new(RefCell::new(ptr_to(Rc::new(RefCell::new(ty_tmp)))));
 
     base.expr = Some(Box::new(tmp));
     return base;
@@ -211,7 +218,8 @@ fn scale_ptr(node: Node, ty: Type) -> Node {
     let mut e = alloc_node();
     e.op = NodeType::MUL;
     e.lhs = Some(Box::new(node.clone()));
-    e.rhs = Some(Box::new(new_int(ty.ptr_to.unwrap().size)));
+    let ptr = ty.ptr_to.unwrap();
+    e.rhs = Some(Box::new(new_int(ptr.borrow().size)));
     return e;
 }
 
@@ -229,7 +237,7 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
             let node_data = node.data.clone();
 
             let name = format!(".L.str{}", bump_str_label()).to_string();
-            let var = new_global(node_ty.clone(), name, node_data, node.len);
+            let var = new_global(node_ty.borrow().clone(), name, node_data, node.len);
             globals_push(var.clone());
 
             *node = alloc_node();
@@ -247,23 +255,23 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
             if var.is_local {
                 *node = alloc_node();
                 node.op = NodeType::LVAR;
-                node.ty = var.ty.clone();
+                node.ty = Rc::new(RefCell::new(var.ty.clone()));
                 node.offset = var.offset;
                 return maybe_decay(node, decay);
             }
-                
+
             *node = alloc_node();
             node.op = NodeType::GVAR;
-            node.ty = var.ty.clone();
+            node.ty = Rc::new(RefCell::new(var.ty.clone()));
             node.name = var.name.clone();
             return maybe_decay(node, decay);
         }
         NodeType::VARDEF => {
-            set_stacksize(roundup(stacksize(), node.ty.align));
-            add_stacksize(node.ty.size);
+            set_stacksize(roundup(stacksize(), node.ty.borrow().align));
+            add_stacksize(node.ty.borrow().size);
             node.offset = stacksize();
 
-            let mut var = alloc_var(node.ty.clone());
+            let mut var = alloc_var(node.ty.borrow().clone());
             var.is_local = true;
             var.offset = stacksize();
             env_var_put(node.name.clone(), var.clone());
@@ -309,7 +317,7 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
 
             match (&mut node.lhs, &mut node.rhs) {
                 (Some(ref mut lhs), Some(ref mut rhs)) => {
-                    if rhs.ty.ty == CType::PTR {
+                    if rhs.ty.borrow().ty == CType::PTR {
                         swap(lhs, rhs);
                     }
                 }
@@ -317,14 +325,14 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
             }
 
             if let Some(ref rhs) = node.rhs {
-                if rhs.ty.ty == CType::PTR {
+                if rhs.ty.borrow().ty == CType::PTR {
                     panic!("'pointer {:?} pointer' is not defined", node.op);
                 }
             }
-        
+
             if let Some(ref lhs) = node.lhs {
-                if lhs.ty.ty == CType::PTR {
-                    node.rhs = Some(Box::new(scale_ptr(*node.rhs.clone().unwrap(), lhs.ty.clone())));
+                if lhs.ty.borrow().ty == CType::PTR {
+                    node.rhs = Some(Box::new(scale_ptr(*node.rhs.clone().unwrap(), lhs.ty.borrow().clone())));
                 }
             }
 
@@ -343,8 +351,8 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
                 }
 
                 if let Some(ref lhs) = node.lhs {
-                    if lhs.ty.ty == CType::PTR {
-                        node.rhs = Some(Box::new(scale_ptr(*node.rhs.clone().unwrap(), lhs.ty.clone())));
+                    if lhs.ty.borrow().ty == CType::PTR {
+                        node.rhs = Some(Box::new(scale_ptr(*node.rhs.clone().unwrap(), lhs.ty.borrow().clone())));
                     }
                 }
                 return node;
@@ -368,22 +376,23 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
         }
         NodeType::DOT => {
             node.expr = Some(Box::new(walk(&mut *node.expr.clone().unwrap(), true).clone()));
-            if node.expr.clone().unwrap().ty.ty != CType::STRUCT {
+            let node_ty = node.expr.clone().unwrap().ty;
+            if node_ty.borrow().ty != CType::STRUCT {
                 panic!("struct expected before '.'");
             }
 
             let ty = node.expr.clone().unwrap().ty;
-            if ty.members == None {
+            if ty.borrow().members == None {
                 panic!("incomplete type: {:?}", node.expr);
             }
 
-            for m in ty.members.unwrap().iter() {
+            for m in ty.borrow().clone().members.unwrap().iter() {
                 if m.name != node.name {
                     continue;
                 }
 
                 node.ty = m.ty.clone();
-                node.offset = m.ty.offset;
+                node.offset = m.ty.borrow().offset;
                 return maybe_decay(node, decay);
             }
             panic!("member missing: {}", node.name);
@@ -438,7 +447,7 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
         NodeType::ADDR => {
             node.expr = Some(Box::new(walk(&mut *node.expr.clone().unwrap(), true).clone()));
             check_lval(node.expr.clone().unwrap());
-            node.ty = ptr_to(node.expr.clone().unwrap().ty);
+            node.ty = Rc::new(RefCell::new(ptr_to(node.expr.clone().unwrap().ty)));
             return node;
         }
         NodeType::DEREF => {
@@ -446,18 +455,21 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
 
             match &mut node.expr {
                 Some(ref expr) => {
-                    if expr.ty.ty != CType::PTR {
+                    if expr.ty.borrow().ty != CType::PTR {
                         panic!("operand must be a pointer: {:?}", expr);
                     }
 
-                    if expr.ty.ptr_to.clone().unwrap().ty == CType::VOID {
+                    let ptr = expr.ty.borrow().ptr_to.clone().unwrap();
+                    if ptr.borrow().ty == CType::VOID {
                         panic!("operand dereference void pointer");
                     }
                 }
                 None => {}
             }
 
-            node.ty = *node.expr.clone().unwrap().ty.ptr_to.unwrap();
+
+            let ty_tmp = node.expr.clone().unwrap().ty;
+            node.ty = ty_tmp.borrow().clone().ptr_to.unwrap();
             return maybe_decay(node, decay);
         }
         NodeType::RETURN |
@@ -468,7 +480,7 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
         NodeType::SIZEOF => {
             let mut nexpr = *node.expr.clone().unwrap();
             let expr = walk(&mut nexpr, false);
-            let val = expr.ty.size;
+            let val = expr.ty.borrow().size;
 
             *node = new_int(val);
             return node;
@@ -476,14 +488,14 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
         NodeType::ALIGNOF => {
             let mut e = node.expr.clone().unwrap();
             let expr = walk(&mut e, false);
-            *node = new_int(expr.ty.align);
+            *node = new_int(expr.ty.borrow().align);
             return node;
         }
         NodeType::CALL => {
             for i in 0..node.args.len() {
                 node.args[i] = walk(&mut node.args[i], true).clone();
             }
-            node.ty = int_ty();
+            node.ty = Rc::new(RefCell::new(int_ty()));
             return node;
         }
         NodeType::COMP_STMT => {
@@ -496,7 +508,7 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
         }
         NodeType::STMT_EXPR => {
             node.body = Some(Box::new(walk(&mut *node.body.clone().unwrap(), true).clone()));
-            node.ty = int_ty();
+            node.ty = Rc::new(RefCell::new(int_ty()));
             return node;
         }
         _ => {
@@ -510,7 +522,7 @@ pub fn sema(nodes: &mut Vec<Node>) -> Vec<Var> {
 
     for node in nodes.iter_mut() {
         if node.op == NodeType::VARDEF {
-            let mut var = new_global(node.ty.clone(), node.name.clone(), node.data.clone(), node.len);
+            let mut var = new_global(node.ty.borrow().clone(), node.name.clone(), node.data.clone(), node.len);
             var.is_extern = node.is_extern;
             globals_push(var.clone());
             env_var_put(node.name.clone(), var);

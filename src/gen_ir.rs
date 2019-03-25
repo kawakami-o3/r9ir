@@ -15,17 +15,17 @@
 
 use crate::parse::*;
 use crate::sema::*;
-use std::sync::Mutex;
+use std::cell::RefCell;
 
-lazy_static! {
-    static ref CODE: Mutex<Vec<IR>> = Mutex::new(Vec::new());
+thread_local! {
+    static CODE: RefCell<Vec<IR>> = RefCell::new(Vec::new());
 
-    static ref NREG: Mutex<i32> = Mutex::new(1);
-    static ref NLABEL: Mutex<i32> = Mutex::new(1);
+    static NREG: RefCell<i32> = RefCell::new(1);
+    static NLABEL: RefCell<i32> = RefCell::new(1);
 
-    static ref RETURN_LABEL: Mutex<i32> = Mutex::new(0);
-    static ref RETURN_REG: Mutex<i32> = Mutex::new(0);
-    static ref BREAK_LABEL: Mutex<i32> = Mutex::new(0);
+    static RETURN_LABEL: RefCell<i32> = RefCell::new(0);
+    static RETURN_REG: RefCell<i32> = RefCell::new(0);
+    static BREAK_LABEL: RefCell<i32> = RefCell::new(0);
 }
 
 //fn nlabel() -> i32 {
@@ -33,10 +33,11 @@ lazy_static! {
 //}
 
 fn bump_nlabel() -> i32 {
-    let mut nlabel = NLABEL.lock().unwrap();
-    let ret = *nlabel;
-    *nlabel += 1;
-    return ret;
+    NLABEL.with(|v| {
+        let ret = *v.borrow();
+        *v.borrow_mut() += 1;
+        return ret;
+    })
 }
 
 //fn set_nlabel(i: i32) {
@@ -49,10 +50,11 @@ fn bump_nlabel() -> i32 {
 //}
 
 fn bump_nreg() -> i32 {
-    let mut nreg = NREG.lock().unwrap();
-    let ret = *nreg;
-    *nreg += 1;
-    return ret;
+    NREG.with(|v| {
+        let ret = *v.borrow();
+        *v.borrow_mut() += 1;
+        return ret;
+    })
 }
 
 //fn set_nreg(i: i32) {
@@ -61,35 +63,45 @@ fn bump_nreg() -> i32 {
 //}
 
 fn return_label() -> i32 {
-    *RETURN_LABEL.lock().unwrap()
+    RETURN_LABEL.with(|v| {
+        *v.borrow()
+    })
 }
 
 fn set_return_label(i: i32) {
-    let mut return_label = RETURN_LABEL.lock().unwrap();
-    *return_label = i;
+    RETURN_LABEL.with(|v| {
+        *v.borrow_mut() = i;
+    })
 }
 
 fn return_reg() -> i32 {
-    *RETURN_REG.lock().unwrap()
+    RETURN_REG.with(|v| {
+        *v.borrow()
+    })
 }
 
 fn set_return_reg(i: i32) {
-    let mut return_reg = RETURN_REG.lock().unwrap();
-    *return_reg = i;
+    RETURN_REG.with(|v| {
+        *v.borrow_mut() = i;
+    })
 }
 
 fn break_label() -> i32 {
-    *BREAK_LABEL.lock().unwrap()
+    BREAK_LABEL.with(|v| {
+        *v.borrow()
+    })
 }
 
 fn set_break_label(i: i32) {
-    let mut break_label = BREAK_LABEL.lock().unwrap();
-    *break_label = i;
+    BREAK_LABEL.with(|v| {
+        *v.borrow_mut() = i;
+    })
 }
 
 fn init_code() {
-    let mut code = CODE.lock().unwrap();
-    *code = Vec::new();
+    CODE.with(|code| {
+        *code.borrow_mut() = Vec::new();
+    })
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -176,23 +188,20 @@ fn add(op: IRType, lhs: i32, rhs: i32) -> usize {
     ir.lhs = lhs;
     ir.rhs = rhs;
 
-    match CODE.lock() {
-        Ok(mut code) => {
-            (*code).push(ir);
-            return code.len() - 1;
-        }
-        Err(_) => {
-            panic!();
-        }
-    }
+    return CODE.with(|code| {
+        (*code.borrow_mut()).push(ir);
+        return code.borrow().len() - 1;
+    });
 }
 
 fn add_imm(op: IRType, lhs: i32, rhs: i32) -> usize {
     let ir_idx = add(op, lhs, rhs);
 
-    let mut code = CODE.lock().unwrap();
-    let ir = &mut code[ir_idx];
-    ir.is_imm = true;
+    CODE.with(|c| {
+        let code = &mut *c.borrow_mut();
+        let ir = &mut code[ir_idx];
+        ir.is_imm = true;
+    });
 
     return ir_idx;
 }
@@ -212,25 +221,31 @@ fn jmp(x: i32) {
 fn load(node: & Node, dst: i32, src: i32) {
     let ir_idx = add(IRType::LOAD, dst, src);
 
-    let mut code = CODE.lock().unwrap();
-    let ir = &mut code[ir_idx];
-    ir.size = node.ty.size;
+    CODE.with(|c| {
+        let code = &mut *c.borrow_mut();
+        let ir = &mut code[ir_idx];
+        ir.size = node.ty.borrow().size;
+    });
 }
 
 fn store(node: & Node, dst: i32, src: i32) {
     let ir_idx = add(IRType::STORE, dst, src);
 
-    let mut code = CODE.lock().unwrap();
-    let ir = &mut code[ir_idx];
-    ir.size = node.ty.size;
+    CODE.with(|c| {
+        let code = &mut *c.borrow_mut();
+        let ir = &mut code[ir_idx];
+        ir.size = node.ty.borrow().size;
+    });
 }
 
 fn store_arg(node: & Node, bpoff: i32, argreg: i32) {
     let ir_idx = add(IRType::STORE_ARG, bpoff, argreg);
 
-    let mut code = CODE.lock().unwrap();
-    let ir = &mut code[ir_idx];
-    ir.size = node.ty.size;
+    CODE.with(|c| {
+        let code = &mut *c.borrow_mut();
+        let ir = &mut code[ir_idx];
+        ir.size = node.ty.borrow().size;
+    });
 }
 
 // In C, all expressions that can be written on the left-hand side of
@@ -270,14 +285,10 @@ fn gen_lval(node: Node) -> i32 {
     assert!(node.op == NodeType::GVAR);
     let r = bump_nreg();
     let ir_idx = add(IRType::LABEL_ADDR, r, -1);
-    match CODE.lock() {
-        Ok(mut code) => {
-            code[ir_idx].name = node.name.clone();
-        }
-        Err(_) => {
-            panic!();
-        }
-    }
+    CODE.with(|c| {
+        let code = &mut *c.borrow_mut();
+        code[ir_idx].name = node.name.clone();
+    });
     return r;
 }
 
@@ -290,8 +301,9 @@ fn gen_binop(ty: IRType, node: Node) -> i32 {
 }
 
 fn get_inc_scale(node: & Node) -> i32 {
-    if node.ty.ty == CType::PTR {
-        return node.ty.ptr_to.clone().unwrap().size;
+    if node.ty.borrow().ty == CType::PTR {
+        let tmp = node.ty.borrow().clone().ptr_to.unwrap();
+        return tmp.borrow().size;
     }
     return 1;
 }
@@ -410,21 +422,17 @@ fn gen_expr(node: Node) -> i32 {
 
             let ir_idx = add(IRType::CALL, r, -1);
 
-            let (nargs, args) = match CODE.lock() {
-                Ok(mut code) => {
-                    code[ir_idx].name = node.name.clone();
-                    code[ir_idx].nargs = node.args.len();
+            let (nargs, args) = CODE.with(|c| {
+                let code = &mut *c.borrow_mut();
+                code[ir_idx].name = node.name.clone();
+                code[ir_idx].nargs = node.args.len();
 
-                    for i in 0..code[ir_idx].nargs {
-                        code[ir_idx].args[i] = args[i];
-                    }
+                for i in 0..code[ir_idx].nargs {
+                    code[ir_idx].args[i] = args[i];
+                }
 
-                    (code[ir_idx].nargs, code[ir_idx].args)
-                }
-                Err(_) => {
-                    panic!();
-                }
-            };
+                (code[ir_idx].nargs, code[ir_idx].args)
+            });
 
             for i in 0..nargs {
                 kill(args[i]);
@@ -671,7 +679,7 @@ pub fn gen_ir(nodes: Vec<Node>) -> Vec<IR> {
         let mut fun = alloc_ir();
         fun.name = node.name.clone();
         fun.stacksize = node.stacksize;
-        fun.ir = CODE.lock().unwrap().clone();
+        fun.ir = CODE.with(|code| code.borrow().clone());
         fun.globals = node.globals;
 
         v.push(fun);
