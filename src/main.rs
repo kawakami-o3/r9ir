@@ -7,6 +7,7 @@ mod gen_x86;
 mod gen_ir;
 mod irdump;
 mod parse;
+mod preprocess;
 mod regalloc;
 mod sema;
 mod token;
@@ -20,47 +21,7 @@ use crate::regalloc::*;
 use crate::sema::*;
 use crate::token::*;
 use std::env;
-use std::cell::RefCell;
-use std::fs;
-use std::io;
-use std::io::Read;
 use std::sync::Mutex;
-
-thread_local! {
-    static FILENAME: RefCell<String> = RefCell::new(String::new());
-}
-
-pub fn filename() -> String {
-    FILENAME.with(|f| {
-        return f.borrow().clone()
-    })
-}
-
-fn set_filename(s: String) {
-    FILENAME.with(|filename| {
-        *filename.borrow_mut() = s;
-    })
-}
-
-fn read_file(filename: String) -> String {
-    if filename == "-" {
-        let mut buffer = String::new();
-        io::stdin().read_to_string(&mut buffer).unwrap();
-        return buffer;
-    }
-
-    match fs::read_to_string(filename) {
-        Ok(mut content) => {
-            if &content[content.len()-1..] != "\n" {
-                content.push('\n');
-            }
-            return content;
-        }
-        Err(_) => {
-            panic!();
-        }
-    }
-}
 
 fn print_node(node: Node, offset: usize) {
     for _i in 0..offset {
@@ -106,33 +67,32 @@ fn main() {
         usage();
     }
 
+    let path: String;
     let mut dump_node = false;
     let mut dump_ir1 = false;
     let mut dump_ir2 = false;
 
     if argv.len() == 3 && argv[1] == "-dump-node" {
         dump_node = true;
-        set_filename(argv[2].clone());
+        path = argv[2].clone();
     } else if argv.len() == 3 && argv[1] == "-dump-ir1" {
         dump_ir1 = true;
-        set_filename(argv[2].clone());
+        path = argv[2].clone();
     } else if argv.len() == 3 && argv[1] == "-dump-ir2" {
         dump_ir2 = true;
-        set_filename(argv[2].clone());
+        path = argv[2].clone();
     } else {
         if argv.len() != 2 {
             usage();
         }
-        set_filename(argv[1].clone());
+        path = argv[1].clone();
     }
 
     // Token -> Node -> IR -> asm
     // token -> parse -> sema -> gen_ir(irdump) -> regalloc -> gen_x86
 
     // Tokenize and parse.
-    let input = read_file(filename());
-    //eprintln!("{}", input);
-    let tokens = tokenize(&input);
+    let tokens = tokenize(path, true);
     //for i in tokens.iter() { eprintln!(">> {:?}", i); }
     let mut nodes = parse(&tokens);
     //eprintln!("nodes> {:?}", nodes);

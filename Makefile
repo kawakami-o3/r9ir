@@ -1,18 +1,22 @@
+CC := RUST_BACKTRACE=1 cargo run -q
 
 all: build
 
 build:
 	cargo build
 
-test:
-	#gcc -E -C -P test/test.c > tmp-test.tmp
-	#RUST_BACKTRACE=1 cargo run -q tmp-test.tmp > tmp-test.s
-	gcc -E -C -P test/test.c | RUST_BACKTRACE=1 cargo run -q - > tmp-test1.s
-	#RUST_BACKTRACE=1 cargo run -q test/token.c > tmp-test2.s
+test-unit:
+	gcc -E -C -P test/test.c | $(CC) - > tmp-test1.s
 	gcc -xc -c -o tmp-test2.o test/gcc.c
-	#gcc -static -o tmp-test tmp-test1.s tmp-test2.s tmp-test2.o
-	gcc -static -o tmp-test tmp-test1.s tmp-test2.o
-	./tmp-test
+	gcc -static -o tmp-test1 tmp-test1.s tmp-test2.o
+	./tmp-test1
+
+test-include:
+	$(CC) test/token.c > tmp-test2.s
+	gcc -static -o tmp-test2 tmp-test2.s
+	./tmp-test2
+
+test: test-unit test-include
 
 dump-node:
 	gcc -E -C -P test/test.c > tmp-test.tmp

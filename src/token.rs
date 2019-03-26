@@ -6,28 +6,45 @@
 #![allow(dead_code, non_camel_case_types)]
 
 use crate::*;
+use crate::preprocess::*;
 use std::cell::RefCell;
 use std::cmp;
 use std::collections::HashMap;
+use std::fs;
+use std::io;
+use std::io::Read;
 
 thread_local! {
     static SYMBOLS: RefCell<Vec<Symbol>> = RefCell::new(Vec::new());
     static ESCAPED: RefCell<HashMap<char, char>> = RefCell::new(HashMap::new());
 
-    static INPUT_FILE: RefCell<String> = RefCell::new(String::new());
+    static BUF: RefCell<String> = RefCell::new(String::new());
+    static FILENAME: RefCell<String> = RefCell::new(String::new());
 
     static TOKENS: RefCell<Vec<Token>> = RefCell::new(Vec::new());
     static KEYWORDS: RefCell<HashMap<String, TokenType>> = RefCell::new(HashMap::new());
 }
 
-fn input_file() -> String {
-    INPUT_FILE.with(|input| {
-        input.clone().into_inner()
+fn buf() -> String {
+    BUF.with(|i| {
+        i.clone().into_inner()
     })
 }
 
-fn set_input_file(s: String) {
-    INPUT_FILE.with(|input| {
+fn set_buf(s: String) {
+    BUF.with(|i| {
+        *i.borrow_mut() = s;
+    })
+}
+
+fn filename() -> String {
+    FILENAME.with(|i| {
+        i.clone().into_inner()
+    })
+}
+
+fn set_filename(s: String) {
+    FILENAME.with(|input| {
         *input.borrow_mut() = s;
     })
 }
@@ -47,6 +64,12 @@ fn set_tokens(ts: Vec<Token>) {
 fn add(t: Token) {
     TOKENS.with(|tokens| {
         (*tokens.borrow_mut()).push(t);
+    })
+}
+
+fn keywords_is_none() -> bool {
+    KEYWORDS.with(|keywords| {
+        keywords.borrow().len() == 0
     })
 }
 
@@ -156,6 +179,8 @@ pub enum TokenType {
     COMMA,      // ,
     COLON,      // :
     SEMI_COLON, // ;
+    SHARP,      // #
+    NEW_LINE,   // \n
     NUM,        // Number literal
     STR,        // String literal
     IDENT,      // Identifier
@@ -209,6 +234,8 @@ pub struct Token {
     pub len: usize,
     
     // For error reporting
+    pub buf: String,
+    pub filename: String,
     pub start: usize,
 }
 
@@ -224,9 +251,13 @@ fn new_token(ty: TokenType, idx: usize) -> Token {
         ty: ty,
         val: 0,
         name: String::new(),
-        start: idx,
+
         str_cnt: String::new(),
         len: 0,
+
+        buf: buf(),
+        filename: filename(),
+        start: idx,
     }
 }
 
@@ -234,13 +265,13 @@ fn new_token(ty: TokenType, idx: usize) -> Token {
 
 // Finds a line pointed by a given pointer from the input file
 // to print it out.
-fn print_line(pos: usize) {
+fn print_line(start: & String, path: & String, pos: usize) {
     let mut line = 0;
     let mut col = 0;
 
     let mut target = String::new();
     let mut idx = 0;
-    let input = input_file();
+    let input = start;
     let bytes = input.as_bytes();
     while idx < bytes.len() {
         let p = char::from(bytes[idx]);
@@ -259,8 +290,7 @@ fn print_line(pos: usize) {
             continue;
         }
 
-
-        eprintln!("error at {}:{}:{}", filename(), line+1, col+1);
+        eprintln!("error at {}:{}:{}", path, line+1, col+1);
         eprintln!();
 
         while char::from(bytes[idx]) != '\n' {
@@ -278,8 +308,12 @@ fn print_line(pos: usize) {
     }
 }
 
+// 'msg' is String instead of &'static str.
+// The 'msg' argument is "..." (&str) or format!() (String),
+// If msg is &'static str, format! create a temporary variable
+// and it can't live long enough.
 pub fn bad_token(t: & Token, msg: String) {
-    print_line(t.start);
+    print_line(&t.buf, &t.filename, t.start);
     panic!(msg);
 }
 
@@ -293,7 +327,33 @@ fn block_comment(p: &String, idx: usize) -> usize {
         ret += 2;
         return ret - idx;
     }
+    print_line(&buf(), &filename(), idx);
     panic!("unclosed comment");
+}
+
+fn read_file(f: String) -> String {
+    let mut filename = f;
+    if filename == "-" {
+        let mut buffer = String::new();
+        io::stdin().read_to_string(&mut buffer).unwrap();
+        return buffer;
+    }
+
+    // remove EOS, '\0'.
+    if &filename[filename.len()-1..] == "\0" {
+        filename = filename[..filename.len()-1].to_string();
+    }
+    match fs::read_to_string(filename) {
+        Ok(mut content) => {
+            if &content[content.len()-1..] != "\n" {
+                content.push('\n');
+            }
+            return content;
+        }
+        Err(e) => {
+            panic!("{:?}", e);
+        }
+    }
 }
 
 fn keyword_map() -> HashMap<String, TokenType> {
@@ -509,12 +569,20 @@ fn scan() {
     init_escaped();
     let symbols = symbols();
 
-    let p = &input_file();
+    let p = &buf();
 
     let char_bytes = p.as_bytes();
     let mut idx = 0;
     'outer: while idx < char_bytes.len() {
         let c: char = char::from(char_bytes[idx]);
+        // New line (preprocessor-only token)
+        if c == '\n' {
+            add(new_token(TokenType::NEW_LINE, idx));
+            idx += 1;
+            continue;
+        }
+
+        // Whitespace
         if c.is_whitespace() {
             idx += 1;
             continue;
@@ -563,7 +631,7 @@ fn scan() {
         }
 
         // Single-letter symbol
-        if "+-*/;=(),{}<>[]&.!?:|^%~".contains(c) {
+        if "+-*/;=(),{}<>[]&.!?:|^%~#".contains(c) {
             let ty = match c {
                 '+' => TokenType::ADD,
                 '-' => TokenType::SUB,
@@ -589,6 +657,7 @@ fn scan() {
                 '.' => TokenType::DOT,
                 '%' => TokenType::MOD,
                 '~' => TokenType::TILDA,
+                '#' => TokenType::SHARP,
                 _ => panic!("unknown {}", c),
             };
             add(new_token(ty, idx));
@@ -613,28 +682,13 @@ fn scan() {
             continue;
         }
 
+        print_line(&buf(), &filename(), idx);
         panic!("cannot tokenize: {}", c);
     }
-
-    add(new_token(TokenType::EOF, 0));
-}
-
-fn remove_backslash_newline() {
-    let p = input_file();
-    let mut cnt = String::new();
-    let mut i = 0;
-    while i < p.len() {
-        if i+1 < p.len() && &p[i..i+2] == "\\\n" {
-            i += 2;
-        }
-        cnt.push_str(&p[i..i+1]);
-        i += 1;
-    }
-    set_input_file(cnt);
 }
 
 fn canonicalize_newline() {
-    let p = input_file();
+    let p = buf();
     let mut cnt = String::new();
     let mut i = 0;
     while i < p.len() {
@@ -644,7 +698,37 @@ fn canonicalize_newline() {
         cnt.push_str(&p[i..i+1]);
         i += 1;
     }
-    set_input_file(cnt);
+    set_buf(cnt);
+}
+
+fn remove_backslash_newline() {
+    let p = buf();
+    let mut cnt = String::new();
+    let mut i = 0;
+    while i < p.len() {
+        if i+1 < p.len() && &p[i..i+2] == "\\\n" {
+            i += 2;
+        }
+        cnt.push_str(&p[i..i+1]);
+        i += 1;
+    }
+    set_buf(cnt);
+}
+
+fn strip_newlines() {
+    let mut v = Vec::new();
+
+//    let ts: Vec<Token> = tokens().iter()
+//        .filter(|t| t.ty != TokenType::NEW_LINE)
+//        .cloned()
+//        .collect();
+
+    for t in tokens().iter() {
+        if t.ty != TokenType::NEW_LINE {
+            v.push(t.clone());
+        }
+    }
+    set_tokens(v);
 }
 
 fn join_string_literals() {
@@ -663,13 +747,34 @@ fn join_string_literals() {
     set_tokens(v);
 }
 
-pub fn tokenize(p: &String) -> Vec<Token> {
-    set_keywords(keyword_map());
-    set_input_file(p.clone());
+pub fn tokenize(path: String, add_eof: bool) -> Vec<Token> {
+    if keywords_is_none() {
+        set_keywords(keyword_map());
+    }
+
+    let tokens_ = tokens();
+    let filename_ = filename();
+    let buf_ = buf();
+
+    set_tokens(Vec::new());
+    set_filename(path.clone());
+    set_buf(read_file(path));
 
     canonicalize_newline();
     remove_backslash_newline();
+
     scan();
+    if add_eof {
+        add(new_token(TokenType::EOF, 0));
+    }
+
+    set_tokens(preprocess(tokens()));
+    strip_newlines();
     join_string_literals();
-    return tokens();
+
+    let ret = tokens();
+    set_buf(buf_);
+    set_tokens(tokens_);
+    set_filename(filename_);
+    return ret;
 }

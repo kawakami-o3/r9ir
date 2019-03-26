@@ -343,10 +343,10 @@ fn expect(ty: TokenType, tokens: &Vec<Token>) {
     }
 
     if ty != TokenType::EOF {
-        bad_token(t, format!("{:?} expected", ty).to_string());
+        bad_token(t, format!("{:?} expected", ty));
     }
     assert!(ty == TokenType::WHILE);
-    bad_token(t, format!("'while' expected").to_string());
+    bad_token(t, format!("'while' expected"));
 }
 
 fn new_prim_ty(ty: CType, size: i32) -> Type {
@@ -1012,7 +1012,7 @@ fn toplevel(tokens: &Vec<Token>) -> Option<Node> {
         let t = &tokens[pos()];
         expect(TokenType::C_BRA, tokens);
         if is_typedef {
-            bad_token(t, format!("typedef has function definition").to_string());
+            bad_token(t, format!("typedef has function definition"));
         }
         node.body = Some(Box::new(compound_stmt(tokens)));
         return Some(node);
