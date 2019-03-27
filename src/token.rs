@@ -18,52 +18,63 @@ thread_local! {
     static SYMBOLS: RefCell<Vec<Symbol>> = RefCell::new(Vec::new());
     static ESCAPED: RefCell<HashMap<char, char>> = RefCell::new(HashMap::new());
 
-    static BUF: RefCell<String> = RefCell::new(String::new());
-    static FILENAME: RefCell<String> = RefCell::new(String::new());
-
-    static TOKENS: RefCell<Vec<Token>> = RefCell::new(Vec::new());
+    static CTX: RefCell<Context> = RefCell::new(Context::new());
     static KEYWORDS: RefCell<HashMap<String, TokenType>> = RefCell::new(HashMap::new());
 }
 
+fn set_ctx(ctx: Context) {
+    CTX.with(|c| {
+        *c.borrow_mut() = ctx;
+    })
+}
+
 fn buf() -> String {
-    BUF.with(|i| {
-        i.clone().into_inner()
+    CTX.with(|c| {
+        c.borrow().buf.clone()
     })
 }
 
 fn set_buf(s: String) {
-    BUF.with(|i| {
-        *i.borrow_mut() = s;
+    CTX.with(|c| {
+        c.borrow_mut().buf = s;
     })
 }
 
-fn filename() -> String {
-    FILENAME.with(|i| {
-        i.clone().into_inner()
+fn path() -> String {
+    CTX.with(|c| {
+        c.borrow().path.clone()
     })
 }
 
-fn set_filename(s: String) {
-    FILENAME.with(|input| {
-        *input.borrow_mut() = s;
+fn set_path(s: String) {
+    CTX.with(|c| {
+        c.borrow_mut().path = s;
     })
 }
 
 fn tokens() -> Vec<Token> {
-    TOKENS.with(|tokens| {
-        tokens.clone().into_inner()
+    CTX.with(|c| {
+        c.borrow().tokens.clone()
     })
 }
 
 fn set_tokens(ts: Vec<Token>) {
-    TOKENS.with(|tokens| {
-        *tokens.borrow_mut() = ts;
+    CTX.with(|c| {
+        c.borrow_mut().tokens = ts;
+    })
+}
+
+fn ctx_pop() {
+    CTX.with(|c| {
+        if let Some(next) = c.borrow().next.clone() {
+            *c.borrow_mut() = *next;
+        }
     })
 }
 
 fn add(t: Token) {
-    TOKENS.with(|tokens| {
-        (*tokens.borrow_mut()).push(t);
+    CTX.with(|c| {
+        c.borrow_mut().tokens.push(t);
     })
 }
 
@@ -145,6 +156,27 @@ fn escaped(c: char) -> Option<char> {
             None => None,
         }
     })
+}
+
+#[derive(Clone, Debug)]
+struct Context {
+    path: String,
+    buf: String,
+    pos: i32,
+    tokens: Vec<Token>,
+    next: Option<Box<Context>>,
+}
+
+impl Context {
+    fn new() -> Context {
+        Context {
+            path: String::new(),
+            buf: String::new(),
+            pos: 0,
+            tokens: Vec::new(),
+            next: None,
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -235,7 +267,7 @@ pub struct Token {
     
     // For error reporting
     pub buf: String,
-    pub filename: String,
+    pub path: String,
     pub start: usize,
 }
 
@@ -256,9 +288,46 @@ fn new_token(ty: TokenType, idx: usize) -> Token {
         len: 0,
 
         buf: buf(),
-        filename: filename(),
+        path: path(),
         start: idx,
     }
+}
+
+fn read_file(f: String) -> String {
+    let mut filename = f;
+    if filename == "-" {
+        let mut buffer = String::new();
+        io::stdin().read_to_string(&mut buffer).unwrap();
+        return buffer;
+    }
+
+    // remove EOS, '\0'.
+    if &filename[filename.len()-1..] == "\0" {
+        filename = filename[..filename.len()-1].to_string();
+    }
+    match fs::read_to_string(filename) {
+        Ok(mut content) => {
+            if &content[content.len()-1..] != "\n" {
+                content.push('\n');
+            }
+            return content;
+        }
+        Err(e) => {
+            panic!("{:?}", e);
+        }
+    }
+}
+
+fn new_ctx(next: Option<Context>, path: String, buf: String) -> Context {
+    let mut ctx = Context::new();
+    ctx.path = path;
+    ctx.buf = buf;
+    if next.is_none() {
+        ctx.next = None;
+    } else {
+        ctx.next = Some(Box::new(next.unwrap()));
+    }
+    return ctx;
 }
 
 // Error reporting
@@ -313,7 +382,7 @@ fn print_line(start: & String, path: & String, pos: usize) {
 // If msg is &'static str, format! create a temporary variable
 // and it can't live long enough.
 pub fn bad_token(t: & Token, msg: String) {
-    print_line(&t.buf, &t.filename, t.start);
+    print_line(&t.buf, &t.path, t.start);
     panic!(msg);
 }
 
@@ -327,33 +396,8 @@ fn block_comment(p: &String, idx: usize) -> usize {
         ret += 2;
         return ret - idx;
     }
-    print_line(&buf(), &filename(), idx);
+    print_line(&buf(), &path(), idx);
     panic!("unclosed comment");
-}
-
-fn read_file(f: String) -> String {
-    let mut filename = f;
-    if filename == "-" {
-        let mut buffer = String::new();
-        io::stdin().read_to_string(&mut buffer).unwrap();
-        return buffer;
-    }
-
-    // remove EOS, '\0'.
-    if &filename[filename.len()-1..] == "\0" {
-        filename = filename[..filename.len()-1].to_string();
-    }
-    match fs::read_to_string(filename) {
-        Ok(mut content) => {
-            if &content[content.len()-1..] != "\n" {
-                content.push('\n');
-            }
-            return content;
-        }
-        Err(e) => {
-            panic!("{:?}", e);
-        }
-    }
 }
 
 fn keyword_map() -> HashMap<String, TokenType> {
@@ -682,13 +726,12 @@ fn scan() {
             continue;
         }
 
-        print_line(&buf(), &filename(), idx);
+        print_line(&buf(), &path(), idx);
         panic!("cannot tokenize: {}", c);
     }
 }
 
-fn canonicalize_newline() {
-    let p = buf();
+fn canonicalize_newline(p: String) -> String {
     let mut cnt = String::new();
     let mut i = 0;
     while i < p.len() {
@@ -698,11 +741,10 @@ fn canonicalize_newline() {
         cnt.push_str(&p[i..i+1]);
         i += 1;
     }
-    set_buf(cnt);
+    return cnt;
 }
 
-fn remove_backslash_newline() {
-    let p = buf();
+fn remove_backslash_newline(p: String) -> String {
     let mut cnt = String::new();
     let mut i = 0;
     while i < p.len() {
@@ -712,10 +754,10 @@ fn remove_backslash_newline() {
         cnt.push_str(&p[i..i+1]);
         i += 1;
     }
-    set_buf(cnt);
+    return cnt;
 }
 
-fn strip_newlines() {
+fn strip_newlines(tokens: Vec<Token>) -> Vec<Token> {
     let mut v = Vec::new();
 
 //    let ts: Vec<Token> = tokens().iter()
@@ -723,18 +765,18 @@ fn strip_newlines() {
 //        .cloned()
 //        .collect();
 
-    for t in tokens().iter() {
+    for t in tokens.iter() {
         if t.ty != TokenType::NEW_LINE {
             v.push(t.clone());
         }
     }
-    set_tokens(v);
+    return v;
 }
 
-fn join_string_literals() {
+fn join_string_literals(tokens: Vec<Token>) -> Vec<Token> {
     let mut v: Vec<Token> = Vec::new();
 
-    let ts = tokens();
+    let ts = tokens;
     for t in ts.iter() {
         if v.len() > 0 && v.last().unwrap().ty == TokenType::STR && t.ty == TokenType::STR {
             v.last_mut().unwrap().append(t);
@@ -744,7 +786,7 @@ fn join_string_literals() {
         v.push(t.clone());
     }
 
-    set_tokens(v);
+    return v;
 }
 
 pub fn tokenize(path: String, add_eof: bool) -> Vec<Token> {
@@ -752,29 +794,20 @@ pub fn tokenize(path: String, add_eof: bool) -> Vec<Token> {
         set_keywords(keyword_map());
     }
 
-    let tokens_ = tokens();
-    let filename_ = filename();
-    let buf_ = buf();
+    let mut buf = read_file(path.clone());
+    buf = canonicalize_newline(buf);
+    buf = remove_backslash_newline(buf);
 
-    set_tokens(Vec::new());
-    set_filename(path.clone());
-    set_buf(read_file(path));
-
-    canonicalize_newline();
-    remove_backslash_newline();
-
+    set_ctx(new_ctx(None, path, buf));
     scan();
     if add_eof {
         add(new_token(TokenType::EOF, 0));
     }
 
-    set_tokens(preprocess(tokens()));
-    strip_newlines();
-    join_string_literals();
+    let mut v = tokens();
+    ctx_pop();
 
-    let ret = tokens();
-    set_buf(buf_);
-    set_tokens(tokens_);
-    set_filename(filename_);
-    return ret;
+    v = preprocess(v);
+    v = strip_newlines(v);
+    return join_string_literals(v);
 }
