@@ -1,8 +1,5 @@
 // main
 
-#[macro_use]
-extern crate lazy_static;
-
 mod gen_x86;
 mod gen_ir;
 mod irdump;
@@ -21,7 +18,6 @@ use crate::regalloc::*;
 use crate::sema::*;
 use crate::token::*;
 use std::env;
-use std::sync::Mutex;
 
 fn print_node(node: Node, offset: usize) {
     for _i in 0..offset {

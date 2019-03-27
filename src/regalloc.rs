@@ -15,40 +15,57 @@
 use crate::gen_ir::*;
 use crate::irdump::*;
 use crate::*;
+use std::cell::RefCell;
 
-lazy_static! {
-    static ref USED: Mutex<Vec<bool>> = Mutex::new(Vec::new());
-    static ref REG_MAP: Mutex<Vec<i32>> = Mutex::new(Vec::new());
+thread_local! {
+    static USED: RefCell<Vec<bool>> = RefCell::new(Vec::new());
+    static REG_MAP: RefCell<Vec<i32>> = RefCell::new(Vec::new());
 }
 
 const reg_map_size: usize = 8192;
 
 fn init_used() {
-    match USED.lock() {
-        Ok(mut used) => {
-            *used = Vec::new();
-            for _i in 0..num_regs() {
-                used.push(false);
-            }
+    USED.with(|u| {
+        let mut used = u.borrow_mut();
+        *used = Vec::new();
+        for _i in 0..num_regs() {
+            used.push(false);
         }
-        _ => {
-            panic!();
-        }
-    }
+    })
 }
 
 fn init_reg_map() {
-    match REG_MAP.lock() {
-        Ok(mut reg_map) => {
-            *reg_map = Vec::new();
-            for _i in 0..reg_map_size {
-                reg_map.push(-1);
-            }
+    REG_MAP.with(|r| {
+        let mut reg_map = r.borrow_mut();
+        *reg_map = Vec::new();
+        for _i in 0..reg_map_size {
+            reg_map.push(-1);
         }
-        _ => {
-            panic!();
-        }
-    }
+    })
+}
+
+fn used_get(i: i32) -> bool {
+    USED.with(|u| {
+        return u.borrow()[i as usize];
+    })
+}
+
+fn used_set(i: i32, v: bool) {
+    USED.with(|u| {
+        u.borrow_mut()[i as usize] = v;
+    })
+}
+
+fn reg_map_get(i: i32) -> i32 {
+    REG_MAP.with(|r| {
+        return r.borrow()[i as usize];
+    })
+}
+
+fn reg_map_set(i: i32, v: i32) {
+    REG_MAP.with(|r| {
+        r.borrow_mut()[i as usize] = v;
+    })
 }
 
 fn alloc(ir_reg: i32) -> i32 {
@@ -56,20 +73,18 @@ fn alloc(ir_reg: i32) -> i32 {
         panic!("program too big");
     }
 
-    let mut reg_map = REG_MAP.lock().unwrap();
-    if reg_map[ir_reg as usize] != -1 {
-        let r = reg_map[ir_reg as usize];
-        assert!(USED.lock().unwrap()[r as usize]);
+    if reg_map_get(ir_reg) != -1 {
+        let r = reg_map_get(ir_reg);
+        assert!(used_get(r));
         return r;
     }
 
-    let mut used = USED.lock().unwrap();
     for i in 0..num_regs() {
-        if used[i] {
+        if used_get(i as i32) {
             continue;
         }
-        reg_map[ir_reg as usize] = i as i32;
-        used[i] = true;
+        reg_map_set(ir_reg, i as i32);
+        used_set(i as i32, true);
         return i as i32;
     }
     panic!("register exhausted");
@@ -107,9 +122,8 @@ fn visit(irv: &mut Vec<IR>) {
         }
 
         if ir.op == IRType::KILL {
-            let mut used = USED.lock().unwrap();
-            assert!(used[ir.lhs as usize]);
-            used[ir.lhs as usize] = false;
+            assert!(used_get(ir.lhs));
+            used_set(ir.lhs, false);
             ir.op = IRType::NOP;
         }
     }

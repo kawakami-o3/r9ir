@@ -5,6 +5,7 @@
 
 use crate::util::*;
 use crate::*;
+use std::cell::RefCell;
 use std::collections::HashMap;
 
 macro_rules! emit {
@@ -18,16 +19,18 @@ macro_rules! emit {
     };
 }
 
-lazy_static! {
-    static ref NLABEL: Mutex<usize> = Mutex::new(0);
-    static ref ESCAPED: Mutex<HashMap<char,char>> = Mutex::new(HashMap::new());
+thread_local! {
+    static NLABEL: RefCell<usize> = RefCell::new(0);
+    static ESCAPED: RefCell<HashMap<char,char>> = RefCell::new(HashMap::new());
 }
 
 fn bump_nlabel() -> usize {
-    let mut nlabel = NLABEL.lock().unwrap();
-    let ret = *nlabel;
-    *nlabel += 1;
-    return ret;
+    NLABEL.with(|n| {
+        let mut nlabel = n.borrow_mut();
+        let ret = *nlabel;
+        *nlabel += 1;
+        return ret;
+    })
 }
 
 pub const regs: [&'static str; 7] = ["r10", "r11", "rbx", "r12", "r13", "r14", "r15"];
@@ -43,35 +46,32 @@ const argregs8: [&'static str; 6] = ["dil", "sil", "dl", "cl", "r8b", "r9b"];
 const argregs32: [&'static str; 6] = ["edi", "esi", "edx", "ecx", "r8d", "r9d"];
 
 fn init_escaped() {
-    let mut escaped = ESCAPED.lock().unwrap();
-    if escaped.len() > 0 {
-        return;
-    }
+    ESCAPED.with(|e| {
+        let mut escaped = e.borrow_mut();
 
-    escaped.insert(char::from(8), 'b');  // \b
-    escaped.insert(char::from(12), 'f'); // \f
-    escaped.insert(char::from(10), 'n'); // \n
-    escaped.insert(char::from(13), 'r'); // \r
-    escaped.insert(char::from(9), 't');  // \t
-    escaped.insert('\\', '\\');
-    escaped.insert('\'', '\'');
-    escaped.insert('\"', '"');
+        if escaped.len() > 0 {
+            return;
+        }
+
+        escaped.insert(char::from(8), 'b');  // \b
+        escaped.insert(char::from(12), 'f'); // \f
+        escaped.insert(char::from(10), 'n'); // \n
+        escaped.insert(char::from(13), 'r'); // \r
+        escaped.insert(char::from(9), 't');  // \t
+        escaped.insert('\\', '\\');
+        escaped.insert('\'', '\'');
+        escaped.insert('\"', '"');
+    })
 }
 
 fn escaped(c: char) -> Option<char> {
-    let mut ret = None;
-    match ESCAPED.lock() {
-        Ok(escaped) => {
-            match escaped.get(&c) {
-                Some(esc) => {
-                    ret = Some(*esc);
-                }
-                None => { }
-            }
+    ESCAPED.with(|e| {
+        let escaped = e.borrow();
+        match escaped.get(&c) {
+            Some(esc) => Some(*esc),
+            None => None,
         }
-        Err(_) => { }
-    }
-    return ret;
+    })
 }
 
 fn backslash_escape(s: & String) -> String {
