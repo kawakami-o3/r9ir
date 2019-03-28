@@ -5,7 +5,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 
 thread_local! {
-    static MACROS: RefCell<HashMap<String, Vec<Token>>> = RefCell::new(HashMap::new());
+    static MACROS: RefCell<HashMap<String, Macro>> = RefCell::new(HashMap::new());
 
     static CTX: RefCell<Context> = RefCell::new(Context::new());
 }
@@ -37,7 +37,7 @@ fn ctx_output() -> Vec<Token> {
     })
 }
 
-fn macros_get(key: &String) -> Option<Vec<Token>> {
+fn macros_get(key: &String) -> Option<Macro> {
     MACROS.with(|m| {
         match m.borrow().get(key) {
             Some(v) => Some(v.clone()),
@@ -46,7 +46,7 @@ fn macros_get(key: &String) -> Option<Vec<Token>> {
     })
 }
 
-fn macros_put(key: String, value: Vec<Token>) {
+fn macros_put(key: String, value: Macro) {
     MACROS.with(|m| {
         m.borrow_mut().insert(key, value);
     })
@@ -80,6 +80,28 @@ fn new_ctx(next: Option<Context>, input: Vec<Token>) -> Context {
         ctx.next = Some(Box::new(next.unwrap()));
     }
     return ctx;
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum MacroType {
+    OBJLIKE,
+    FUNCLIKE,
+}
+
+#[derive(Clone, Debug)]
+struct Macro {
+    ty: MacroType,
+    tokens: Vec<Token>,
+    params: Vec<String>,
+}
+
+fn new_macro(ty: MacroType, name: String) {
+    let m = Macro {
+        ty: ty,
+        tokens: Vec::new(),
+        params: Vec::new(),
+    };
+    macros_put(name, m);
 }
 
 fn append(v: &mut Vec<Token>) {
@@ -118,19 +140,201 @@ fn get(ty: TokenType, msg: String) -> Token {
     return t;
 }
 
-fn define() {
-    let mut t = get(TokenType::IDENT, "macro name expected".to_string());
-    let name = t.name;
+fn ident(msg: String) -> String {
+    let t = get(TokenType::IDENT, msg);
+    return t.name.clone();
+}
 
+fn peek() -> Token {
+    CTX.with(|c| {
+        let ctx = c.borrow();
+        return ctx.input[ctx.pos].clone();
+    })
+}
+
+fn consume(ty: TokenType) -> bool {
+    if peek().ty != ty {
+        return false;
+    }
+    CTX.with(|c| {
+        c.borrow_mut().pos += 1;
+    });
+    return true;
+}
+
+fn read_until_eol() -> Vec<Token> {
     let mut v = Vec::new();
     while !eof() {
-        t = next();
+        let t = next();
         if t.ty == TokenType::NEW_LINE {
             break;
         }
         v.push(t.clone());
     }
-    macros_put(name, v);
+    return v;
+}
+
+fn new_param(n: i32) -> Token {
+    let mut t = new_token(TokenType::PARAM, 0);
+    t.val = n;
+    return t;
+}
+
+fn replace_params(m: &mut Macro) {
+    let params = m.params.clone();
+    let mut tokens = m.tokens.clone();
+
+    // Replace macro parameter tokens with TokenType::PARAM tokens.
+    let mut map = HashMap::new();
+    for i in 0..params.len() {
+        let name = params[i].clone();
+        map.insert(name, i as i32);
+    }
+
+    for i in 0..tokens.len() {
+        let t = tokens[i].clone();
+        if t.ty != TokenType::IDENT {
+            continue;
+        }
+        let n = match map.get(&t.name) {
+            Some(i) => *i,
+            None => {
+                continue;
+            }
+        };
+        tokens.remove(i);
+        tokens.insert(i, new_param(n));
+    }
+
+    // Process '#' followed by a macro parameter.
+    let mut v = Vec::new();
+    let mut i = 0;
+    while i < tokens.len() {
+        let t1 = tokens[i].clone();
+        let mut t2 = tokens[i+1].clone();
+
+        if i != tokens.len() - 1 && t1.ty == TokenType::SHARP && t2.ty == TokenType::PARAM {
+            t2.stringize = true;
+            v.push(t2);
+            i += 1;
+        } else {
+            v.push(t1);
+        }
+    }
+    m.tokens = v;
+}
+
+fn read_one_arg() -> Vec<Token> {
+    let mut v = Vec::new();
+    let start = peek();
+    let mut level = 0;
+
+    while !eof() {
+        let t = peek();
+        if level == 0 {
+            if t.ty == TokenType::KET || t.ty == TokenType::COMMA {
+                return v;
+            }
+        }
+
+        next();
+        if t.ty == TokenType::BRA {
+            level += 1;
+        } else if t.ty == TokenType::KET {
+            level -= 1;
+        }
+        v.push(t);
+    }
+    bad_token(&start, "unclosed macro argument".to_string());
+    panic!();
+}
+
+fn read_args() -> HashMap<usize, Vec<Token>> {
+    let mut v = HashMap::new();
+    if consume(TokenType::KET) {
+        return v;
+    }
+    let i = v.len();
+    v.insert(i, read_one_arg());
+    while !consume(TokenType::KET) {
+        get(TokenType::COMMA, "comma expected".to_string());
+        let i = v.len();
+        v.insert(i, read_one_arg());
+    }
+    return v;
+}
+
+fn stringize(tokens: Vec<Token>) -> Token {
+    let mut sb = String::new();
+
+    for i in 0..tokens.len() {
+        let t = &tokens[i];
+        if i > 0 {
+            sb.push(' ');
+        }
+        sb.push_str(tokstr(&t));
+    }
+
+    let mut t = new_token(TokenType::STR, 0);
+    t.len = sb.len();
+    t.str_cnt = sb;
+    return t;
+}
+
+fn apply(m: &mut Macro) {
+    if m.ty == MacroType::OBJLIKE {
+        append(&mut m.tokens);
+        return;
+    }
+
+    // Function-like macro
+    let t = peek();
+    get(TokenType::BRA, "comma expected".to_string());
+    let args = read_args();
+    if m.params.len() != args.len() {
+        bad_token(&t, "number of parameter does not match".to_string());
+    }
+
+    for i in 0..m.tokens.len() {
+        let t = &m.tokens[i];
+        if t.ty != TokenType::PARAM {
+            add(t.clone());
+        } else if t.stringize {
+            let j = t.val as usize;
+            add(stringize(args.get(&j).unwrap().clone()));
+        } else {
+            let j = t.val as usize;
+            let vs = args.get(&j).unwrap().clone();
+            add(vs[0].clone());
+        }
+    }
+}
+
+fn funclike_macro(name: String) {
+    new_macro(MacroType::FUNCLIKE, name.clone());
+    let mut m = macros_get(&name).unwrap();
+    m.params.push(ident("parameter name expected".to_string()));
+    while !consume(TokenType::KET) {
+        get(TokenType::COMMA, "comma expected".to_string());
+        m.params.push(ident("parameter name expected".to_string()));
+    }
+    m.tokens = read_until_eol();
+    replace_params(&mut m);
+}
+
+fn objlike_macro(name: String) {
+    new_macro(MacroType::OBJLIKE, name.clone());
+    let mut m = macros_get(&name).unwrap();
+    m.tokens = read_until_eol();
+    macros_put(name, m);
+}
+
+fn define() {
+    let name = ident("macro name expected".to_string());
+    if consume(TokenType::BRA) {
+        return funclike_macro(name);
+    }
+    return objlike_macro(name);
 }
 
 fn include() {
@@ -149,7 +353,7 @@ pub fn preprocess(tokens: Vec<Token>) -> Vec<Token> {
         if t.ty == TokenType::IDENT {
             match macros_get(&t.name) {
                 Some(macro_token) => {
-                    append(&mut macro_token.clone());
+                    apply(&mut macro_token.clone());
                 }
                 None => {
                     add(t.clone());

@@ -252,6 +252,7 @@ pub enum TokenType {
     RETURN,     // "return"
     SIZEOF,     // "sizeof"
     ALIGNOF,    // "_Alignof"
+    PARAM,      // Function-like macro parameter
     EOF,        // End marker
 }
 
@@ -264,11 +265,15 @@ pub struct Token {
     // String literal
     pub str_cnt: String,
     pub len: usize,
-    
+
+    // For preprocessor
+    pub stringize: bool,
+
     // For error reporting
     pub buf: String,
     pub path: String,
     pub start: usize,
+    pub end: usize,
 }
 
 impl Token {
@@ -278,7 +283,7 @@ impl Token {
     }
 }
 
-fn new_token(ty: TokenType, idx: usize) -> Token {
+pub fn new_token(ty: TokenType, start: usize) -> Token {
     Token{
         ty: ty,
         val: 0,
@@ -287,9 +292,12 @@ fn new_token(ty: TokenType, idx: usize) -> Token {
         str_cnt: String::new(),
         len: 0,
 
+        stringize: false,
+
         buf: buf(),
         path: path(),
-        start: idx,
+        start: start,
+        end: 0,
     }
 }
 
@@ -384,6 +392,11 @@ fn print_line(start: & String, path: & String, pos: usize) {
 pub fn bad_token(t: & Token, msg: String) {
     print_line(&t.buf, &t.path, t.start);
     panic!(msg);
+}
+
+pub fn tokstr(t: &Token) -> &str {
+    assert!(t.start != 0 && t.end != 0);
+    return &t.buf[t.start..t.end];
 }
 
 fn block_comment(p: &String, idx: usize) -> usize {
@@ -509,6 +522,7 @@ fn string_literal(p: &String, idx: usize) -> TokenInfo {
     ret.push(char::from(0));
     t.str_cnt = ret;
     t.len = len;
+    t.end = idx + len + 1;
     return TokenInfo{
         token: t,
         len: len,
@@ -539,6 +553,7 @@ fn ident(p: &String, idx: usize) -> TokenInfo {
 
     let mut t = new_token(ty, idx);
     t.name = name.clone();
+    t.end = ret;
 
     return TokenInfo{
         token: t,
@@ -560,6 +575,7 @@ fn hexadecimal(p: &String, idx: usize) -> TokenInfo {
             t.val = t.val * 16 + i as i32;
             ret += 1;
         } else {
+            t.end = ret;
             return TokenInfo {
                 token: t,
                 len: ret - idx,
@@ -576,6 +592,7 @@ fn octal(p: &String, idx: usize) -> TokenInfo {
         t.val = t.val * 8 + i as i32;
         ret += 1;
     }
+    t.end = ret;
 
     return TokenInfo {
         token: t,
@@ -669,8 +686,10 @@ fn scan() {
                 continue;
             }
 
-            add(new_token(s.ty, idx));
+            let mut t = new_token(s.ty, idx);
             idx += s.name.len();
+            t.end = idx;
+            add(t);
             continue 'outer;
         }
 
@@ -704,9 +723,10 @@ fn scan() {
                 '#' => TokenType::SHARP,
                 _ => panic!("unknown {}", c),
             };
-            add(new_token(ty, idx));
-
+            let mut t = new_token(ty, idx);
             idx += 1;
+            t.end = idx;
+            add(t);
             continue;
         }
 
