@@ -395,8 +395,19 @@ pub fn bad_token(t: & Token, msg: String) {
 }
 
 pub fn tokstr(t: &Token) -> &str {
-    assert!(t.start != 0 && t.end != 0);
+    assert!(t.start != 0 || t.end != 0);
     return &t.buf[t.start..t.end];
+}
+
+pub fn line(t: &Token) -> i32 {
+    // TODO fix
+    let mut n = 0;
+    for i in 0..t.end {
+        if &t.buf[i..i+1] == "\n" {
+            n += 1;
+        }
+    }
+    return n;
 }
 
 fn block_comment(p: &String, idx: usize) -> usize {
@@ -476,6 +487,7 @@ fn char_literal(p: &String, idx: usize) -> TokenInfo {
         error_char!(&t);
     }
     len += 1;
+    t.end = idx + len;
     return TokenInfo {
         token: t,
         len: len,
@@ -609,6 +621,7 @@ fn decimal(p: &String, idx: usize) -> TokenInfo {
         ret += 1;
     }
 
+    t.end = ret;
     return TokenInfo {
         token: t,
         len: ret - idx,
@@ -638,8 +651,10 @@ fn scan() {
         let c: char = char::from(char_bytes[idx]);
         // New line (preprocessor-only token)
         if c == '\n' {
-            add(new_token(TokenType::NEW_LINE, idx));
+            let mut t = new_token(TokenType::NEW_LINE, idx);
             idx += 1;
+            t.end = idx;
+            add(t);
             continue;
         }
 

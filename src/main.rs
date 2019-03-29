@@ -103,12 +103,14 @@ fn main() {
 
     if dump_ir1 {
         dump_ir(fns.clone());
+        return;
     }
 
     alloc_regs(&mut fns);
 
     if dump_ir2 {
         dump_ir(fns.clone());
+        return;
     }
 
     gen_x86(globals, &fns);

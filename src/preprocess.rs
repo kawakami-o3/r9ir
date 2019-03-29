@@ -174,10 +174,20 @@ fn read_until_eol() -> Vec<Token> {
     return v;
 }
 
-fn new_param(n: i32) -> Token {
-    let mut t = new_token(TokenType::PARAM, 0);
-    t.val = n;
+fn new_int(val: i32) -> Token {
+    let mut t = new_token(TokenType::NUM, 0);
+    t.val = val;
     return t;
+}
+
+fn new_param(val: i32) -> Token {
+    let mut t = new_token(TokenType::PARAM, 0);
+    t.val = val;
+    return t;
+}
+
+fn is_ident(t: &Token, s: &str) -> bool {
+    return t.ty == TokenType::IDENT && t.name == s;
 }
 
 fn replace_params(m: &mut Macro) {
@@ -211,15 +221,18 @@ fn replace_params(m: &mut Macro) {
     let mut i = 0;
     while i < tokens.len() {
         let t1 = tokens[i].clone();
-        let mut t2 = tokens[i+1].clone();
 
-        if i != tokens.len() - 1 && t1.ty == TokenType::SHARP && t2.ty == TokenType::PARAM {
-            t2.stringize = true;
-            v.push(t2);
-            i += 1;
+        if i != tokens.len() - 1 && t1.ty == TokenType::SHARP {
+            let mut t2 = tokens[i+1].clone();
+            if t2.ty == TokenType::PARAM {
+                t2.stringize = true;
+                v.push(t2);
+                i += 1;
+            }
         } else {
             v.push(t1);
         }
+        i += 1;
     }
     m.tokens = v;
 }
@@ -274,6 +287,7 @@ fn stringize(tokens: Vec<Token>) -> Token {
         }
         sb.push_str(tokstr(&t));
     }
+    sb.push('\0');
 
     let mut t = new_token(TokenType::STR, 0);
     t.len = sb.len();
@@ -281,32 +295,39 @@ fn stringize(tokens: Vec<Token>) -> Token {
     return t;
 }
 
-fn apply(m: &mut Macro) {
+fn apply(m: &mut Macro, start: & Token) {
     if m.ty == MacroType::OBJLIKE {
         append(&mut m.tokens);
         return;
     }
 
     // Function-like macro
-    let t = peek();
     get(TokenType::BRA, "comma expected".to_string());
     let args = read_args();
     if m.params.len() != args.len() {
-        bad_token(&t, "number of parameter does not match".to_string());
+        bad_token(&start, format!("number of parameter does not match ({} != {})", m.params.len(), args.len()).to_string());
+        panic!();
     }
 
     for i in 0..m.tokens.len() {
         let t = &m.tokens[i];
-        if t.ty != TokenType::PARAM {
-            add(t.clone());
-        } else if t.stringize {
-            let j = t.val as usize;
-            add(stringize(args.get(&j).unwrap().clone()));
-        } else {
-            let j = t.val as usize;
-            let vs = args.get(&j).unwrap().clone();
-            add(vs[0].clone());
+
+        if is_ident(t, "__LINE__") {
+            add(new_int(line(t)));
+            continue;
         }
+
+        if t.ty == TokenType::PARAM {
+            if t.stringize {
+                let j = t.val as usize;
+                add(stringize(args.get(&j).unwrap().clone()));
+            } else {
+                let j = t.val as usize;
+                append(&mut args.get(&j).unwrap().clone());
+            }
+            continue;
+        }
+        add(t.clone());
     }
 }
 
@@ -319,7 +340,10 @@ fn funclike_macro(name: String) {
         m.params.push(ident("parameter name expected".to_string()));
     }
     m.tokens = read_until_eol();
+
     replace_params(&mut m);
+
+    macros_put(name, m);
 }
 
 fn objlike_macro(name: String) {
@@ -353,7 +377,7 @@ pub fn preprocess(tokens: Vec<Token>) -> Vec<Token> {
         if t.ty == TokenType::IDENT {
             match macros_get(&t.name) {
                 Some(macro_token) => {
-                    apply(&mut macro_token.clone());
+                    apply(&mut macro_token.clone(), &t);
                 }
                 None => {
                     add(t.clone());

@@ -64,7 +64,7 @@ fn init_irinfo() {
         irinfo.insert(IRType::MUL, IRInfo { name: "MUL", ty: IRInfoType::BINARY });
         irinfo.insert(IRType::NOP, IRInfo { name: "NOP", ty: IRInfoType::NOARG });
         irinfo.insert(IRType::RETURN, IRInfo { name: "RET", ty: IRInfoType::REG });
-        irinfo.insert(IRType::STORE, IRInfo { name: "STORE", ty: IRInfoType::REG_REG });
+        irinfo.insert(IRType::STORE, IRInfo { name: "STORE", ty: IRInfoType::MEM });
         irinfo.insert(IRType::STORE_ARG, IRInfo { name: "STORE_ARG", ty: IRInfoType::STORE_ARG });
         irinfo.insert(IRType::SUB, IRInfo { name: "SUB", ty: IRInfoType::BINARY });
         irinfo.insert(IRType::BPREL, IRInfo { name: "BPREL", ty: IRInfoType::REG_IMM });
