@@ -10,7 +10,7 @@ use crate::preprocess::*;
 use std::cell::RefCell;
 use std::cmp;
 use std::collections::HashMap;
-use std::fs;
+use std::fs::File;
 use std::io;
 use std::io::Read;
 
@@ -301,27 +301,37 @@ pub fn new_token(ty: TokenType, start: usize) -> Token {
     }
 }
 
-fn read_file(f: String) -> String {
-    let mut filename = f;
-    if filename == "-" {
-        let mut buffer = String::new();
-        io::stdin().read_to_string(&mut buffer).unwrap();
-        return buffer;
+fn open_file(f: String) -> Box<Read> {
+    let mut path = f;
+    if path == "-" {
+        return Box::new(io::stdin());
     }
 
     // remove EOS, '\0'.
-    if &filename[filename.len()-1..] == "\0" {
-        filename = filename[..filename.len()-1].to_string();
+    if &path[path.len()-1..] == "\0" {
+        path = path[..path.len()-1].to_string();
     }
-    match fs::read_to_string(filename) {
-        Ok(mut content) => {
-            if &content[content.len()-1..] != "\n" {
-                content.push('\n');
-            }
-            return content;
+    match File::open(path) {
+        Ok(file) => {
+            return Box::new(file);
         }
         Err(e) => {
-            panic!("{:?}", e);
+            panic!(e);
+        }
+    }
+}
+
+fn read_file<T: Read>(file: &mut T) -> String {
+    let mut buffer = String::new();
+    match file.read_to_string(&mut buffer) {
+        Ok(_) => {
+            // We want  to make sure that a source file ends with a newline.
+            // Add not only one but two to prtect against a backslash at EOF.
+            buffer.push_str("\n\n");
+            return buffer;
+        }
+        Err(e) => {
+            panic!(e);
         }
     }
 }
@@ -845,7 +855,8 @@ pub fn tokenize(path: String, add_eof: bool) -> Vec<Token> {
         set_keywords(keyword_map());
     }
 
-    let mut buf = read_file(path.clone());
+    let mut fp = open_file(path.clone());
+    let mut buf = read_file(&mut fp);
     buf = canonicalize_newline(buf);
     buf = remove_backslash_newline(buf);
 
