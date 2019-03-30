@@ -219,20 +219,22 @@ fn replace_params(m: &mut Macro) {
     // Process '#' followed by a macro parameter.
     let mut v = Vec::new();
     let mut i = 0;
-    while i < tokens.len() {
+    while i < tokens.len()-1 {
         let t1 = tokens[i].clone();
+        let mut t2 = tokens[i+1].clone();
 
-        if i != tokens.len() - 1 && t1.ty == TokenType::SHARP {
-            let mut t2 = tokens[i+1].clone();
-            if t2.ty == TokenType::PARAM {
-                t2.stringize = true;
-                v.push(t2);
-                i += 1;
-            }
+        if t1.ty == TokenType::SHARP && t2.ty == TokenType::PARAM {
+            t2.stringize = true;
+            v.push(t2);
+            i += 1;
         } else {
             v.push(t1);
         }
         i += 1;
+    }
+
+    if i == tokens.len() - 1 {
+        v.push(tokens[i].clone());
     }
     m.tokens = v;
 }
