@@ -295,13 +295,24 @@ fn stringize(tokens: Vec<Token>) -> Token {
     return t;
 }
 
-fn apply(m: &mut Macro, start: & Token) {
-    if m.ty == MacroType::OBJLIKE {
-        append(&mut m.tokens);
-        return;
+fn add_special_macro(t: & Token) -> bool {
+    if is_ident(t, "__LINE__") {
+        add(new_int(get_line_number(t)));
+        return true;
     }
+    return false;
+}
 
-    // Function-like macro
+fn apply_objlike(m: &mut Macro, _start: & Token) {
+    for t in m.tokens.iter() {
+        if add_special_macro(t) {
+            continue;
+        }
+        add(t.clone());
+    }
+}
+
+fn apply_functionlike(m: &mut Macro, start: & Token) {
     get(TokenType::BRA, "comma expected".to_string());
     let args = read_args();
     if m.params.len() != args.len() {
@@ -311,9 +322,7 @@ fn apply(m: &mut Macro, start: & Token) {
 
     for i in 0..m.tokens.len() {
         let t = &m.tokens[i];
-
-        if is_ident(t, "__LINE__") {
-            add(new_int(get_line_number(t)));
+        if add_special_macro(t) {
             continue;
         }
 
@@ -330,6 +339,15 @@ fn apply(m: &mut Macro, start: & Token) {
         add(t.clone());
     }
 }
+
+fn apply(m: &mut Macro, start: & Token) {
+    if m.ty == MacroType::OBJLIKE {
+        apply_objlike(m, start);
+    } else {
+        apply_functionlike(m, start);
+    }
+}
+
 
 fn funclike_macro(name: String) {
     new_macro(MacroType::FUNCLIKE, name.clone());
