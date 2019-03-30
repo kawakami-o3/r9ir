@@ -190,11 +190,11 @@ fn is_ident(t: &Token, s: &str) -> bool {
     return t.ty == TokenType::IDENT && t.name == s;
 }
 
-fn replace_params(m: &mut Macro) {
+// Replaces macro parameter tokens with TokenType::PARAM tokens.
+fn replace_macro_params(m: &mut Macro) {
     let params = m.params.clone();
     let mut tokens = m.tokens.clone();
 
-    // Replace macro parameter tokens with TokenType::PARAM tokens.
     let mut map = HashMap::new();
     for i in 0..params.len() {
         let name = params[i].clone();
@@ -215,8 +215,12 @@ fn replace_params(m: &mut Macro) {
         tokens.remove(i);
         tokens.insert(i, new_param(n));
     }
+    m.tokens = tokens;
+}
 
-    // Process '#' followed by a macro parameter.
+// Process '#' followed by a macro parameter.
+fn replace_hash_ident(m: &mut Macro) {
+    let tokens = m.tokens.clone();
     let mut v = Vec::new();
     let mut i = 0;
     while i < tokens.len()-1 {
@@ -351,7 +355,7 @@ fn apply(m: &mut Macro, start: & Token) {
 }
 
 
-fn funclike_macro(name: String) {
+fn define_funclike(name: String) {
     new_macro(MacroType::FUNCLIKE, name.clone());
     let mut m = macros_get(&name).unwrap();
     m.params.push(ident("parameter name expected".to_string()));
@@ -361,12 +365,13 @@ fn funclike_macro(name: String) {
     }
     m.tokens = read_until_eol();
 
-    replace_params(&mut m);
+    replace_macro_params(&mut m);
+    replace_hash_ident(&mut m);
 
     macros_put(name, m);
 }
 
-fn objlike_macro(name: String) {
+fn define_objlike(name: String) {
     new_macro(MacroType::OBJLIKE, name.clone());
     let mut m = macros_get(&name).unwrap();
     m.tokens = read_until_eol();
@@ -376,9 +381,9 @@ fn objlike_macro(name: String) {
 fn define() {
     let name = ident("macro name expected".to_string());
     if consume(TokenType::BRA) {
-        return funclike_macro(name);
+        return define_funclike(name);
     }
-    return objlike_macro(name);
+    return define_objlike(name);
 }
 
 fn include() {
