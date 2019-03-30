@@ -390,7 +390,14 @@ fn print_line(start: & String, path: & String, pos: usize) {
 // If msg is &'static str, format! create a temporary variable
 // and it can't live long enough.
 pub fn bad_token(t: & Token, msg: String) {
-    print_line(&t.buf, &t.path, t.start);
+    if t.start > 0 {
+        print_line(&t.buf, &t.path, t.start);
+    }
+    panic!(msg);
+}
+
+pub fn bad_position(idx: usize, msg: String) {
+    print_line(&buf(), &path(), idx);
     panic!(msg);
 }
 
@@ -399,8 +406,7 @@ pub fn tokstr(t: &Token) -> &str {
     return &t.buf[t.start..t.end];
 }
 
-pub fn line(t: &Token) -> i32 {
-    // TODO fix
+pub fn get_line_number(t: &Token) -> i32 {
     let mut n = 0;
     for i in 0..t.end {
         if &t.buf[i..i+1] == "\n" {
@@ -420,8 +426,8 @@ fn block_comment(p: &String, idx: usize) -> usize {
         ret += 2;
         return ret - idx;
     }
-    print_line(&buf(), &path(), idx);
-    panic!("unclosed comment");
+    bad_position(idx, "unclosed comment".to_string());
+    panic!();
 }
 
 fn keyword_map() -> HashMap<String, TokenType> {
@@ -761,8 +767,7 @@ fn scan() {
             continue;
         }
 
-        print_line(&buf(), &path(), idx);
-        panic!("cannot tokenize: {}", c);
+        bad_position(idx, "cannot tokenize: {}".to_string());
     }
 }
 
@@ -779,17 +784,28 @@ fn canonicalize_newline(p: String) -> String {
     return cnt;
 }
 
+// Concatenates continuation lines. We keep the total number of
+// newline characters the same to keep the line counter sane.
 fn remove_backslash_newline(p: String) -> String {
-    let mut cnt = String::new();
+    let mut cnt = 0;
+    let mut ret = String::new();
     let mut i = 0;
     while i < p.len() {
         if i+1 < p.len() && &p[i..i+2] == "\\\n" {
+            cnt += 1;
             i += 2;
+        } else if &p[i..i+1] == "\n" {
+            for _i in 0..cnt+1 {
+                ret.push('\n');
+            }
+            i += 1;
+            cnt = 0;
+        } else {
+            ret.push_str(&p[i..i+1]);
+            i += 1;
         }
-        cnt.push_str(&p[i..i+1]);
-        i += 1;
     }
-    return cnt;
+    return ret;
 }
 
 fn strip_newlines(tokens: Vec<Token>) -> Vec<Token> {

@@ -313,7 +313,7 @@ fn apply(m: &mut Macro, start: & Token) {
         let t = &m.tokens[i];
 
         if is_ident(t, "__LINE__") {
-            add(new_int(line(t)));
+            add(new_int(get_line_number(t)));
             continue;
         }
 
