@@ -1,14 +1,15 @@
 // main
 
-mod gen_x86;
+mod util;
+#[macro_use]
+mod token;
+mod preprocess;
+mod parse;
+mod sema;
 mod gen_ir;
 mod irdump;
-mod parse;
-mod preprocess;
 mod regalloc;
-mod sema;
-mod token;
-mod util;
+mod gen_x86;
 
 use crate::gen_x86::*;
 use crate::gen_ir::*;

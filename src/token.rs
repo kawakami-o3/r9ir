@@ -256,7 +256,7 @@ pub enum TokenType {
     EOF,        // End marker
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Token {
     pub ty: TokenType, // Token type
     pub val: i32,      // Nuber literal
@@ -352,7 +352,7 @@ fn new_ctx(next: Option<Context>, path: String, buf: String) -> Context {
 
 // Finds a line pointed by a given pointer from the input file
 // to print it out.
-fn print_line(start: & String, path: & String, pos: usize) {
+pub fn print_line(start: & String, path: & String, pos: usize) {
     let mut line = 0;
     let mut col = 0;
 
@@ -395,15 +395,25 @@ fn print_line(start: & String, path: & String, pos: usize) {
     }
 }
 
+
+#[macro_export]
+macro_rules! warn_token {
+    ($t:expr, $msg:expr) => {
+        if $t.start > 0 {
+            print_line(&$t.buf, &$t.path, $t.start);
+        }
+        eprintln!("{}", $msg);
+    };
+}
+
+
 // 'msg' is String instead of &'static str.
 // The 'msg' argument is "..." (&str) or format!() (String),
 // If msg is &'static str, format! create a temporary variable
 // and it can't live long enough.
 pub fn bad_token(t: & Token, msg: String) {
-    if t.start > 0 {
-        print_line(&t.buf, &t.path, t.start);
-    }
-    panic!(msg);
+    warn_token!(t, msg);
+    panic!();
 }
 
 pub fn bad_position(idx: usize, msg: String) {

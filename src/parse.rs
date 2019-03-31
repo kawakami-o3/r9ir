@@ -276,6 +276,9 @@ pub struct Node {
 
     // Function call
     pub args: Vec<Node>,
+
+    // For error reporting
+    pub token: Option<Box<Token>>,
 }
 
 // default node
@@ -308,6 +311,8 @@ pub fn alloc_node() -> Node {
         offset: 0,
 
         args: Vec::new(),
+
+        token: None,
     }
 }
 
@@ -459,27 +464,28 @@ fn decl_specifiers(tokens: &Vec<Token>) -> Type {
     }
 }
 
-pub fn new_node(op: NodeType) -> Node {
+pub fn new_node(op: NodeType, t: Option<Box<Token>>) -> Node {
     let mut node = alloc_node();
     node.op = op;
+    node.token = t;
     return node;
 }
 
-fn new_binop(op: NodeType, lhs: Node, rhs: Node) -> Node {
-    let mut node = new_node(op);
+fn new_binop(op: NodeType, t: Option<Box<Token>>, lhs: Node, rhs: Node) -> Node {
+    let mut node = new_node(op, t);
     node.lhs = Some(Box::new(lhs));
     node.rhs = Some(Box::new(rhs));
     return node;
 }
 
-fn new_expr(op: NodeType, expr: Node) -> Node {
-    let mut node = new_node(op);
+fn new_expr(op: NodeType, t: Option<Box<Token>>, expr: Node) -> Node {
+    let mut node = new_node(op, t);
     node.expr = Some(Box::new(expr));
     return node;
 }
 
-pub fn new_int_node(val: i32) -> Node {
-    let mut node = new_node(NodeType::NUM);
+pub fn new_int_node(val: i32, t: Option<Box<Token>>) -> Node {
+    let mut node = new_node(NodeType::NUM, t);
     node.ty = Rc::new(RefCell::new(int_ty()));
     node.val = val;
     return node;
@@ -498,7 +504,7 @@ fn primary(tokens: &Vec<Token>) -> Node {
 
     if t.ty == TokenType::BRA {
         if consume(TokenType::C_BRA, tokens) {
-            let mut node = new_node(NodeType::STMT_EXPR);
+            let mut node = new_node(NodeType::STMT_EXPR, Some(Box::new(t.clone())));
             node.body = Some(Box::new(compound_stmt(tokens)));
             expect(TokenType::KET, tokens);
             return node;
@@ -509,11 +515,11 @@ fn primary(tokens: &Vec<Token>) -> Node {
     }
 
     if t.ty == TokenType::NUM {
-        return new_int_node(t.val);
+        return new_int_node(t.val, Some(Box::new(t.clone())));
     }
 
     if t.ty == TokenType::STR {
-        let mut node = new_node(NodeType::STR);
+        let mut node = new_node(NodeType::STR, Some(Box::new(t.clone())));
         node.ty = Rc::new(RefCell::new(ary_of(char_ty(), t.str_cnt.len() as i32)));
         node.data = t.str_cnt.clone();
         node.len = t.len;
@@ -522,12 +528,12 @@ fn primary(tokens: &Vec<Token>) -> Node {
 
     if t.ty == TokenType::IDENT {
         if !consume(TokenType::BRA, tokens) {
-            let mut node = new_node(NodeType::IDENT);
+            let mut node = new_node(NodeType::IDENT, Some(Box::new(t.clone())));
             node.name = t.name.clone();
             return node;
         }
 
-        let mut node = new_node(NodeType::CALL);
+        let mut node = new_node(NodeType::CALL, Some(Box::new(t.clone())));
         node.name = t.name.clone();
         if consume(TokenType::KET, tokens) {
             return node;
@@ -549,30 +555,32 @@ fn postfix(tokens: &Vec<Token>) -> Node {
     let mut lhs = primary(tokens);
 
     loop {
+        let t = &tokens[pos()];
+
         if consume(TokenType::INC, tokens) {
-            lhs = new_expr(NodeType::POST_INC, lhs);
+            lhs = new_expr(NodeType::POST_INC, Some(Box::new(t.clone())), lhs);
             continue;
         }
 
         if consume(TokenType::DEC, tokens) {
-            lhs = new_expr(NodeType::POST_DEC, lhs);
+            lhs = new_expr(NodeType::POST_DEC, Some(Box::new(t.clone())), lhs);
             continue;
         }
 
         if consume(TokenType::DOT, tokens) {
-            lhs = new_expr(NodeType::DOT, lhs);
+            lhs = new_expr(NodeType::DOT, Some(Box::new(t.clone())), lhs);
             lhs.name = ident(tokens);
             continue;
         }
 
         if consume(TokenType::ARROW, tokens) {
-            lhs = new_expr(NodeType::DOT, new_expr(NodeType::DEREF, lhs));
+            lhs = new_expr(NodeType::DOT, Some(Box::new(t.clone())), new_expr(NodeType::DEREF, Some(Box::new(t.clone())), lhs));
             lhs.name = ident(tokens);
             continue;
         }
 
         if consume(TokenType::S_BRA, tokens) {
-            lhs = new_expr(NodeType::DEREF, new_binop(NodeType::ADD, lhs, assign(tokens)));
+            lhs = new_expr(NodeType::DEREF, Some(Box::new(t.clone())), new_binop(NodeType::ADD, Some(Box::new(t.clone())), lhs, assign(tokens)));
             expect(TokenType::S_KET, tokens);
             continue;
         }
@@ -581,33 +589,35 @@ fn postfix(tokens: &Vec<Token>) -> Node {
 }
 
 fn unary(tokens: &Vec<Token>) -> Node {
+    let t = &tokens[pos()];
+
     if consume(TokenType::SUB, tokens) {
-        return new_expr(NodeType::NEG, unary(tokens));
+        return new_expr(NodeType::NEG, Some(Box::new(t.clone())), unary(tokens));
     }
     if consume(TokenType::MUL, tokens) {
-        return new_expr(NodeType::DEREF, unary(tokens));
+        return new_expr(NodeType::DEREF, Some(Box::new(t.clone())), unary(tokens));
     }
     if consume(TokenType::AMP, tokens) {
-        return new_expr(NodeType::ADDR, unary(tokens));
+        return new_expr(NodeType::ADDR, Some(Box::new(t.clone())), unary(tokens));
     }
     if consume(TokenType::EXCLAM, tokens) {
-        return new_expr(NodeType::EXCLAM, unary(tokens));
+        return new_expr(NodeType::EXCLAM, Some(Box::new(t.clone())), unary(tokens));
     }
     if consume(TokenType::TILDA, tokens) {
-        return new_expr(NodeType::NOT, unary(tokens));
+        return new_expr(NodeType::NOT, Some(Box::new(t.clone())), unary(tokens));
     }
     if consume(TokenType::SIZEOF, tokens) {
-        return new_expr(NodeType::SIZEOF, unary(tokens));
+        return new_expr(NodeType::SIZEOF, Some(Box::new(t.clone())), unary(tokens));
     }
     if consume(TokenType::ALIGNOF, tokens) {
-        return new_expr(NodeType::ALIGNOF, unary(tokens));
+        return new_expr(NodeType::ALIGNOF, Some(Box::new(t.clone())), unary(tokens));
     }
 
     if consume(TokenType::INC, tokens) {
-        return new_binop(NodeType::ADD_EQ, unary(tokens), new_int_node(1));
+        return new_binop(NodeType::ADD_EQ, Some(Box::new(t.clone())), unary(tokens), new_int_node(1, Some(Box::new(t.clone()))));
     }
     if consume(TokenType::DEC, tokens) {
-        return new_binop(NodeType::SUB_EQ, unary(tokens), new_int_node(1));
+        return new_binop(NodeType::SUB_EQ, Some(Box::new(t.clone())), unary(tokens), new_int_node(1, Some(Box::new(t.clone()))));
     }
 
     return postfix(tokens);
@@ -616,12 +626,13 @@ fn unary(tokens: &Vec<Token>) -> Node {
 fn mul(tokens: &Vec<Token>) -> Node {
     let mut lhs = unary(tokens);
     loop {
+        let t = &tokens[pos()];
         if consume(TokenType::MUL, tokens) {
-            lhs = new_binop(NodeType::MUL, lhs, unary(tokens));
+            lhs = new_binop(NodeType::MUL, Some(Box::new(t.clone())), lhs, unary(tokens));
         } else if consume(TokenType::DIV, tokens) {
-            lhs = new_binop(NodeType::DIV, lhs, unary(tokens));
+            lhs = new_binop(NodeType::DIV, Some(Box::new(t.clone())), lhs, unary(tokens));
         } else if consume(TokenType::MOD, tokens) {
-            lhs = new_binop(NodeType::MOD, lhs, unary(tokens));
+            lhs = new_binop(NodeType::MOD, Some(Box::new(t.clone())), lhs, unary(tokens));
         } else {
             return lhs;
         }
@@ -631,10 +642,11 @@ fn mul(tokens: &Vec<Token>) -> Node {
 fn add(tokens: &Vec<Token>) -> Node {
     let mut lhs = mul(tokens);
     loop {
+        let t = &tokens[pos()];
         if consume(TokenType::ADD, tokens) {
-            lhs = new_binop(NodeType::ADD, lhs, mul(tokens));
+            lhs = new_binop(NodeType::ADD, Some(Box::new(t.clone())), lhs, mul(tokens));
         } else if consume(TokenType::SUB, tokens) {
-            lhs = new_binop(NodeType::SUB, lhs, mul(tokens));
+            lhs = new_binop(NodeType::SUB, Some(Box::new(t.clone())), lhs, mul(tokens));
         } else {
             return lhs;
         }
@@ -644,10 +656,11 @@ fn add(tokens: &Vec<Token>) -> Node {
 fn shift(tokens: &Vec<Token>) -> Node {
     let mut lhs = add(tokens);
     loop {
+        let t = &tokens[pos()];
         if consume(TokenType::SHL, tokens) {
-            lhs = new_binop(NodeType::SHL, lhs, add(tokens));
+            lhs = new_binop(NodeType::SHL, Some(Box::new(t.clone())), lhs, add(tokens));
         } else if consume(TokenType::SHR, tokens) {
-            lhs = new_binop(NodeType::SHR, lhs, add(tokens));
+            lhs = new_binop(NodeType::SHR, Some(Box::new(t.clone())), lhs, add(tokens));
         } else {
             return lhs;
         }
@@ -657,14 +670,15 @@ fn shift(tokens: &Vec<Token>) -> Node {
 fn relational(tokens: &Vec<Token>) -> Node {
     let mut lhs = shift(tokens);
     loop {
+        let t = &tokens[pos()];
         if consume(TokenType::LT, tokens) {
-            lhs = new_binop(NodeType::LT, lhs, shift(tokens));
+            lhs = new_binop(NodeType::LT, Some(Box::new(t.clone())), lhs, shift(tokens));
         } else if consume(TokenType::GT, tokens) {
-            lhs = new_binop(NodeType::LT, shift(tokens), lhs);
+            lhs = new_binop(NodeType::LT, Some(Box::new(t.clone())), shift(tokens), lhs);
         } else if consume(TokenType::LE, tokens) {
-            lhs = new_binop(NodeType::LE, lhs, shift(tokens));
+            lhs = new_binop(NodeType::LE, Some(Box::new(t.clone())), lhs, shift(tokens));
         } else if consume(TokenType::GE, tokens) {
-            lhs = new_binop(NodeType::LE, shift(tokens), lhs);
+            lhs = new_binop(NodeType::LE, Some(Box::new(t.clone())), shift(tokens), lhs);
         } else {
             return lhs;
         }
@@ -674,10 +688,11 @@ fn relational(tokens: &Vec<Token>) -> Node {
 fn equality(tokens: &Vec<Token>) -> Node {
     let mut lhs = relational(tokens);
     loop {
+        let t = &tokens[pos()];
         if consume(TokenType::EQ, tokens) {
-            lhs = new_binop(NodeType::EQ, lhs, relational(tokens));
+            lhs = new_binop(NodeType::EQ, Some(Box::new(t.clone())), lhs, relational(tokens));
         } else if consume(TokenType::NE, tokens) {
-            lhs = new_binop(NodeType::NE, lhs, relational(tokens));
+            lhs = new_binop(NodeType::NE, Some(Box::new(t.clone())), lhs, relational(tokens));
         } else {
             return lhs;
         }
@@ -687,7 +702,8 @@ fn equality(tokens: &Vec<Token>) -> Node {
 fn bit_and(tokens: &Vec<Token>) -> Node {
     let mut lhs = equality(tokens);
     while consume(TokenType::AMP, tokens) {
-        lhs = new_binop(NodeType::AND, lhs, equality(tokens));
+        let t = &tokens[pos()];
+        lhs = new_binop(NodeType::AND, Some(Box::new(t.clone())), lhs, equality(tokens));
     }
     return lhs;
 }
@@ -695,7 +711,8 @@ fn bit_and(tokens: &Vec<Token>) -> Node {
 fn bit_xor(tokens: &Vec<Token>) -> Node {
     let mut lhs = bit_and(tokens);
     while consume(TokenType::HAT, tokens) {
-        lhs = new_binop(NodeType::XOR, lhs, bit_and(tokens));
+        let t = &tokens[pos()];
+        lhs = new_binop(NodeType::XOR, Some(Box::new(t.clone())), lhs, bit_and(tokens));
     }
     return lhs;
 }
@@ -703,7 +720,8 @@ fn bit_xor(tokens: &Vec<Token>) -> Node {
 fn bit_or(tokens: &Vec<Token>) -> Node {
     let mut lhs = bit_xor(tokens);
     while consume(TokenType::OR, tokens) {
-        lhs = new_binop(NodeType::OR, lhs, bit_xor(tokens));
+        let t = &tokens[pos()];
+        lhs = new_binop(NodeType::OR, Some(Box::new(t.clone())), lhs, bit_xor(tokens));
     }
     return lhs;
 }
@@ -711,7 +729,8 @@ fn bit_or(tokens: &Vec<Token>) -> Node {
 fn logand(tokens: &Vec<Token>) -> Node {
     let mut lhs = bit_or(tokens);
     while consume(TokenType::LOGAND, tokens) {
-        lhs = new_binop(NodeType::LOGAND, lhs, bit_or(tokens));
+        let t = &tokens[pos()];
+        lhs = new_binop(NodeType::LOGAND, Some(Box::new(t.clone())), lhs, bit_or(tokens));
     }
     return lhs;
 }
@@ -719,18 +738,20 @@ fn logand(tokens: &Vec<Token>) -> Node {
 fn logor(tokens: &Vec<Token>) -> Node {
     let mut lhs = logand(tokens);
     while consume(TokenType::LOGOR, tokens) {
-        lhs = new_binop(NodeType::LOGOR, lhs, logand(tokens));
+        let t = &tokens[pos()];
+        lhs = new_binop(NodeType::LOGOR, Some(Box::new(t.clone())), lhs, logand(tokens));
     }
     return lhs;
 }
 
 fn conditional(tokens: &Vec<Token>) -> Node {
     let cond = logor(tokens);
+    let t = &tokens[pos()];
     if !consume(TokenType::QUEST, tokens) {
         return cond;
     }
 
-    let mut node = new_node(NodeType::QUEST);
+    let mut node = new_node(NodeType::QUEST, Some(Box::new(t.clone())));
     node.cond = Some(Box::new(cond));
     node.then = Some(Box::new(expr(tokens)));
     expect(TokenType::COLON, tokens);
@@ -768,19 +789,21 @@ fn assignment_op(tokens: &Vec<Token>) -> Option<NodeType> {
 
 fn assign(tokens: &Vec<Token>) -> Node {
     let lhs = conditional(tokens);
+    let t = &tokens[pos()];
     let op = assignment_op(tokens);
     if let Some(o) = op {
-        return new_binop(o, lhs, assign(tokens));
+        return new_binop(o, Some(Box::new(t.clone())), lhs, assign(tokens));
     }
     return lhs;
 }
 
 fn expr(tokens: &Vec<Token>) -> Node {
     let lhs = assign(tokens);
+    let t = &tokens[pos()];
     if !consume(TokenType::COMMA, tokens) {
         return lhs;
     }
-    return new_binop(NodeType::COMMA, lhs, expr(tokens));
+    return new_binop(NodeType::COMMA, Some(Box::new(t.clone())), lhs, expr(tokens));
 }
 
 fn read_array<'a>(ty: &'a mut Type, tokens: &Vec<Token>) -> &'a mut Type {
@@ -813,7 +836,7 @@ fn direct_decl(ty: Rc<RefCell<Type>>, tokens: &Vec<Token>) -> Node {
     let placeholder = node_ty.clone();
 
     if t.ty == TokenType::IDENT {
-        node = new_node(NodeType::VARDEF);
+        node = new_node(NodeType::VARDEF, Some(Box::new(t.clone())));
         node.ty = node_ty;
         node.name = ident(tokens);
     } else if consume(TokenType::BRA, tokens) {
@@ -859,7 +882,8 @@ fn param_declaration(tokens: &Vec<Token>) -> Node {
 }
 
 fn expr_stmt(tokens: &Vec<Token>) -> Node {
-    let node = new_expr(NodeType::EXPR_STMT, expr(tokens));
+    let t = &tokens[pos()];
+    let node = new_expr(NodeType::EXPR_STMT, Some(Box::new(t.clone())), expr(tokens));
     expect(TokenType::SEMI_COLON, tokens);
     return node;
 }
@@ -875,7 +899,7 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             return null_stmt();
         }
         TokenType::IF => {
-            let mut node = new_node(NodeType::IF);
+            let mut node = new_node(NodeType::IF, Some(Box::new(t.clone())));
             expect(TokenType::BRA, tokens);
             node.cond = Some(Box::new(expr(tokens)));
             expect(TokenType::KET, tokens);
@@ -886,7 +910,7 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             return node;
         }
         TokenType::FOR => {
-            let mut node = new_node(NodeType::FOR);
+            let mut node = new_node(NodeType::FOR, Some(Box::new(t.clone())));
             expect(TokenType::BRA, tokens);
 
             if is_typename(tokens) {
@@ -903,7 +927,7 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             }
 
             if !consume(TokenType::KET, tokens) {
-                node.inc = Some(Box::new(new_expr(NodeType::EXPR_STMT, expr(tokens))));
+                node.inc = Some(Box::new(new_expr(NodeType::EXPR_STMT, Some(Box::new(t.clone())), expr(tokens))));
                 expect(TokenType::KET, tokens);
             }
 
@@ -911,7 +935,7 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             return node;
         }
         TokenType::WHILE => {
-            let mut node = new_node(NodeType::FOR);
+            let mut node = new_node(NodeType::FOR, Some(Box::new(t.clone())));
             node.init = Some(Box::new(null_stmt()));
             node.inc = Some(Box::new(null_stmt()));
             expect(TokenType::BRA, tokens);
@@ -921,7 +945,7 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             return node;
         }
         TokenType::DO => {
-            let mut node = new_node(NodeType::DO_WHILE);
+            let mut node = new_node(NodeType::DO_WHILE, Some(Box::new(t.clone())));
             node.body = Some(Box::new(stmt(tokens)));
             expect(TokenType::WHILE, tokens);
             expect(TokenType::BRA, tokens);
@@ -934,13 +958,13 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             return break_stmt();
         }
         TokenType::RETURN => {
-            let mut node = new_node(NodeType::RETURN);
+            let mut node = new_node(NodeType::RETURN, Some(Box::new(t.clone())));
             node.expr = Some(Box::new(expr(tokens)));
             expect(TokenType::SEMI_COLON, tokens);
             return node;
         }
         TokenType::C_BRA => {
-            let mut node = new_node(NodeType::COMP_STMT);
+            let mut node = new_node(NodeType::COMP_STMT, Some(Box::new(t.clone())));
             while !consume(TokenType::C_KET, tokens) {
                 node.stmts.push(stmt(tokens));
             }
@@ -960,7 +984,8 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
 }
 
 pub fn compound_stmt(tokens: &Vec<Token>) -> Node {
-    let mut node = new_node(NodeType::COMP_STMT);
+    let t = &tokens[pos()];
+    let mut node = new_node(NodeType::COMP_STMT, Some(Box::new(t.clone())));
 
     env_push();
     while !consume(TokenType::C_KET, tokens) {
@@ -984,7 +1009,8 @@ fn toplevel(tokens: &Vec<Token>) -> Option<Node> {
 
     // Function
     if consume(TokenType::BRA, tokens) {
-        let mut node = new_node(NodeType::DECL);
+        let t = &tokens[pos()];
+        let mut node = new_node(NodeType::DECL, Some(Box::new(t.clone())));
         node.name = name.clone();
 
         let mut node_ty = alloc_type();
@@ -1024,7 +1050,8 @@ fn toplevel(tokens: &Vec<Token>) -> Option<Node> {
     }
 
     // Global variable
-    let mut node = new_node(NodeType::VARDEF);
+    let t = &tokens[pos()];
+    let mut node = new_node(NodeType::VARDEF, Some(Box::new(t.clone())));
     node.ty = Rc::new(RefCell::new(ty.clone()));
     node.name = name;
     node.is_extern = is_extern;

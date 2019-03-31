@@ -19,6 +19,7 @@
 // - Reject bad assignments, such as `1=2+3`.
 
 use crate::parse::*;
+use crate::token::*;
 use crate::util::*;
 use std::collections::HashMap;
 use std::cell::RefCell;
@@ -120,14 +121,16 @@ fn new_global(ty: Type, name: String, data: String, len: usize) -> Var {
 }
 
 fn new_lvar_node(ty: Type, offset: i32) -> Node {
-    let mut node = new_node(NodeType::LVAR);
+    let mut node = alloc_node();
+    node.op = NodeType::LVAR;
     node.ty = Rc::new(RefCell::new(ty));
     node.offset = offset;
     return node;
 }
 
 fn new_gvar_node(ty: Type, name: String) -> Node {
-    let mut node = new_node(NodeType::GVAR);
+    let mut node = alloc_node();
+    node.op = NodeType::GVAR;
     node.ty = Rc::new(RefCell::new(ty));
     node.name = name;
     return node;
@@ -211,11 +214,24 @@ fn maybe_decay(base: & mut Node, decay: bool) -> & mut Node {
     return base;
 }
 
+macro_rules! bad_node {
+    ($node:expr, $msg:expr) => {
+        bad_token(&*$node.token.clone().unwrap(), $msg.to_string());
+        panic!();
+    };
+}
+
+macro_rules! warn_node {
+    ($node:expr, $msg:expr) => {
+        warn_token!(*$node.token.clone().unwrap(), $msg);
+    };
+}
+
 fn check_lval(node: Box<Node>) {
     match node.op {
         NodeType::LVAR | NodeType::GVAR | NodeType::DEREF | NodeType::DOT => { }
         _ => {
-            panic!("not an lvalue: {:?} ({})", node.op, node.name);
+            bad_node!(node, "not an lvalue");
         }
     }
 }
@@ -225,7 +241,7 @@ fn scale_ptr(node: Node, ty: Type) -> Node {
     e.op = NodeType::MUL;
     e.lhs = Some(Box::new(node.clone()));
     let ptr = ty.ptr_to.unwrap();
-    e.rhs = Some(Box::new(new_int_node(ptr.borrow().size)));
+    e.rhs = Some(Box::new(new_int_node(ptr.borrow().size, node.token)));
     return e;
 }
 
@@ -251,7 +267,9 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
         }
         NodeType::IDENT => {
             let var = match find_var(&node.name) {
-                None => panic!("undefined variable: {}", node.name),
+                None => {
+                    bad_node!(node, "undefined variable");
+                }
                 Some(var) => var,
             };
 
@@ -322,7 +340,7 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
 
             if let Some(ref rhs) = node.rhs {
                 if rhs.ty.borrow().ty == CType::PTR {
-                    panic!("'pointer {:?} pointer' is not defined", node.op);
+                    bad_node!(node, format!("'pointer {:?} pointer' is not defined", node.op));
                 }
             }
 
@@ -374,12 +392,12 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
             node.expr = Some(Box::new(walk(&mut *node.expr.clone().unwrap(), true).clone()));
             let node_ty = node.expr.clone().unwrap().ty;
             if node_ty.borrow().ty != CType::STRUCT {
-                panic!("struct expected before '.'");
+                bad_node!(node, "struct expected before '.'");
             }
 
             let ty = node.expr.clone().unwrap().ty;
             if ty.borrow().members == None {
-                panic!("incomplete type: {:?}", node.expr);
+                bad_node!(node, format!("incomplete type: {:?}", node.expr));
             }
 
             for m in ty.borrow().clone().members.unwrap().iter() {
@@ -391,7 +409,7 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
                 node.offset = m.ty.borrow().offset;
                 return maybe_decay(node, decay);
             }
-            panic!("member missing: {}", node.name);
+            bad_node!(node, format!("member missing: {}", node.name));
         }
         NodeType::QUEST => {
             node.cond = Some(Box::new(walk(&mut *node.cond.clone().unwrap(), true).clone()));
@@ -452,12 +470,12 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
             match &mut node.expr {
                 Some(ref expr) => {
                     if expr.ty.borrow().ty != CType::PTR {
-                        panic!("operand must be a pointer: {:?}", expr);
+                        bad_node!(node, format!("operand must be a pointer: {:?}", expr));
                     }
 
                     let ptr = expr.ty.borrow().ptr_to.clone().unwrap();
                     if ptr.borrow().ty == CType::VOID {
-                        panic!("operand dereference void pointer");
+                        bad_node!(node, "operand dereference void pointer");
                     }
                 }
                 None => {}
@@ -478,13 +496,13 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
             let expr = walk(&mut nexpr, false);
             let val = expr.ty.borrow().size;
 
-            *node = new_int_node(val);
+            *node = new_int_node(val, expr.token.clone());
             return node;
         }
         NodeType::ALIGNOF => {
             let mut e = node.expr.clone().unwrap();
             let expr = walk(&mut e, false);
-            *node = new_int_node(expr.ty.borrow().align);
+            *node = new_int_node(expr.ty.borrow().align, expr.token.clone());
             return node;
         }
         NodeType::CALL => {
@@ -492,7 +510,7 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
             if var.is_some() && var.clone().unwrap().ty.ty == CType::FUNC {
                 node.ty = Rc::new(RefCell::new(*var.unwrap().ty.returning.unwrap()));
             } else {
-                eprintln!("bad function: {}", node.name);
+                warn_node!(node, "undefined function");
                 node.ty = Rc::new(RefCell::new(int_ty()));
             }
 
