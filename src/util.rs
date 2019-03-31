@@ -34,3 +34,26 @@ pub fn ary_of(base: Type, len: i32) -> Type {
     return ty;
 }
 
+pub fn same_type(x: Rc<RefCell<Type>>, y: Rc<RefCell<Type>>) -> bool {
+    if x.borrow().ty != y.borrow().ty {
+        return false;
+    }
+
+    let xx = x.borrow();
+    let yy = y.borrow();
+    match xx.ty {
+        CType::PTR => {
+            let xptr = xx.ptr_to.clone().unwrap();
+            let yptr = yy.ptr_to.clone().unwrap();
+            same_type(xptr, yptr)
+        }
+        CType::ARY => {
+            let xary = xx.ary_of.clone().unwrap();
+            let yary = yy.ary_of.clone().unwrap();
+            xx.size == yy.size && same_type(Rc::new(RefCell::new(*xary)), Rc::new(RefCell::new(*yary)))
+        }
+        CType::STRUCT | CType::FUNC => *xx == *yy,
+        _ => true,
+    }
+}
+

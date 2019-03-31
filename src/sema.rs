@@ -367,10 +367,13 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
             node.lhs = Some(Box::new(walk(&mut *node.lhs.clone().unwrap()).clone()));
             node.rhs = Some(Box::new(walk(&mut *node.rhs.clone().unwrap()).clone()));
 
-            let rty = &node.rhs.clone().unwrap().ty;
-            let lty = &node.lhs.clone().unwrap().ty;
-            if rty.borrow().ty == CType::PTR && lty.borrow().ty == CType::PTR {
-                *node = scale_ptr(NodeType::DIV, node.clone(), lty.borrow().clone());
+            let l = &node.rhs.clone().unwrap().ty;
+            let r = &node.lhs.clone().unwrap().ty;
+            if l.borrow().ty == CType::PTR && r.borrow().ty == CType::PTR {
+                if !same_type(r.clone(), l.clone()) {
+                    bad_node!(node, "incompatible pointer");
+                }
+                *node = scale_ptr(NodeType::DIV, node.clone(), l.borrow().clone());
             }
 
             node.ty = node.lhs.clone().unwrap().ty;
