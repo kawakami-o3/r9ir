@@ -249,7 +249,7 @@ fn gen(fun: &IR) {
             IRType::MUL => loop {
                 if !ir.is_imm {
                     emit!("mov rax, {}", regs[rhs as usize]);
-                    emit!("mul {}", regs[lhs as usize]);
+                    emit!("imul {}", regs[lhs as usize]);
                     emit!("mov {}, rax", regs[lhs as usize]);
                     break;
                 }
@@ -260,20 +260,20 @@ fn gen(fun: &IR) {
                 }
 
                 emit!("mov rax, {}", rhs);
-                emit!("mul {}", regs[lhs as usize]);
+                emit!("imul {}", regs[lhs as usize]);
                 emit!("mov {}, rax", regs[lhs as usize]);
                 break;
             }
             IRType::DIV => {
                 emit!("mov rax, {}", regs[lhs as usize]);
                 emit!("cqo");
-                emit!("div {}", regs[rhs as usize]);
+                emit!("idiv {}", regs[rhs as usize]);
                 emit!("mov {}, rax", regs[lhs as usize]);
             }
             IRType::MOD => {
                 emit!("mov rax, {}", regs[lhs as usize]);
                 emit!("cqo");
-                emit!("div {}", regs[rhs as usize]);
+                emit!("idiv {}", regs[rhs as usize]);
                 emit!("mov {}, rdx", regs[lhs as usize]);
             }
             IRType::NOP => {}

@@ -236,9 +236,9 @@ fn check_lval(node: Box<Node>) {
     }
 }
 
-fn scale_ptr(node: Node, ty: Type) -> Node {
+fn scale_ptr(op: NodeType, node: Node, ty: Type) -> Node {
     let mut e = alloc_node();
-    e.op = NodeType::MUL;
+    e.op = op;
     e.lhs = Some(Box::new(node.clone()));
     let ptr = ty.ptr_to.unwrap();
     e.rhs = Some(Box::new(new_int_node(ptr.borrow().size, node.token)));
@@ -333,7 +333,7 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
             node.body = Some(Box::new(walk(&mut *node.body.clone().unwrap()).clone()));
             return node;
         }
-        NodeType::ADD | NodeType::SUB => {
+        NodeType::ADD => {
             node.lhs = Some(Box::new(walk(&mut *node.lhs.clone().unwrap()).clone()));
             node.rhs = Some(Box::new(walk(&mut *node.rhs.clone().unwrap()).clone()));
 
@@ -348,19 +348,32 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
 
             if let Some(ref rhs) = node.rhs {
                 if rhs.ty.borrow().ty == CType::PTR {
-                    bad_node!(node, format!("'pointer {:?} pointer' is not defined", node.op));
+                    bad_node!(node, "pointer + pointer");
                 }
             }
 
             if let Some(ref lhs) = node.lhs {
                 if lhs.ty.borrow().ty == CType::PTR {
-                    node.rhs = Some(Box::new(scale_ptr(*node.rhs.clone().unwrap(), lhs.ty.borrow().clone())));
+                    node.rhs = Some(Box::new(scale_ptr(NodeType::MUL, *node.rhs.clone().unwrap(), lhs.ty.borrow().clone())));
                 }
             }
 
             if let Some(ref lhs) = node.lhs {
                 node.ty = lhs.ty.clone();
             }
+            return node;
+        }
+        NodeType::SUB => {
+            node.lhs = Some(Box::new(walk(&mut *node.lhs.clone().unwrap()).clone()));
+            node.rhs = Some(Box::new(walk(&mut *node.rhs.clone().unwrap()).clone()));
+
+            let rty = &node.rhs.clone().unwrap().ty;
+            let lty = &node.lhs.clone().unwrap().ty;
+            if rty.borrow().ty == CType::PTR && lty.borrow().ty == CType::PTR {
+                *node = scale_ptr(NodeType::DIV, node.clone(), lty.borrow().clone());
+            }
+
+            node.ty = node.lhs.clone().unwrap().ty;
             return node;
         }
         NodeType::ADD_EQ |
@@ -374,7 +387,7 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
 
                 if let Some(ref lhs) = node.lhs {
                     if lhs.ty.borrow().ty == CType::PTR {
-                        node.rhs = Some(Box::new(scale_ptr(*node.rhs.clone().unwrap(), lhs.ty.borrow().clone())));
+                        node.rhs = Some(Box::new(scale_ptr(NodeType::MUL, *node.rhs.clone().unwrap(), lhs.ty.borrow().clone())));
                     }
                 }
                 return node;
