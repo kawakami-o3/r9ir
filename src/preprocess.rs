@@ -174,14 +174,24 @@ fn read_until_eol() -> Vec<Token> {
     return v;
 }
 
-fn new_int(val: i32) -> Token {
-    let mut t = new_token(TokenType::NUM, 0);
+fn new_int(tmpl: & Token, val: i32) -> Token {
+    let mut t = tmpl.clone();
+    t.ty = TokenType::NUM;
     t.val = val;
     return t;
 }
 
-fn new_param(val: i32) -> Token {
-    let mut t = new_token(TokenType::PARAM, 0);
+fn new_string(tmpl: & Token, str_cnt: String, len: usize) -> Token {
+    let mut t = tmpl.clone();
+    t.ty = TokenType::STR;
+    t.str_cnt = str_cnt;
+    t.len = len;
+    return t;
+}
+
+fn new_param(tmpl: & Token, val: i32) -> Token {
+    let mut t = tmpl.clone();
+    t.ty = TokenType::PARAM;
     t.val = val;
     return t;
 }
@@ -202,7 +212,7 @@ fn replace_macro_params(m: &mut Macro) {
     }
 
     for i in 0..tokens.len() {
-        let t = tokens[i].clone();
+        let t = &tokens[i].clone();
         if t.ty != TokenType::IDENT {
             continue;
         }
@@ -213,7 +223,7 @@ fn replace_macro_params(m: &mut Macro) {
             }
         };
         tokens.remove(i);
-        tokens.insert(i, new_param(n));
+        tokens.insert(i, new_param(t, n));
     }
     m.tokens = tokens;
 }
@@ -283,7 +293,7 @@ fn read_args() -> HashMap<usize, Vec<Token>> {
     return v;
 }
 
-fn stringize(tokens: Vec<Token>) -> Token {
+fn stringize(tmpl: & Token, tokens: Vec<Token>) -> Token {
     let mut sb = String::new();
 
     for i in 0..tokens.len() {
@@ -295,15 +305,13 @@ fn stringize(tokens: Vec<Token>) -> Token {
     }
     sb.push('\0');
 
-    let mut t = new_token(TokenType::STR, 0);
-    t.len = sb.len();
-    t.str_cnt = sb;
-    return t;
+    let len = sb.len();
+    return new_string(tmpl, sb, len);
 }
 
 fn add_special_macro(t: & Token) -> bool {
     if is_ident(t, "__LINE__") {
-        add(new_int(get_line_number(t)));
+        add(new_int(t, get_line_number(t)));
         return true;
     }
     return false;
@@ -335,7 +343,7 @@ fn apply_functionlike(m: &mut Macro, start: & Token) {
         if t.ty == TokenType::PARAM {
             if t.stringize {
                 let j = t.val as usize;
-                add(stringize(args.get(&j).unwrap().clone()));
+                add(stringize(t, args.get(&j).unwrap().clone()));
             } else {
                 let j = t.val as usize;
                 append(&mut args.get(&j).unwrap().clone());

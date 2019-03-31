@@ -69,14 +69,6 @@ fn env_pop() {
     })
 }
 
-fn new_int(val: i32) -> Node {
-    let mut node = alloc_node();
-    node.op = NodeType::NUM;
-    node.ty = Rc::new(RefCell::new(int_ty()));
-    node.val = val;
-    return node;
-}
-
 //impl<'a> Env<'a> {
 impl Env {
     fn find(&self, name: & String) -> Option<&Var> {
@@ -125,6 +117,20 @@ fn new_global(ty: Type, name: String, data: String, len: usize) -> Var {
     var.data = data;
     var.len = len;
     return var;
+}
+
+fn new_lvar_node(ty: Type, offset: i32) -> Node {
+    let mut node = new_node(NodeType::LVAR);
+    node.ty = Rc::new(RefCell::new(ty));
+    node.offset = offset;
+    return node;
+}
+
+fn new_gvar_node(ty: Type, name: String) -> Node {
+    let mut node = new_node(NodeType::GVAR);
+    node.ty = Rc::new(RefCell::new(ty));
+    node.name = name;
+    return node;
 }
 
 fn init_globals() {
@@ -219,7 +225,7 @@ fn scale_ptr(node: Node, ty: Type) -> Node {
     e.op = NodeType::MUL;
     e.lhs = Some(Box::new(node.clone()));
     let ptr = ty.ptr_to.unwrap();
-    e.rhs = Some(Box::new(new_int(ptr.borrow().size)));
+    e.rhs = Some(Box::new(new_int_node(ptr.borrow().size)));
     return e;
 }
 
@@ -240,10 +246,7 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
             let var = new_global(node_ty.borrow().clone(), name, node_data, node.len);
             globals_push(var.clone());
 
-            *node = alloc_node();
-            node.op = NodeType::GVAR;
-            node.ty = node_ty;
-            node.name = var.name;
+            *node = new_gvar_node(node_ty.borrow().clone(), var.name);
             return maybe_decay(node, decay);
         }
         NodeType::IDENT => {
@@ -253,17 +256,10 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
             };
 
             if var.is_local {
-                *node = alloc_node();
-                node.op = NodeType::LVAR;
-                node.ty = Rc::new(RefCell::new(var.ty.clone()));
-                node.offset = var.offset;
-                return maybe_decay(node, decay);
+                *node = new_lvar_node(var.ty, var.offset);
+            } else {
+                *node = new_gvar_node(var.ty, var.name);
             }
-
-            *node = alloc_node();
-            node.op = NodeType::GVAR;
-            node.ty = Rc::new(RefCell::new(var.ty.clone()));
-            node.name = var.name.clone();
             return maybe_decay(node, decay);
         }
         NodeType::VARDEF => {
@@ -482,13 +478,13 @@ fn walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
             let expr = walk(&mut nexpr, false);
             let val = expr.ty.borrow().size;
 
-            *node = new_int(val);
+            *node = new_int_node(val);
             return node;
         }
         NodeType::ALIGNOF => {
             let mut e = node.expr.clone().unwrap();
             let expr = walk(&mut e, false);
-            *node = new_int(expr.ty.borrow().align);
+            *node = new_int_node(expr.ty.borrow().align);
             return node;
         }
         NodeType::CALL => {
