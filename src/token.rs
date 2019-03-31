@@ -338,7 +338,11 @@ fn read_file<T: Read>(file: &mut T) -> String {
 
 fn new_ctx(next: Option<Context>, path: String, buf: String) -> Context {
     let mut ctx = Context::new();
-    ctx.path = path;
+    ctx.path = if path == "-" {
+        "(stdin)".to_string()
+    } else {
+        path
+    };
     ctx.buf = buf;
     if next.is_none() {
         ctx.next = None;
