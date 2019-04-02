@@ -396,7 +396,6 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
                 }
 
                 node.ty = m.ty.clone();
-                node.offset = m.ty.borrow().offset;
                 return maybe_decay(node, decay);
             }
             bad_node!(node, format!("member missing: {}", node.name));

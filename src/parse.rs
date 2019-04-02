@@ -299,9 +299,6 @@ pub struct Node {
     pub stacksize: i32,
     pub globals: Vec<Var>,
     
-    // Offset from BP or begining of a struct
-    pub offset: i32,
-
     // Function call
     pub args: Vec<Node>,
 
@@ -336,8 +333,6 @@ pub fn alloc_node() -> Node {
 
         stacksize: 0,
         globals: Vec::new(),
-
-        offset: 0,
 
         args: Vec::new(),
 

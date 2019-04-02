@@ -271,7 +271,7 @@ fn gen_lval(node: Node) -> i32 {
 
     if node.op == NodeType::DOT {
         let r = gen_lval(*node.expr.unwrap());
-        add_imm(IRType::ADD, r, node.offset);
+        add_imm(IRType::ADD, r, node.ty.borrow().offset);
         return r;
     }
 
