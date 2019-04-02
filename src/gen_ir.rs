@@ -14,7 +14,6 @@
 #![allow(non_camel_case_types)]
 
 use crate::parse::*;
-use crate::sema::*;
 use std::cell::RefCell;
 
 thread_local! {
@@ -276,18 +275,20 @@ fn gen_lval(node: Node) -> i32 {
         return r;
     }
 
-    if node.op == NodeType::LVAR {
+    assert!(node.op == NodeType::VAR);
+    let var = node.var;
+
+    if var.is_local {
         let r = bump_nreg();
-        add(IRType::BPREL, r, node.offset);
+        add(IRType::BPREL, r, var.offset);
         return r;
     }
 
-    assert!(node.op == NodeType::GVAR);
     let r = bump_nreg();
     let ir_idx = add(IRType::LABEL_ADDR, r, -1);
     CODE.with(|c| {
         let code = &mut *c.borrow_mut();
-        code[ir_idx].name = node.name.clone();
+        code[ir_idx].name = var.name.clone();
     });
     return r;
 }
@@ -404,8 +405,7 @@ fn gen_expr(node: Node) -> i32 {
             return r1
         }
 
-        NodeType::GVAR |
-            NodeType::LVAR |
+        NodeType::VAR |
             NodeType::DOT => {
             let r = gen_lval(node.clone());
             load(&node, r, r);
@@ -557,7 +557,7 @@ fn gen_stmt(node: Node) {
 
             let rhs = gen_expr(*node.init.clone().unwrap());
             let lhs = bump_nreg();
-            add(IRType::BPREL, lhs, node.offset);
+            add(IRType::BPREL, lhs, node.var.offset);
             store(&node, lhs, rhs);
             kill(lhs);
             kill(rhs);
@@ -672,7 +672,7 @@ pub fn gen_ir(nodes: Vec<Node>) -> Vec<IR> {
 
         for i in 0..node.args.len() {
             let arg = &node.args[i];
-            store_arg(&arg, arg.offset, i as i32);
+            store_arg(&arg, arg.var.offset, i as i32);
         }
         gen_stmt(*node.body.unwrap());
 

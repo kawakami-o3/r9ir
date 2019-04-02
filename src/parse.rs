@@ -10,7 +10,6 @@
 
 #![allow(non_camel_case_types)]
 
-use crate::sema::*;
 use crate::token::*;
 use crate::util::*;
 use std::cell::RefCell;
@@ -129,12 +128,10 @@ pub enum NodeType {
     COMMA,     // ,
     NUM,       // Number literal
     STR,       // String literal
-    IDENT,     // Identifier
     //STRUCT,    // Struct
     DECL,      // declaration
     VARDEF,    // Variable definition
-    LVAR,      // Local variable reference
-    GVAR,      // Global variable reference
+    VAR,       // Variable reference
     IF,        // "if"
     FOR,       // "for"
     DO_WHILE,  // do ... while
@@ -242,6 +239,36 @@ pub fn alloc_type() -> Type {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct Var {
+    pub ty: Type,
+    pub is_local: bool,
+
+    // local
+    pub offset: i32,
+
+    // global
+    pub name: String,
+    pub is_extern: bool,
+    pub data: String,
+    pub len: usize,
+}
+
+pub fn alloc_var() -> Var {
+    Var {
+        ty: alloc_type(),
+        is_local: false,
+
+        offset: 0,
+
+        name: String::new(),
+        is_extern: false,
+        data: String::new(),
+        len: 0,
+    }
+}
+
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct Node {
     pub op: NodeType,            // Node type
     pub ty: Rc<RefCell<Type>>,   // C type
@@ -252,6 +279,7 @@ pub struct Node {
     pub stmts: Vec<Node>,        // Compound statemtn
 
     pub name: String,
+    pub var: Var,
 
     // Global variable
     pub is_extern: bool,
@@ -293,6 +321,7 @@ pub fn alloc_node() -> Node {
         stmts: Vec::new(),
 
         name: String::new(),
+        var: alloc_var(),
 
         is_extern: false,
         data: String::new(),
@@ -528,7 +557,7 @@ fn primary(tokens: &Vec<Token>) -> Node {
 
     if t.ty == TokenType::IDENT {
         if !consume(TokenType::BRA, tokens) {
-            let mut node = new_node(NodeType::IDENT, Some(Box::new(t.clone())));
+            let mut node = new_node(NodeType::VAR, Some(Box::new(t.clone())));
             node.name = t.name.clone();
             return node;
         }

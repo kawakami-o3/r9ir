@@ -83,58 +83,17 @@ impl Env {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct Var {
-    pub ty: Type,
-    pub is_local: bool,
-
-    // local
-    pub offset: i32,
-
-    // global
-    pub name: String,
-    pub is_extern: bool,
-    pub data: String,
-    pub len: usize,
-}
-
-fn alloc_var(ty: Type) -> Var {
-    Var {
-        ty: ty,
-        is_local: false,
-        offset: 0,
-        name: String::new(),
-        is_extern: false,
-        data: String::new(),
-        len: 0,
-    }
-}
-
-fn new_global(ty: Type, name: String, data: String, len: usize) -> Var {
-    let mut var = alloc_var(ty);
-    var.is_local = false;
-    //var.name = format!(".L.str{}", bump_str_label()).to_string();
-    var.name = name;
-    var.data = data;
-    var.len = len;
-    return var;
-}
-
-fn new_lvar_node(ty: Type, offset: i32) -> Node {
-    let mut node = alloc_node();
-    node.op = NodeType::LVAR;
-    node.ty = Rc::new(RefCell::new(ty));
-    node.offset = offset;
-    return node;
-}
-
-fn new_gvar_node(ty: Type, name: String) -> Node {
-    let mut node = alloc_node();
-    node.op = NodeType::GVAR;
-    node.ty = Rc::new(RefCell::new(ty));
-    node.name = name;
-    return node;
-}
+//fn alloc_var(ty: Type) -> Var {
+//    Var {
+//        ty: ty,
+//        is_local: false,
+//        offset: 0,
+//        name: String::new(),
+//        is_extern: false,
+//        data: String::new(),
+//        len: 0,
+//    }
+//}
 
 fn init_globals() {
     GLOBALS.with(|globals| {
@@ -229,7 +188,7 @@ macro_rules! warn_node {
 
 fn check_lval(node: Box<Node>) {
     match node.op {
-        NodeType::LVAR | NodeType::GVAR | NodeType::DEREF | NodeType::DOT => { }
+        NodeType::VAR | NodeType::DEREF | NodeType::DOT => { }
         _ => {
             bad_node!(node, "not an lvalue");
         }
@@ -265,15 +224,24 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
             // global variable of type char array.
             let node_ty = node.ty.clone();
             let node_data = node.data.clone();
+            let node_token = node.token.clone();
 
-            let name = format!(".L.str{}", bump_str_label()).to_string();
-            let var = new_global(node_ty.borrow().clone(), name, node_data, node.len);
+            let mut var = alloc_var();
+            var.ty = node_ty.borrow().clone();
+            var.is_local = false;
+            var.name = format!(".L.str{}", bump_str_label()).to_string();
+            var.data = node_data;
+            var.len = node.len;
             globals_push(var.clone());
 
-            *node = new_gvar_node(node_ty.borrow().clone(), var.name);
+            *node = alloc_node(); // new_gvar_node(node_ty.borrow().clone(), var.name);
+            node.op = NodeType::VAR;
+            node.var = var.clone();
+            node.ty = Rc::new(RefCell::new(var.ty));
+            node.token = node_token;
             return maybe_decay(node, decay);
         }
-        NodeType::IDENT => {
+        NodeType::VAR => {
             let var = match find_var(&node.name) {
                 None => {
                     bad_node!(node, "undefined variable");
@@ -281,22 +249,20 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
                 Some(var) => var,
             };
 
-            if var.is_local {
-                *node = new_lvar_node(var.ty, var.offset);
-            } else {
-                *node = new_gvar_node(var.ty, var.name);
-            }
+            node.var = var.clone();
+            node.ty = Rc::new(RefCell::new(var.ty));
             return maybe_decay(node, decay);
         }
         NodeType::VARDEF => {
             set_stacksize(roundup(stacksize(), node.ty.borrow().align));
             add_stacksize(node.ty.borrow().size);
-            node.offset = stacksize();
 
-            let mut var = alloc_var(node.ty.borrow().clone());
+            let mut var = alloc_var();
+            var.ty = node.ty.borrow().clone();
             var.is_local = true;
             var.offset = stacksize();
             env_var_put(node.name.clone(), var.clone());
+            node.var = var;
 
             match node.init {
                 Some(_) => {
@@ -567,28 +533,38 @@ pub fn sema(nodes: &mut Vec<Node>) -> Vec<Var> {
 
     for node in nodes.iter_mut() {
         if node.op == NodeType::VARDEF {
-            let mut var = new_global(node.ty.borrow().clone(), node.name.clone(), node.data.clone(), node.len);
+            let mut var = alloc_var();
+            var.ty = node.ty.borrow().clone();
+            var.is_local = false;
             var.is_extern = node.is_extern;
+            var.name = node.name.clone();
+            var.data = node.data.clone();
+            var.len = node.len;
             globals_push(var.clone());
+
             env_var_put(node.name.clone(), var);
             continue;
         }
 
-        assert!(node.op == NodeType::DECL || node.op == NodeType::FUNC);
 
-        let var = new_global(node.ty.borrow().clone(), node.name.clone(), "".to_string(), 0);
+        let mut var = alloc_var();
+        var.ty = node.ty.borrow().clone();
+        var.is_local = false;
+        var.name = node.name.clone();
         env_var_put(node.name.clone(), var);
 
         if node.op == NodeType::DECL {
             continue;
         }
 
+        assert!(node.op == NodeType::FUNC);
         init_stacksize();
+
         for i in 0..node.args.len() {
             node.args[i] = walk(&mut node.args[i]).clone();
         }
-        node.body = Some(Box::new(walk(&mut *node.body.clone().unwrap()).clone()));
 
+        node.body = Some(Box::new(walk(&mut *node.body.clone().unwrap()).clone()));
         node.stacksize = stacksize();
     }
     return globals();
