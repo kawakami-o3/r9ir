@@ -27,15 +27,15 @@ use std::mem;
 use std::rc::Rc;
 
 thread_local! {
-    static GLOBALS: RefCell<Vec<Var>> = RefCell::new(Vec::new());
+    static GLOBALS: RefCell<Vec<Rc<RefCell<Var>>>> = RefCell::new(Vec::new());
+    static LOCALS: RefCell<Vec<Rc<RefCell<Var>>>> = RefCell::new(Vec::new());
     static ENV: RefCell<Env> = RefCell::new(new_env(None));
     static STR_LABEL: RefCell<i32> = RefCell::new(0);
-    static STACKSIZE: RefCell<i32> = RefCell::new(0);
 }
 
 #[derive(Clone, Debug)]
 struct Env {
-    vars: HashMap<String, Var>,
+    vars: HashMap<String, Rc<RefCell<Var>>>,
     next: Option<Box<Env>>,
 }
 
@@ -50,7 +50,7 @@ fn new_env(next: Option<Env>) -> Env {
     }
 }
 
-fn env_var_put(name: String, var: Var) {
+fn env_var_put(name: String, var: Rc<RefCell<Var>>) {
     ENV.with(|env| {
         env.borrow_mut().vars.insert(name, var);
     })
@@ -72,7 +72,7 @@ fn env_pop() {
 
 //impl<'a> Env<'a> {
 impl Env {
-    fn find(&self, name: & String) -> Option<&Var> {
+    fn find(&self, name: & String) -> Option<&Rc<RefCell<Var>>> {
         if let Some(v) = self.vars.get(name) {
             return Some(v);
         } else if let Some(ref next) = self.next {
@@ -83,55 +83,39 @@ impl Env {
     }
 }
 
-//fn alloc_var(ty: Type) -> Var {
-//    Var {
-//        ty: ty,
-//        is_local: false,
-//        offset: 0,
-//        name: String::new(),
-//        is_extern: false,
-//        data: String::new(),
-//        len: 0,
-//    }
-//}
-
 fn init_globals() {
     GLOBALS.with(|globals| {
         *globals.borrow_mut() = Vec::new();
     })
 }
 
-fn globals() -> Vec<Var> {
+fn globals() -> Vec<Rc<RefCell<Var>>> {
     GLOBALS.with(|globals| {
         globals.borrow().clone()
     })
 }
 
-fn globals_push(var: Var) {
+fn globals_push(var: Rc<RefCell<Var>>) {
     GLOBALS.with(|globals| {
         (*globals.borrow_mut()).push(var);
     })
 }
 
-fn stacksize() -> i32 {
-    STACKSIZE.with(|stacksize| {
-        *stacksize.borrow()
+fn init_locals() {
+    LOCALS.with(|l| {
+        *l.borrow_mut() = Vec::new();
     })
 }
 
-fn init_stacksize() {
-    set_stacksize(0);
-}
-
-fn set_stacksize(i: i32) {
-    STACKSIZE.with(|stacksize| {
-        *stacksize.borrow_mut() = i;
+fn locals() -> Vec<Rc<RefCell<Var>>> {
+    LOCALS.with(|l| {
+        l.borrow().clone()
     })
 }
 
-fn add_stacksize(i: i32) {
-    STACKSIZE.with(|stacksize| {
-        *stacksize.borrow_mut() += i;
+fn locals_push(var: Rc<RefCell<Var>>) {
+    LOCALS.with(|l| {
+        (*l.borrow_mut()).push(var);
     })
 }
 
@@ -143,7 +127,7 @@ fn bump_str_label() -> i32 {
     })
 }
 
-fn find_var(name: & String) -> Option<Var> {
+fn find_var(name: & String) -> Option<Rc<RefCell<Var>>> {
     ENV.with(|env| {
         match (*env.borrow()).find(name) {
             Some(v) => Some(v.clone()),
@@ -226,18 +210,19 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
             let node_data = node.data.clone();
             let node_token = node.token.clone();
 
-            let mut var = alloc_var();
-            var.ty = node_ty.borrow().clone();
-            var.is_local = false;
-            var.name = format!(".L.str{}", bump_str_label()).to_string();
-            var.data = node_data;
-            var.len = node.len;
+            let var = Rc::new(RefCell::new(alloc_var()));
+            var.borrow_mut().ty = node_ty.borrow().clone();
+            var.borrow_mut().is_local = false;
+            var.borrow_mut().name = format!(".L.str{}", bump_str_label()).to_string();
+            var.borrow_mut().data = node_data;
+            var.borrow_mut().len = node.len;
             globals_push(var.clone());
 
             *node = alloc_node(); // new_gvar_node(node_ty.borrow().clone(), var.name);
             node.op = NodeType::VAR;
             node.var = var.clone();
-            node.ty = Rc::new(RefCell::new(var.ty));
+            let ty = var.borrow().ty.clone();
+            node.ty = Rc::new(RefCell::new(ty));
             node.token = node_token;
             return maybe_decay(node, decay);
         }
@@ -250,18 +235,16 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
             };
 
             node.var = var.clone();
-            node.ty = Rc::new(RefCell::new(var.ty));
+            let v = var.borrow().clone();
+            node.ty = Rc::new(RefCell::new(v.ty));
             return maybe_decay(node, decay);
         }
         NodeType::VARDEF => {
-            set_stacksize(roundup(stacksize(), node.ty.borrow().align));
-            add_stacksize(node.ty.borrow().size);
-
-            let mut var = alloc_var();
-            var.ty = node.ty.borrow().clone();
-            var.is_local = true;
-            var.offset = stacksize();
+            let mut var = Rc::new(RefCell::new(alloc_var()));
+            var.borrow_mut().ty = node.ty.borrow().clone();
+            var.borrow_mut().is_local = true;
             env_var_put(node.name.clone(), var.clone());
+            locals_push(var.clone());
             node.var = var;
 
             match node.init {
@@ -496,9 +479,15 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool) -> &'a Node {
         }
         NodeType::CALL => {
             let var = find_var(&node.name);
-            if var.is_some() && var.clone().unwrap().ty.ty == CType::FUNC {
-                node.ty = Rc::new(RefCell::new(*var.unwrap().ty.returning.unwrap()));
-            } else {
+            let mut is_int = true;
+            if let Some(v) = var {
+                let ty = v.borrow().clone().ty;
+                if ty.ty == CType::FUNC {
+                    node.ty = Rc::new(RefCell::new(*ty.returning.unwrap()));
+                    is_int = false;
+                }
+            }
+            if is_int {
                 warn_node!(node, "undefined function");
                 node.ty = Rc::new(RefCell::new(int_ty()));
             }
@@ -532,13 +521,13 @@ pub fn sema(nodes: &mut Vec<Node>) -> Vec<Var> {
 
     for node in nodes.iter_mut() {
         if node.op == NodeType::VARDEF {
-            let mut var = alloc_var();
-            var.ty = node.ty.borrow().clone();
-            var.is_local = false;
-            var.is_extern = node.is_extern;
-            var.name = node.name.clone();
-            var.data = node.data.clone();
-            var.len = node.len;
+            let mut var = Rc::new(RefCell::new(alloc_var()));
+            var.borrow_mut().ty = node.ty.borrow().clone();
+            var.borrow_mut().is_local = false;
+            var.borrow_mut().is_extern = node.is_extern;
+            var.borrow_mut().name = node.name.clone();
+            var.borrow_mut().data = node.data.clone();
+            var.borrow_mut().len = node.len;
             globals_push(var.clone());
 
             env_var_put(node.name.clone(), var);
@@ -546,10 +535,10 @@ pub fn sema(nodes: &mut Vec<Node>) -> Vec<Var> {
         }
 
 
-        let mut var = alloc_var();
-        var.ty = node.ty.borrow().clone();
-        var.is_local = false;
-        var.name = node.name.clone();
+        let mut var = Rc::new(RefCell::new(alloc_var()));
+        var.borrow_mut().ty = node.ty.borrow().clone();
+        var.borrow_mut().is_local = false;
+        var.borrow_mut().name = node.name.clone();
         env_var_put(node.name.clone(), var);
 
         if node.op == NodeType::DECL {
@@ -557,14 +546,26 @@ pub fn sema(nodes: &mut Vec<Node>) -> Vec<Var> {
         }
 
         assert!(node.op == NodeType::FUNC);
-        init_stacksize();
+        init_locals();
 
         for i in 0..node.args.len() {
             node.args[i] = walk(&mut node.args[i]).clone();
         }
 
         node.body = Some(Box::new(walk(&mut *node.body.clone().unwrap()).clone()));
-        node.stacksize = stacksize();
+
+        let mut off = 0;
+        for v in locals().iter_mut() {
+            off = roundup(off, v.borrow().ty.align);
+            off += v.borrow().ty.size;
+            v.borrow_mut().offset = off;
+        }
+        node.stacksize = off;
     }
-    return globals();
+
+    let mut ret = Vec::new();
+    for v in globals().iter() {
+        ret.push(v.borrow().clone());
+    }
+    return ret;
 }

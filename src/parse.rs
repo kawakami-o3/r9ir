@@ -279,7 +279,7 @@ pub struct Node {
     pub stmts: Vec<Node>,        // Compound statemtn
 
     pub name: String,
-    pub var: Var,
+    pub var: Rc<RefCell<Var>>,
 
     // Global variable
     pub is_extern: bool,
@@ -318,7 +318,7 @@ pub fn alloc_node() -> Node {
         stmts: Vec::new(),
 
         name: String::new(),
-        var: alloc_var(),
+        var: Rc::new(RefCell::new(alloc_var())),
 
         is_extern: false,
         data: String::new(),

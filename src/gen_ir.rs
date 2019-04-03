@@ -278,9 +278,9 @@ fn gen_lval(node: Node) -> i32 {
     assert!(node.op == NodeType::VAR);
     let var = node.var;
 
-    if var.is_local {
+    if var.borrow().is_local {
         let r = bump_nreg();
-        add(IRType::BPREL, r, var.offset);
+        add(IRType::BPREL, r, var.borrow().offset);
         return r;
     }
 
@@ -288,7 +288,7 @@ fn gen_lval(node: Node) -> i32 {
     let ir_idx = add(IRType::LABEL_ADDR, r, -1);
     CODE.with(|c| {
         let code = &mut *c.borrow_mut();
-        code[ir_idx].name = var.name.clone();
+        code[ir_idx].name = var.borrow().name.clone();
     });
     return r;
 }
@@ -557,7 +557,7 @@ fn gen_stmt(node: Node) {
 
             let rhs = gen_expr(*node.init.clone().unwrap());
             let lhs = bump_nreg();
-            add(IRType::BPREL, lhs, node.var.offset);
+            add(IRType::BPREL, lhs, node.var.borrow().offset);
             store(&node, lhs, rhs);
             kill(lhs);
             kill(rhs);
@@ -672,7 +672,7 @@ pub fn gen_ir(nodes: Vec<Node>) -> Vec<IR> {
 
         for i in 0..node.args.len() {
             let arg = &node.args[i];
-            store_arg(&arg, arg.var.offset, i as i32);
+            store_arg(&arg, arg.var.borrow().offset, i as i32);
         }
         gen_stmt(*node.body.unwrap());
 
