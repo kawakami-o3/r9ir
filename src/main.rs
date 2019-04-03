@@ -91,29 +91,29 @@ fn main() {
     // Tokenize and parse.
     let tokens = tokenize(path, true);
     //for i in tokens.iter() { eprintln!(">> {:?}", i); }
-    let mut nodes = parse(&tokens);
+    let prog = &mut parse(&tokens);
     //eprintln!("nodes> {:?}", nodes);
     if dump_node {
-        for i in nodes.iter() {
+        for i in prog.nodes.iter() {
             print_node(i.clone(), 0);
         }
         return;
     }
-    let globals = sema(&mut nodes);
-    let mut fns = gen_ir(nodes);
+    sema(prog);
+    gen_ir(prog);
 
     if dump_ir1 {
-        dump_ir(fns.clone());
+        dump_ir(prog.funcs.clone());
         return;
     }
 
-    alloc_regs(&mut fns);
+    alloc_regs(prog);
 
     if dump_ir2 {
-        dump_ir(fns.clone());
+        dump_ir(prog.funcs.clone());
         return;
     }
 
-    gen_x86(globals, &fns);
+    gen_x86(prog);
     return;
 }

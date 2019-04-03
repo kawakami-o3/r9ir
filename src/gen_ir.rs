@@ -656,11 +656,8 @@ fn gen_stmt(node: Node) {
     }
 }
 
-pub fn gen_ir(nodes: Vec<Node>) -> Vec<IR> {
-    let mut v = Vec::new();
-
-    for i in 0..nodes.len() {
-        let node = nodes[i].clone();
+pub fn gen_ir(prog: &mut Program) {
+    for node in prog.nodes.iter() {
 
         if node.op == NodeType::VARDEF || node.op == NodeType::DECL {
             continue;
@@ -674,16 +671,14 @@ pub fn gen_ir(nodes: Vec<Node>) -> Vec<IR> {
             let arg = &node.args[i];
             store_arg(&arg, arg.var.borrow().offset, i as i32);
         }
-        gen_stmt(*node.body.unwrap());
+        gen_stmt(*node.body.clone().unwrap());
 
         let mut fun = alloc_ir();
         fun.name = node.name.clone();
         fun.stacksize = node.stacksize;
         fun.ir = CODE.with(|code| code.borrow().clone());
-        fun.globals = node.globals;
+        fun.globals = node.globals.clone();
 
-        v.push(fun);
+        prog.funcs.push(fun);
     }
-
-    return v;
 }

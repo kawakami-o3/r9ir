@@ -10,6 +10,7 @@
 
 #![allow(non_camel_case_types)]
 
+use crate::gen_ir::*;
 use crate::token::*;
 use crate::util::*;
 use std::cell::RefCell;
@@ -43,7 +44,22 @@ thread_local! {
     static ENV: RefCell<Env> = RefCell::new(new_env(None));
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
+pub struct Program {
+    pub gvars: Vec<Var>,
+    pub nodes: Vec<Node>,
+    pub funcs: Vec<IR>,
+}
+
+fn new_program() -> Program {
+    Program {
+        gvars: Vec::new(),
+        nodes: Vec::new(),
+        funcs: Vec::new(),
+    }
+}
+
+#[derive(Clone, Debug)]
 struct Env {
     typedefs: HashMap<String, Type>,
     tags: HashMap<String, Type>,
@@ -1091,18 +1107,18 @@ fn toplevel(tokens: &Vec<Token>) -> Option<Node> {
     return Some(node);
 }
 
-pub fn parse(tokens: &Vec<Token>) -> Vec<Node> {
-    let mut v = Vec::new();
+pub fn parse(tokens: &Vec<Token>) -> Program {
+    let mut prog = new_program();
 
     loop {
         let t = &tokens[pos()];
         if t.ty == TokenType::EOF {
-            return v;
+            return prog;
         }
 
         let node = toplevel(tokens);
         if node.is_some() {
-            v.push(node.unwrap());
+            prog.nodes.push(node.unwrap());
         }
     }
 }

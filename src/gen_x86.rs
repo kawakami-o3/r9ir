@@ -292,11 +292,11 @@ fn gen(fun: &IR) {
     emit!("ret");
 }
 
-pub fn gen_x86(globals: Vec<Var>, fns: &Vec<IR>) {
+pub fn gen_x86(prog: &mut Program) {
     println!(".intel_syntax noprefix");
 
     println!(".data");
-    for var in globals.iter() {
+    for var in prog.gvars.iter() {
         if var.is_extern {
             continue;
         }
@@ -305,7 +305,7 @@ pub fn gen_x86(globals: Vec<Var>, fns: &Vec<IR>) {
     }
 
     println!(".text");
-    for i in 0..fns.len() {
-        gen(&fns[i]);
+    for f in prog.funcs.iter() {
+        gen(f);
     }
 }

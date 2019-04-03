@@ -129,11 +129,12 @@ fn visit(irv: &mut Vec<IR>) {
     }
 }
 
-pub fn alloc_regs(fns: &mut Vec<IR>) {
+pub fn alloc_regs(prog: &mut Program) -> &mut Program {
     init_reg_map();
     init_used();
-    for i in 0..fns.len() {
-        let fun = &mut fns[i];
+    for i in 0..prog.funcs.len() {
+        let fun = &mut prog.funcs[i];
         visit(&mut fun.ir);
     }
+    return prog;
 }
