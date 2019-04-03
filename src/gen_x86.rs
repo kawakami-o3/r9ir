@@ -297,7 +297,7 @@ pub fn gen_x86(prog: &mut Program) {
 
     println!(".data");
     for var in prog.gvars.iter() {
-        if var.is_extern {
+        if var.ty.is_extern {
             continue;
         }
         println!("{}:", var.name);

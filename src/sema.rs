@@ -502,7 +502,6 @@ fn sema_gvar(node: & Node) -> Var {
     let var = Rc::new(RefCell::new(alloc_var()));
     var.borrow_mut().ty = node.ty.borrow().clone();
     var.borrow_mut().is_local = false;
-    var.borrow_mut().is_extern = node.is_extern;
     var.borrow_mut().name = node.name.clone();
     var.borrow_mut().data = node.data.clone();
     var.borrow_mut().len = node.len;

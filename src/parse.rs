@@ -201,8 +201,9 @@ pub enum CType {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Type {
     pub ty: CType,
-    pub align: i32, // sizeof
-    pub size: i32,  // alignof
+    pub size: i32,   // sizeof
+    pub align: i32,  // alignof
+    pub is_extern: bool,
 
     // Pointer
     pub ptr_to: Option<Rc<RefCell<Type>>>,
@@ -243,8 +244,9 @@ impl Type {
 pub fn alloc_type() -> Type {
     Type {
         ty: CType::INT,
-        align: 0,
         size: 0,
+        align: 0,
+        is_extern: false,
         ptr_to: None,
         ary_of: None,
         len: 0,
@@ -264,7 +266,6 @@ pub struct Var {
 
     // global
     pub name: String,
-    pub is_extern: bool,
     pub data: String,
     pub len: usize,
 }
@@ -277,7 +278,6 @@ pub fn alloc_var() -> Var {
         offset: 0,
 
         name: String::new(),
-        is_extern: false,
         data: String::new(),
         len: 0,
     }
@@ -297,8 +297,7 @@ pub struct Node {
     pub name: String,
     pub var: Rc<RefCell<Var>>,
 
-    // Global variable
-    pub is_extern: bool,
+    // String literal
     pub data: String,
     pub len: usize,
 
@@ -336,7 +335,6 @@ pub fn alloc_node() -> Node {
         name: String::new(),
         var: Rc::new(RefCell::new(alloc_var())),
 
-        is_extern: false,
         data: String::new(),
         len: 0,
 
@@ -1093,8 +1091,8 @@ fn toplevel(tokens: &Vec<Token>) -> Option<Node> {
     let t = &tokens[pos()];
     let mut node = new_node(NodeType::VARDEF, Some(Box::new(t.clone())));
     node.ty = Rc::new(RefCell::new(ty.clone()));
+    node.ty.borrow_mut().is_extern = is_extern;
     node.name = name;
-    node.is_extern = is_extern;
 
     if !is_extern {
         let mut data = String::new();
