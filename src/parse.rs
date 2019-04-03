@@ -1108,17 +1108,20 @@ fn toplevel(tokens: &Vec<Token>) -> Option<Node> {
 }
 
 pub fn parse(tokens: &Vec<Token>) -> Program {
-    let mut prog = new_program();
-
+    let mut v = Vec::new();
     loop {
         let t = &tokens[pos()];
         if t.ty == TokenType::EOF {
-            return prog;
+            break;
         }
 
         let node = toplevel(tokens);
         if node.is_some() {
-            prog.nodes.push(node.unwrap());
+            v.push(node.unwrap());
         }
     }
+
+    let mut prog = new_program();
+    prog.nodes = v;
+    return prog;
 }

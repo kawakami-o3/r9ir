@@ -498,23 +498,42 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool, prog: &'a mut Program) -> &'a No
     }
 }
 
+fn sema_gvar(node: & Node) -> Var {
+    let var = Rc::new(RefCell::new(alloc_var()));
+    var.borrow_mut().ty = node.ty.borrow().clone();
+    var.borrow_mut().is_local = false;
+    var.borrow_mut().is_extern = node.is_extern;
+    var.borrow_mut().name = node.name.clone();
+    var.borrow_mut().data = node.data.clone();
+    var.borrow_mut().len = node.len;
+    env_var_put(node.name.clone(), var.clone());
+    return var.borrow().clone();
+}
+
+fn sema_funcdef(node: &mut Node, prog: &mut Program) {
+    init_locals();
+
+    for i in 0..node.args.len() {
+        node.args[i] = walk(&mut node.args[i], prog).clone();
+    }
+    node.body = Some(Box::new(walk(&mut *node.body.clone().unwrap(), prog).clone()));
+
+    let mut off = 0;
+    for v in locals().iter_mut() {
+        off = roundup(off, v.borrow().ty.align);
+        off += v.borrow().ty.size;
+        v.borrow_mut().offset = off;
+    }
+    node.stacksize = off;
+}
+
 pub fn sema(prog: &mut Program) {
     let mut nodes = prog.nodes.clone();
     for node in nodes.iter_mut() {
         if node.op == NodeType::VARDEF {
-            let mut var = Rc::new(RefCell::new(alloc_var()));
-            var.borrow_mut().ty = node.ty.borrow().clone();
-            var.borrow_mut().is_local = false;
-            var.borrow_mut().is_extern = node.is_extern;
-            var.borrow_mut().name = node.name.clone();
-            var.borrow_mut().data = node.data.clone();
-            var.borrow_mut().len = node.len;
-            prog.gvars.push(var.borrow().clone()); // TODO maybe bug
-
-            env_var_put(node.name.clone(), var);
+            prog.gvars.push(sema_gvar(node));
             continue;
         }
-
 
         let mut var = Rc::new(RefCell::new(alloc_var()));
         var.borrow_mut().ty = node.ty.borrow().clone();
@@ -522,26 +541,12 @@ pub fn sema(prog: &mut Program) {
         var.borrow_mut().name = node.name.clone();
         env_var_put(node.name.clone(), var);
 
-        if node.op == NodeType::DECL {
+        if node.op == NodeType::FUNC {
+            sema_funcdef(node, prog);
             continue;
         }
 
-        assert!(node.op == NodeType::FUNC);
-        init_locals();
-
-        for i in 0..node.args.len() {
-            node.args[i] = walk(&mut node.args[i], prog).clone();
-        }
-
-        node.body = Some(Box::new(walk(&mut *node.body.clone().unwrap(), prog).clone()));
-
-        let mut off = 0;
-        for v in locals().iter_mut() {
-            off = roundup(off, v.borrow().ty.align);
-            off += v.borrow().ty.size;
-            v.borrow_mut().offset = off;
-        }
-        node.stacksize = off;
+        assert!(node.op == NodeType::DECL);
     }
 
     prog.nodes = nodes;
