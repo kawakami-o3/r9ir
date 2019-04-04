@@ -276,7 +276,7 @@ fn gen_lval(node: Node) -> i32 {
     }
 
     assert!(node.op == NodeType::VAR);
-    let var = node.var;
+    let var = node.var.unwrap();
 
     if var.borrow().is_local {
         let r = bump_nreg();
@@ -557,7 +557,8 @@ fn gen_stmt(node: Node) {
 
             let rhs = gen_expr(*node.init.clone().unwrap());
             let lhs = bump_nreg();
-            add(IRType::BPREL, lhs, node.var.borrow().offset);
+            let var = node.var.clone().unwrap();
+            add(IRType::BPREL, lhs, var.borrow().offset);
             store(&node, lhs, rhs);
             kill(lhs);
             kill(rhs);
@@ -657,7 +658,8 @@ fn gen_stmt(node: Node) {
 }
 
 pub fn gen_ir(prog: &mut Program) {
-    for node in prog.nodes.iter() {
+    for n in prog.nodes.iter() {
+        let node = n.borrow();
 
         if node.op == NodeType::VARDEF || node.op == NodeType::DECL {
             continue;
@@ -669,7 +671,8 @@ pub fn gen_ir(prog: &mut Program) {
 
         for i in 0..node.args.len() {
             let arg = &node.args[i];
-            store_arg(&arg, arg.var.borrow().offset, i as i32);
+            let var = arg.var.clone().unwrap();
+            store_arg(&arg, var.borrow().offset, i as i32);
         }
         gen_stmt(*node.body.clone().unwrap());
 

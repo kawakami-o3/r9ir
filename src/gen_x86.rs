@@ -296,7 +296,8 @@ pub fn gen_x86(prog: &mut Program) {
     println!(".intel_syntax noprefix");
 
     println!(".data");
-    for var in prog.gvars.iter() {
+    for v in prog.gvars.iter() {
+        let var = v.borrow();
         if var.ty.is_extern {
             continue;
         }

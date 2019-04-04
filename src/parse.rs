@@ -17,6 +17,25 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
+thread_local! {
+    static PROGRAM: RefCell<Program> = RefCell::new(new_program());
+    static POS: RefCell<usize> = RefCell::new(0);
+    static ENV: RefCell<Env> = RefCell::new(new_env(None));
+    static STR_LABEL: RefCell<usize> = RefCell::new(1);
+}
+
+fn prog_gvars_push(var: Rc<RefCell<Var>>) {
+    PROGRAM.with(|p| {
+        p.borrow_mut().gvars.push(var);
+    })
+}
+
+fn prog_nodes_push(node: Rc<RefCell<Node>>) {
+    PROGRAM.with(|p| {
+        p.borrow_mut().nodes.push(node);
+    })
+}
+
 fn pos() -> usize {
     POS.with(|pos| {
         *pos.borrow()
@@ -39,15 +58,18 @@ fn dump_pos() -> usize {
     })
 }
 
-thread_local! {
-    static POS: RefCell<usize> = RefCell::new(0);
-    static ENV: RefCell<Env> = RefCell::new(new_env(None));
+fn bump_str_label() -> usize {
+    STR_LABEL.with(|s| {
+        let ret = *s.borrow();
+        *s.borrow_mut() += 1;
+        return ret;
+    })
 }
 
 #[derive(Clone, Debug)]
 pub struct Program {
-    pub gvars: Vec<Var>,
-    pub nodes: Vec<Node>,
+    pub gvars: Vec<Rc<RefCell<Var>>>,
+    pub nodes: Vec<Rc<RefCell<Node>>>,
     pub funcs: Vec<IR>,
 }
 
@@ -143,7 +165,7 @@ pub enum NodeType {
     QUEST,     // ?
     COMMA,     // ,
     NUM,       // Number literal
-    STR,       // String literal
+    //STR,       // String literal
     //STRUCT,    // Struct
     DECL,      // declaration
     VARDEF,    // Variable definition
@@ -295,11 +317,7 @@ pub struct Node {
     pub stmts: Vec<Node>,        // Compound statemtn
 
     pub name: String,
-    pub var: Rc<RefCell<Var>>,
-
-    // String literal
-    pub data: String,
-    pub len: usize,
+    pub var: Option<Rc<RefCell<Var>>>,
 
     // "if" (cond) then "else els
     // "for" (init; cond; inc) body
@@ -333,10 +351,7 @@ pub fn alloc_node() -> Node {
         stmts: Vec::new(),
 
         name: String::new(),
-        var: Rc::new(RefCell::new(alloc_var())),
-
-        data: String::new(),
-        len: 0,
+        var: None,
 
         cond: None,
         then: None,
@@ -376,6 +391,17 @@ fn find_tag(name: String) -> Option<Type> {
     ENV.with(|env| {
         return env.borrow().find_tag(name);
     })
+}
+
+fn add_gvar(ty: Type, name: String, data: String, len: usize) -> Rc<RefCell<Var>> {
+    let mut var = alloc_var();
+    var.ty = ty;
+    var.name = name;
+    var.data = data;
+    var.len = len;
+    let v = Rc::new(RefCell::new(var));
+    prog_gvars_push(v.clone());
+    return v;
 }
 
 fn expect(ty: TokenType, tokens: &Vec<Token>) {
@@ -557,10 +583,12 @@ fn primary(tokens: &Vec<Token>) -> Node {
     }
 
     if t.ty == TokenType::STR {
-        let mut node = new_node(NodeType::STR, Some(Box::new(t.clone())));
-        node.ty = Rc::new(RefCell::new(ary_of(char_ty(), t.str_cnt.len() as i32)));
-        node.data = t.str_cnt.clone();
-        node.len = t.len;
+        let ty = ary_of(char_ty(), t.str_cnt.len() as i32);
+        let name = format!(".L.str{}", bump_str_label()).to_string();
+
+        let mut node = new_node(NodeType::VAR, Some(Box::new(t.clone())));
+        node.ty = Rc::new(RefCell::new(ty.clone()));
+        node.var = Some(add_gvar(ty, name, t.str_cnt.clone(), t.len));
         return node;
     }
 
@@ -1034,7 +1062,7 @@ pub fn compound_stmt(tokens: &Vec<Token>) -> Node {
     return node;
 }
 
-fn toplevel(tokens: &Vec<Token>) -> Option<Node> {
+fn toplevel(tokens: &Vec<Token>) {
     let is_typedef = consume(TokenType::TYPEDEF, tokens);
     let is_extern = consume(TokenType::EXTERN, tokens);
 
@@ -1048,34 +1076,36 @@ fn toplevel(tokens: &Vec<Token>) -> Option<Node> {
     // Function
     if consume(TokenType::BRA, tokens) {
         let t = &tokens[pos()];
-        let mut node = new_node(NodeType::DECL, Some(Box::new(t.clone())));
-        node.name = name.clone();
+        let node = Rc::new(RefCell::new(new_node(NodeType::DECL, Some(Box::new(t.clone())))));
+        prog_nodes_push(node.clone());
+
+        node.borrow_mut().name = name.clone();
 
         let mut node_ty = alloc_type();
         node_ty.ty = CType::FUNC;
         node_ty.returning = Some(Box::new(ty));
-        *node.ty.borrow_mut() = node_ty;
+        node.borrow_mut().ty = Rc::new(RefCell::new(node_ty));
 
         if !consume(TokenType::KET, tokens) {
-            node.args.push(param_declaration(tokens));
+            node.borrow_mut().args.push(param_declaration(tokens));
             while consume(TokenType::COMMA, tokens) {
-                node.args.push(param_declaration(tokens));
+                node.borrow_mut().args.push(param_declaration(tokens));
             }
             expect(TokenType::KET, tokens);
         }
 
         if consume(TokenType::SEMI_COLON, tokens) {
-            return Some(node);
+            return;
         }
 
-        node.op = NodeType::FUNC;
+        node.borrow_mut().op = NodeType::FUNC;
         let t = &tokens[pos()];
         expect(TokenType::C_BRA, tokens);
         if is_typedef {
             bad_token(t, format!("typedef has function definition"));
         }
-        node.body = Some(Box::new(compound_stmt(tokens)));
-        return Some(node);
+        node.borrow_mut().body = Some(Box::new(compound_stmt(tokens)));
+        return;
     }
 
     let mut ty_tmp = ty.clone();
@@ -1084,42 +1114,30 @@ fn toplevel(tokens: &Vec<Token>) -> Option<Node> {
 
     if is_typedef {
         env_typedef_put(name, ty.clone());
-        return None;
+        return;
     }
 
     // Global variable
-    let t = &tokens[pos()];
-    let mut node = new_node(NodeType::VARDEF, Some(Box::new(t.clone())));
-    node.ty = Rc::new(RefCell::new(ty.clone()));
-    node.ty.borrow_mut().is_extern = is_extern;
-    node.name = name;
-
-    if !is_extern {
-        let mut data = String::new();
-        for _i in 0..node.ty.borrow().size {
-            data.push(char::from(0));
-        }
-        node.data = data;
-        node.len = ty.size as usize;
+    ty.is_extern = is_extern;
+    let mut data = String::new();
+    for _i in 0..ty.size {
+        data.push(char::from(0));
     }
-    return Some(node);
+    let len = ty.size;
+    add_gvar(ty.clone(), name, data, len as usize);
 }
 
 pub fn parse(tokens: &Vec<Token>) -> Program {
-    let mut v = Vec::new();
     loop {
         let t = &tokens[pos()];
         if t.ty == TokenType::EOF {
             break;
         }
 
-        let node = toplevel(tokens);
-        if node.is_some() {
-            v.push(node.unwrap());
-        }
+        toplevel(tokens);
     }
 
-    let mut prog = new_program();
-    prog.nodes = v;
-    return prog;
+    return PROGRAM.with(|p| {
+        p.borrow().clone()
+    });
 }

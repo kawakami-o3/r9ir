@@ -95,7 +95,7 @@ fn main() {
     //eprintln!("nodes> {:?}", nodes);
     if dump_node {
         for i in prog.nodes.iter() {
-            print_node(i.clone(), 0);
+            print_node(i.borrow().clone(), 0);
         }
         return;
     }
