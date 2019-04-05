@@ -21,7 +21,26 @@ thread_local! {
     static PROGRAM: RefCell<Program> = RefCell::new(new_program());
     static POS: RefCell<usize> = RefCell::new(0);
     static ENV: RefCell<Env> = RefCell::new(new_env(None));
-    static STR_LABEL: RefCell<usize> = RefCell::new(1);
+    static LABEL: RefCell<usize> = RefCell::new(1);
+    static LVARS: RefCell<Vec<Rc<RefCell<Var>>>> = RefCell::new(Vec::new());
+}
+
+fn init_lvars() {
+    LVARS.with(|p| {
+        *p.borrow_mut() = Vec::new();
+    })
+}
+
+fn lvars() -> Vec<Rc<RefCell<Var>>> {
+    LVARS.with(|p| {
+        return p.borrow().clone();
+    })
+}
+
+fn lvars_push(var: Rc<RefCell<Var>>) {
+    LVARS.with(|p| {
+        p.borrow_mut().push(var);
+    })
 }
 
 fn prog_gvars_push(var: Rc<RefCell<Var>>) {
@@ -58,8 +77,8 @@ fn dump_pos() -> usize {
     })
 }
 
-fn bump_str_label() -> usize {
-    STR_LABEL.with(|s| {
+fn bump_label() -> usize {
+    LABEL.with(|s| {
         let ret = *s.borrow();
         *s.borrow_mut() += 1;
         return ret;
@@ -83,14 +102,27 @@ fn new_program() -> Program {
 
 #[derive(Clone, Debug)]
 struct Env {
+    vars: HashMap<String, Rc<RefCell<Var>>>,
     typedefs: HashMap<String, Type>,
     tags: HashMap<String, Type>,
     next: Option<Box<Env>>,
 }
 
 impl Env {
-    fn find_typedef(& self, name: String) -> Option<Type> {
-        match self.typedefs.get(&name) {
+    fn find_var(& self, name: & String) -> Option<Rc<RefCell<Var>>> {
+        match self.vars.get(name) {
+            None => {
+                match self.next {
+                    None => None,
+                    Some(ref next) => next.find_var(name),
+                }
+            }
+            v => Some(v.unwrap().clone()),
+        }
+    }
+
+    fn find_typedef(& self, name: & String) -> Option<Type> {
+        match self.typedefs.get(name) {
             None => {
                 match self.next {
                     None => None,
@@ -101,8 +133,8 @@ impl Env {
         }
     }
 
-    fn find_tag(& self, name: String) -> Option<Type> {
-        match self.tags.get(&name) {
+    fn find_tag(& self, name: & String) -> Option<Type> {
+        match self.tags.get(name) {
             None => {
                 match self.next {
                     None => None,
@@ -116,19 +148,26 @@ impl Env {
 
 fn new_env(next: Option<Box<Env>>) -> Env {
     Env{
+        vars: HashMap::new(),
         typedefs: HashMap::new(),
         tags: HashMap::new(),
         next: next,
     }
 }
 
-fn env_typedef_put(key: String, val: Type) {
+fn env_vars_put(key: String, val: Rc<RefCell<Var>>) {
+    ENV.with(|env| {
+        env.borrow_mut().vars.insert(key, val);
+    })
+}
+
+fn env_typedefs_put(key: String, val: Type) {
     ENV.with(|env| {
         env.borrow_mut().typedefs.insert(key, val);
     })
 }
 
-fn env_tag_put(key: String, val: Type) {
+fn env_tags_put(key: String, val: Type) {
     ENV.with(|env| {
         env.borrow_mut().tags.insert(key, val);
     })
@@ -331,6 +370,7 @@ pub struct Node {
     // Function definition
     pub stacksize: i32,
     pub globals: Vec<Var>,
+    pub lvars: Vec<Rc<RefCell<Var>>>,
     
     // Function call
     pub args: Vec<Node>,
@@ -362,6 +402,7 @@ pub fn alloc_node() -> Node {
 
         stacksize: 0,
         globals: Vec::new(),
+        lvars: Vec::new(),
 
         args: Vec::new(),
 
@@ -381,25 +422,42 @@ fn break_stmt() -> Node {
     return node;
 }
 
-fn find_typedef(name: String) -> Option<Type> {
+fn find_var(name: & String) -> Option<Rc<RefCell<Var>>> {
+    ENV.with(|env| {
+        return env.borrow().find_var(name)
+    })
+}
+
+fn find_typedef(name: & String) -> Option<Type> {
     ENV.with(|env| {
         return env.borrow().find_typedef(name)
     })
 }
 
-fn find_tag(name: String) -> Option<Type> {
+fn find_tag(name: & String) -> Option<Type> {
     ENV.with(|env| {
         return env.borrow().find_tag(name);
     })
 }
 
+fn add_lvar(ty: Type, name: String) -> Rc<RefCell<Var>> {
+    let mut var = alloc_var();
+    var.ty = ty;
+    var.is_local = true;
+    let v = Rc::new(RefCell::new(var));
+    env_vars_put(name, v.clone());
+    lvars_push(v.clone());
+    return v;
+}
+
 fn add_gvar(ty: Type, name: String, data: String, len: usize) -> Rc<RefCell<Var>> {
     let mut var = alloc_var();
     var.ty = ty;
-    var.name = name;
+    var.name = name.clone();
     var.data = data;
     var.len = len;
     let v = Rc::new(RefCell::new(var));
+    env_vars_put(name, v.clone());
     prog_gvars_push(v.clone());
     return v;
 }
@@ -438,6 +496,12 @@ pub fn int_ty() -> Type {
     return new_prim_ty(CType::INT, 4);
 }
 
+fn func_ty(base: Type) -> Type {
+    let mut ty = alloc_type();
+    ty.returning = Some(Box::new(base));
+    return ty;
+}
+
 fn consume(ty: TokenType, tokens: &Vec<Token>) -> bool {
     let t = &tokens[pos()];
     if t.ty != ty {
@@ -450,7 +514,7 @@ fn consume(ty: TokenType, tokens: &Vec<Token>) -> bool {
 fn is_typename(tokens: &Vec<Token>) -> bool {
     let t = &tokens[pos()];
     if t.ty == TokenType::IDENT {
-        return find_typedef(t.name.clone()).is_some();
+        return find_typedef(&t.name).is_some();
     }
     return t.ty == TokenType::INT ||
         t.ty == TokenType::CHAR ||
@@ -462,7 +526,7 @@ fn decl_specifiers(tokens: &Vec<Token>) -> Type {
     let t = &tokens[bump_pos()];
     match t.ty {
         TokenType::IDENT => {
-            let ty = find_typedef(t.name.clone());
+            let ty = find_typedef(&t.name);
             if ty.is_none() {
                 dump_pos();
             }
@@ -490,7 +554,7 @@ fn decl_specifiers(tokens: &Vec<Token>) -> Type {
             if consume(TokenType::C_BRA, tokens) {
                 let mut ms = Vec::new();
                 while !consume(TokenType::C_KET, tokens) {
-                    ms.push(declaration(tokens));
+                    ms.push(declaration(false, tokens));
                 }
                 members = Some(ms);
             }
@@ -501,7 +565,7 @@ fn decl_specifiers(tokens: &Vec<Token>) -> Type {
 
             let mut ty: Option<Type> = None;
             if tag.is_some() && members.is_none() {
-                ty = find_tag(tag.clone().unwrap());
+                ty = find_tag(&tag.clone().unwrap());
             }
 
             if ty.is_none() {
@@ -514,7 +578,7 @@ fn decl_specifiers(tokens: &Vec<Token>) -> Type {
                 let mut ty_tmp = ty.clone().unwrap();
                 ty_tmp.add_members(members.unwrap());
                 if tag.is_some() {
-                    env_tag_put(tag.unwrap(), ty_tmp.clone());
+                    env_tags_put(tag.unwrap(), ty_tmp.clone());
                 }
 
                 ty = Some(ty_tmp.clone());
@@ -584,7 +648,7 @@ fn primary(tokens: &Vec<Token>) -> Node {
 
     if t.ty == TokenType::STR {
         let ty = ary_of(char_ty(), t.str_cnt.len() as i32);
-        let name = format!(".L.str{}", bump_str_label()).to_string();
+        let name = format!(".L.str{}", bump_label()).to_string();
 
         let mut node = new_node(NodeType::VAR, Some(Box::new(t.clone())));
         node.ty = Rc::new(RefCell::new(ty.clone()));
@@ -593,14 +657,39 @@ fn primary(tokens: &Vec<Token>) -> Node {
     }
 
     if t.ty == TokenType::IDENT {
+        let var = find_var(&t.name);
+
+        // Variable
         if !consume(TokenType::BRA, tokens) {
+            if var.is_none() {
+                bad_token(t, "undefined variable".to_string());
+            }
             let mut node = new_node(NodeType::VAR, Some(Box::new(t.clone())));
+            let v = var.clone().unwrap();
+            node.ty = Rc::new(RefCell::new(v.borrow().ty.clone()));
             node.name = t.name.clone();
+            node.var = Some(var.unwrap());
             return node;
         }
 
+        // Function call
         let mut node = new_node(NodeType::CALL, Some(Box::new(t.clone())));
         node.name = t.name.clone();
+
+        let mut should_init = true;
+        if var.is_some() {
+            let v = var.clone().unwrap();
+            if v.borrow().ty.ty == CType::FUNC {
+                node.ty = Rc::new(RefCell::new(v.borrow().ty.clone()));
+
+                should_init = false;
+            }
+        }
+        if should_init {
+            warn_token!(t, "undefined function".to_string());
+            node.ty = Rc::new(RefCell::new(func_ty(int_ty())));
+        }
+
         if consume(TokenType::KET, tokens) {
             return node;
         }
@@ -930,10 +1019,13 @@ fn declarator(ty: Rc<RefCell<Type>>, tokens: &Vec<Token>) -> Node {
     return direct_decl(t, tokens);
 }
 
-fn declaration(tokens: &Vec<Token>) -> Node {
+fn declaration(define: bool, tokens: &Vec<Token>) -> Node {
     let ty = decl_specifiers(tokens);
-    let node = declarator(Rc::new(RefCell::new(ty)), tokens);
+    let mut node = declarator(Rc::new(RefCell::new(ty)), tokens);
     expect(TokenType::SEMI_COLON, tokens);
+    if define {
+        node.var = Some(add_lvar(node.ty.borrow().clone(), node.name.clone()));
+    }
     return node;
 }
 
@@ -944,6 +1036,7 @@ fn param_declaration(tokens: &Vec<Token>) -> Node {
         let tmp = Rc::new(RefCell::new(*node.ty.borrow().ary_of.clone().unwrap()));
         node.ty = Rc::new(RefCell::new(ptr_to(tmp)));
     }
+    node.var = Some(add_lvar(node.ty.borrow().clone(), node.name.clone()));
     return node;
 }
 
@@ -959,9 +1052,9 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
 
     match t.ty {
         TokenType::TYPEDEF => {
-            let node = declaration(tokens);
+            let node = declaration(false, tokens);
             assert!(node.name.len()>0);
-            env_typedef_put(node.name, node.ty.borrow().clone());
+            env_typedefs_put(node.name, node.ty.borrow().clone());
             return null_stmt();
         }
         TokenType::IF => {
@@ -978,9 +1071,10 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
         TokenType::FOR => {
             let mut node = new_node(NodeType::FOR, Some(Box::new(t.clone())));
             expect(TokenType::BRA, tokens);
+            env_push();
 
             if is_typename(tokens) {
-                node.init = Some(Box::new(declaration(tokens)));
+                node.init = Some(Box::new(declaration(true, tokens)));
             } else if consume(TokenType::SEMI_COLON, tokens) {
                 node.init = Some(Box::new(null_stmt()));
             } else {
@@ -998,6 +1092,7 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             }
 
             node.body = Some(Box::new(stmt(tokens)));
+            env_pop();
             return node;
         }
         TokenType::WHILE => {
@@ -1030,10 +1125,12 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             return node;
         }
         TokenType::C_BRA => {
+            env_push();
             let mut node = new_node(NodeType::COMP_STMT, Some(Box::new(t.clone())));
             while !consume(TokenType::C_KET, tokens) {
                 node.stmts.push(stmt(tokens));
             }
+            env_pop();
             return node;
         }
         TokenType::SEMI_COLON => {
@@ -1042,7 +1139,7 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
         _ => {
             dump_pos();
             if is_typename(tokens) {
-                return declaration(tokens);
+                return declaration(true, tokens);
             }
             return expr_stmt(tokens);
         }
@@ -1079,6 +1176,8 @@ fn toplevel(tokens: &Vec<Token>) {
         let node = Rc::new(RefCell::new(new_node(NodeType::DECL, Some(Box::new(t.clone())))));
         prog_nodes_push(node.clone());
 
+        init_lvars();
+
         node.borrow_mut().name = name.clone();
 
         let mut node_ty = alloc_type();
@@ -1094,6 +1193,9 @@ fn toplevel(tokens: &Vec<Token>) {
             expect(TokenType::KET, tokens);
         }
 
+        let ty = node.borrow().ty.clone();
+        add_lvar(ty.borrow().clone(), name);
+
         if consume(TokenType::SEMI_COLON, tokens) {
             return;
         }
@@ -1105,6 +1207,7 @@ fn toplevel(tokens: &Vec<Token>) {
             bad_token(t, format!("typedef has function definition"));
         }
         node.borrow_mut().body = Some(Box::new(compound_stmt(tokens)));
+        node.borrow_mut().lvars = lvars();
         return;
     }
 
@@ -1113,7 +1216,7 @@ fn toplevel(tokens: &Vec<Token>) {
     expect(TokenType::SEMI_COLON, tokens);
 
     if is_typedef {
-        env_typedef_put(name, ty.clone());
+        env_typedefs_put(name, ty.clone());
         return;
     }
 

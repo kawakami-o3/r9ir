@@ -21,93 +21,9 @@
 use crate::parse::*;
 use crate::token::*;
 use crate::util::*;
-use std::collections::HashMap;
 use std::cell::RefCell;
 use std::mem;
 use std::rc::Rc;
-
-thread_local! {
-    static PROGRAM: RefCell<Option<Rc<RefCell<Program>>>> = RefCell::new(None);
-    static LOCALS: RefCell<Vec<Rc<RefCell<Var>>>> = RefCell::new(Vec::new());
-    static ENV: RefCell<Env> = RefCell::new(new_env(None));
-}
-
-#[derive(Clone, Debug)]
-struct Env {
-    vars: HashMap<String, Rc<RefCell<Var>>>,
-    next: Option<Box<Env>>,
-}
-
-fn new_env(next: Option<Env>) -> Env {
-    Env {
-        vars: HashMap::new(),
-        next: if let Some(e) = next {
-            Some(Box::new(e))
-        } else {
-            None
-        },
-    }
-}
-
-fn env_var_put(name: String, var: Rc<RefCell<Var>>) {
-    ENV.with(|env| {
-        env.borrow_mut().vars.insert(name, var);
-    })
-}
-
-fn env_push() {
-    ENV.with(|env| {
-        let e = env.borrow().clone();
-        *env.borrow_mut() = new_env(Some(e));
-    })
-}
-
-fn env_pop() {
-    ENV.with(|env| {
-        let e = env.borrow().next.clone().unwrap();
-        *env.borrow_mut() = *e;
-    })
-}
-
-//impl<'a> Env<'a> {
-impl Env {
-    fn find(&self, name: & String) -> Option<&Rc<RefCell<Var>>> {
-        if let Some(v) = self.vars.get(name) {
-            return Some(v);
-        } else if let Some(ref next) = self.next {
-            return next.find(name);
-        } else {
-            return None;
-        }
-    }
-}
-
-fn init_locals() {
-    LOCALS.with(|l| {
-        *l.borrow_mut() = Vec::new();
-    })
-}
-
-fn locals() -> Vec<Rc<RefCell<Var>>> {
-    LOCALS.with(|l| {
-        l.borrow().clone()
-    })
-}
-
-fn locals_push(var: Rc<RefCell<Var>>) {
-    LOCALS.with(|l| {
-        (*l.borrow_mut()).push(var);
-    })
-}
-
-fn find_var(name: & String) -> Option<Rc<RefCell<Var>>> {
-    ENV.with(|env| {
-        match (*env.borrow()).find(name) {
-            Some(v) => Some(v.clone()),
-            None => None,
-        }
-    })
-}
 
 fn swap(p: &mut Node, q: &mut Node) {
     mem::swap(p, q);
@@ -134,12 +50,6 @@ macro_rules! bad_node {
     ($node:expr, $msg:expr) => {
         bad_token(&*$node.token.clone().unwrap(), $msg.to_string());
         panic!();
-    };
-}
-
-macro_rules! warn_node {
-    ($node:expr, $msg:expr) => {
-        warn_token!(*$node.token.clone().unwrap(), $msg);
     };
 }
 
@@ -177,28 +87,9 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool, prog: &'a mut Program) -> &'a No
             return node;
         }
         NodeType::VAR => {
-            let mut var = node.var.clone();
-            if var.is_none() {
-                var = find_var(&node.name);
-
-                if var.is_none() {
-                    bad_node!(node, "undefined variable");
-                }
-                node.var = var.clone();
-            }
-
-            let v = var.unwrap();
-            node.ty = Rc::new(RefCell::new(v.borrow().ty.clone()));
             return maybe_decay(node, decay);
         }
         NodeType::VARDEF => {
-            let mut var = Rc::new(RefCell::new(alloc_var()));
-            var.borrow_mut().ty = node.ty.borrow().clone();
-            var.borrow_mut().is_local = true;
-            env_var_put(node.name.clone(), var.clone());
-            locals_push(var.clone());
-            node.var = Some(var);
-
             match node.init {
                 Some(_) => {
                     node.init = Some(Box::new(walk(&mut *node.init.clone().unwrap(), prog).clone()));
@@ -217,7 +108,6 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool, prog: &'a mut Program) -> &'a No
             return node;
         }
         NodeType::FOR => {
-            env_push();
             node.init = Some(Box::new(walk(&mut *node.init.clone().unwrap(), prog).clone()));
             if let Some(mut cond) = node.cond.clone() {
                 node.cond = Some(Box::new(walk(&mut cond, prog).clone()));
@@ -226,7 +116,6 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool, prog: &'a mut Program) -> &'a No
                 node.inc = Some(Box::new(walk(&mut inc, prog).clone()));
             }
             node.body = Some(Box::new(walk(&mut *node.body.clone().unwrap(), prog).clone()));
-            env_pop();
             return node;
         }
         NodeType::DO_WHILE => {
@@ -430,31 +319,15 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool, prog: &'a mut Program) -> &'a No
             return node;
         }
         NodeType::CALL => {
-            let var = find_var(&node.name);
-            let mut is_int = true;
-            if let Some(v) = var {
-                let ty = v.borrow().clone().ty;
-                if ty.ty == CType::FUNC {
-                    node.ty = Rc::new(RefCell::new(*ty.returning.unwrap()));
-                    is_int = false;
-                }
-            }
-            if is_int {
-                warn_node!(node, "undefined function");
-                node.ty = Rc::new(RefCell::new(int_ty()));
-            }
-
             for i in 0..node.args.len() {
                 node.args[i] = walk(&mut node.args[i], prog).clone();
             }
             return node;
         }
         NodeType::COMP_STMT => {
-            env_push();
             for i in 0..node.stmts.len() {
                 node.stmts[i] = walk(&mut node.stmts[i], prog).clone();
             }
-            env_pop();
             return node;
         }
         NodeType::STMT_EXPR => {
@@ -469,8 +342,6 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool, prog: &'a mut Program) -> &'a No
 }
 
 fn sema_funcdef(node: Rc<RefCell<Node>>, prog: &mut Program) {
-    init_locals();
-
     let mut args = Vec::new();
     for a in node.borrow_mut().args.iter_mut() {
         args.push(walk(&mut a.clone(), prog).clone());
@@ -480,7 +351,7 @@ fn sema_funcdef(node: Rc<RefCell<Node>>, prog: &mut Program) {
     node.borrow_mut().body = Some(Box::new(walk(&mut body, prog).clone()));
 
     let mut off = 0;
-    for v in locals().iter_mut() {
+    for v in node.borrow_mut().lvars.iter_mut() {
         off = roundup(off, v.borrow().ty.align);
         off += v.borrow().ty.size;
         v.borrow_mut().offset = off;
@@ -491,20 +362,7 @@ fn sema_funcdef(node: Rc<RefCell<Node>>, prog: &mut Program) {
 pub fn sema(prog: &mut Program) {
     let nodes = prog.nodes.clone();
 
-    for v in prog.gvars.iter() {
-        let name = v.borrow().name.clone();
-        env_var_put(name, v.clone());
-    }
-
     for node in nodes.iter() {
-        let mut var = alloc_var();
-        let ty = node.borrow().ty.clone();
-        var.ty = ty.borrow().clone();
-        var.is_local = false;
-        var.name = node.borrow().name.clone();
-        let v = Rc::new(RefCell::new(var));
-        env_var_put(node.borrow().name.clone(), v);
-
         if node.borrow().op == NodeType::DECL {
             continue;
         }
