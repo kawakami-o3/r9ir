@@ -359,6 +359,11 @@ fn sema_funcdef(node: Rc<RefCell<Node>>, prog: &mut Program) {
     node.borrow_mut().stacksize = off;
 }
 
+pub fn get_type(node: &mut Node) -> Type {
+    let mut prog = new_program();
+    return walk(node, &mut prog).ty.borrow().clone();
+}
+
 pub fn sema(prog: &mut Program) {
     let nodes = prog.nodes.clone();
 

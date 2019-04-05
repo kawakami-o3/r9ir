@@ -252,6 +252,7 @@ pub enum TokenType {
     RETURN,     // "return"
     SIZEOF,     // "sizeof"
     ALIGNOF,    // "_Alignof"
+    TYPEOF,     // "typeof"
     PARAM,      // Function-like macro parameter
     EOF,        // End marker
 }
@@ -469,6 +470,7 @@ fn keyword_map() -> HashMap<String, TokenType> {
     keywords.insert("sizeof".to_string(), TokenType::SIZEOF);
     keywords.insert("struct".to_string(), TokenType::STRUCT);
     keywords.insert("typedef".to_string(), TokenType::TYPEDEF);
+    keywords.insert("typeof".to_string(), TokenType::TYPEOF);
     keywords.insert("void".to_string(), TokenType::VOID);
     keywords.insert("while".to_string(), TokenType::WHILE);
     return keywords;

@@ -12,6 +12,7 @@
 
 use crate::gen_ir::*;
 use crate::token::*;
+use crate::sema::*;
 use crate::util::*;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -92,7 +93,7 @@ pub struct Program {
     pub funcs: Vec<IR>,
 }
 
-fn new_program() -> Program {
+pub fn new_program() -> Program {
     Program {
         gvars: Vec::new(),
         nodes: Vec::new(),
@@ -240,6 +241,7 @@ pub enum NodeType {
     RETURN,    // "return"
     SIZEOF,    // "sizeof"
     ALIGNOF,   // "_Alignof"
+    //TYPEOF,    // "typeof"
     CALL,      // Function call
     FUNC,      // Function definition
     COMP_STMT, // Compound statement
@@ -257,6 +259,7 @@ pub enum CType {
     ARY,
     STRUCT,
     FUNC,
+    //TYPEOF,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -277,7 +280,11 @@ pub struct Type {
     pub members: Option<Vec<Node>>,
     pub offset: i32,
 
+    // Function
     pub returning: Option<Box<Type>>,
+
+    // Typeof
+    pub node: Option<Box<Node>>,
 }
 
 impl Type {
@@ -314,6 +321,7 @@ pub fn alloc_type() -> Type {
         members: None,
         offset: 0,
         returning: None,
+        node: None,
     } 
 }
 
@@ -519,7 +527,8 @@ fn is_typename(tokens: &Vec<Token>) -> bool {
     return t.ty == TokenType::INT ||
         t.ty == TokenType::CHAR ||
         t.ty == TokenType::VOID ||
-        t.ty == TokenType::STRUCT;
+        t.ty == TokenType::STRUCT ||
+        t.ty == TokenType::TYPEOF;
 }
 
 fn decl_specifiers(tokens: &Vec<Token>) -> Type {
@@ -540,6 +549,12 @@ fn decl_specifiers(tokens: &Vec<Token>) -> Type {
         }
         TokenType::VOID => {
             return void_ty();
+        }
+        TokenType::TYPEOF => {
+            expect(TokenType::BRA, tokens);
+            let mut node = expr(tokens);
+            expect(TokenType::KET, tokens);
+            return get_type(&mut node);
         }
         TokenType::STRUCT => {
 
