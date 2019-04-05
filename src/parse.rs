@@ -627,6 +627,61 @@ fn ident(tokens: &Vec<Token>) -> String {
     return t.name.clone();
 }
 
+fn string_literal(t: & Token) -> Node {
+    let ty = ary_of(char_ty(), t.str_cnt.len() as i32);
+    let name = format!(".L.str{}", bump_label()).to_string();
+
+    let mut node = new_node(NodeType::VAR, Some(Box::new(t.clone())));
+    node.ty = Rc::new(RefCell::new(ty.clone()));
+    node.var = Some(add_gvar(ty, name, t.str_cnt.clone(), t.len));
+    return node;
+}
+
+fn local_variable(t: & Token) -> Node {
+    let var = find_var(&t.name);
+    if var.is_none() {
+        bad_token(t, "undefined variable".to_string());
+    }
+    let mut node = new_node(NodeType::VAR, Some(Box::new(t.clone())));
+    let v = var.clone().unwrap();
+    node.ty = Rc::new(RefCell::new(v.borrow().ty.clone()));
+    node.name = t.name.clone();
+    node.var = Some(var.unwrap());
+    return node;
+}
+
+fn function_call(t: & Token, tokens: &Vec<Token>) -> Node {
+    let var = find_var(&t.name);
+
+    let mut node = new_node(NodeType::CALL, Some(Box::new(t.clone())));
+    node.name = t.name.clone();
+
+    let mut should_init = true;
+    if var.is_some() {
+        let v = var.clone().unwrap();
+        if v.borrow().ty.ty == CType::FUNC {
+            node.ty = Rc::new(RefCell::new(v.borrow().ty.clone()));
+
+            should_init = false;
+        }
+    }
+    if should_init {
+        warn_token!(t, "undefined function".to_string());
+        node.ty = Rc::new(RefCell::new(func_ty(int_ty())));
+    }
+
+    if consume(TokenType::KET, tokens) {
+        return node;
+    }
+
+    node.args.push(assign(tokens));
+    while consume(TokenType::COMMA, tokens) {
+        node.args.push(assign(tokens));
+    }
+    expect(TokenType::KET, tokens);
+    return node;
+}
+
 fn primary(tokens: &Vec<Token>) -> Node {
     let t = &tokens[bump_pos()];
 
@@ -647,59 +702,14 @@ fn primary(tokens: &Vec<Token>) -> Node {
     }
 
     if t.ty == TokenType::STR {
-        let ty = ary_of(char_ty(), t.str_cnt.len() as i32);
-        let name = format!(".L.str{}", bump_label()).to_string();
-
-        let mut node = new_node(NodeType::VAR, Some(Box::new(t.clone())));
-        node.ty = Rc::new(RefCell::new(ty.clone()));
-        node.var = Some(add_gvar(ty, name, t.str_cnt.clone(), t.len));
-        return node;
+        return string_literal(t);
     }
 
     if t.ty == TokenType::IDENT {
-        let var = find_var(&t.name);
-
-        // Variable
-        if !consume(TokenType::BRA, tokens) {
-            if var.is_none() {
-                bad_token(t, "undefined variable".to_string());
-            }
-            let mut node = new_node(NodeType::VAR, Some(Box::new(t.clone())));
-            let v = var.clone().unwrap();
-            node.ty = Rc::new(RefCell::new(v.borrow().ty.clone()));
-            node.name = t.name.clone();
-            node.var = Some(var.unwrap());
-            return node;
+        if consume(TokenType::BRA, tokens) {
+           return function_call(t, tokens);
         }
-
-        // Function call
-        let mut node = new_node(NodeType::CALL, Some(Box::new(t.clone())));
-        node.name = t.name.clone();
-
-        let mut should_init = true;
-        if var.is_some() {
-            let v = var.clone().unwrap();
-            if v.borrow().ty.ty == CType::FUNC {
-                node.ty = Rc::new(RefCell::new(v.borrow().ty.clone()));
-
-                should_init = false;
-            }
-        }
-        if should_init {
-            warn_token!(t, "undefined function".to_string());
-            node.ty = Rc::new(RefCell::new(func_ty(int_ty())));
-        }
-
-        if consume(TokenType::KET, tokens) {
-            return node;
-        }
-
-        node.args.push(assign(tokens));
-        while consume(TokenType::COMMA, tokens) {
-            node.args.push(assign(tokens));
-        }
-        expect(TokenType::KET, tokens);
-        return node;
+        return local_variable(t);
     }
 
     bad_token(t, "primary expression expected".to_string());
@@ -1230,13 +1240,13 @@ fn toplevel(tokens: &Vec<Token>) {
     add_gvar(ty.clone(), name, data, len as usize);
 }
 
-pub fn parse(tokens: &Vec<Token>) -> Program {
-    loop {
-        let t = &tokens[pos()];
-        if t.ty == TokenType::EOF {
-            break;
-        }
+fn is_eof(tokens: &Vec<Token>) -> bool {
+    let t = &tokens[pos()];
+    return t.ty == TokenType::EOF;
+}
 
+pub fn parse(tokens: &Vec<Token>) -> Program {
+    while !is_eof(tokens) {
         toplevel(tokens);
     }
 
