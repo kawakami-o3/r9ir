@@ -67,6 +67,14 @@ fn scale_ptr(op: NodeType, node: Node, ty: Type) -> Node {
     return e;
 }
 
+fn check_int(node: & Node) {
+    if node.ty.borrow().ty != CType::INT {
+        if node.ty.borrow().ty != CType::CHAR {
+            bad_node!(node, "not an integer");
+        }
+    }
+}
+
 fn walk<'a>(node: &'a mut Node, prog: &'a mut Program) -> &'a Node {
     return do_walk(node, true, prog);
 }
@@ -133,9 +141,7 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool, prog: &'a mut Program) -> &'a No
             }
 
             if let Some(ref rhs) = node.rhs {
-                if rhs.ty.borrow().ty == CType::PTR {
-                    bad_node!(node, "pointer + pointer");
-                }
+                check_int(rhs);
             }
 
             if let Some(ref lhs) = node.lhs {
@@ -244,6 +250,9 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool, prog: &'a mut Program) -> &'a No
                 node.lhs = Some(Box::new(walk(&mut *node.lhs.clone().unwrap(), prog).clone()));
                 node.rhs = Some(Box::new(walk(&mut *node.rhs.clone().unwrap(), prog).clone()));
 
+                check_int(&*node.lhs.clone().unwrap());
+                check_int(&*node.rhs.clone().unwrap());
+
                 match node.lhs {
                     Some(ref lhs) => {
                         node.ty = lhs.ty.clone();
@@ -304,6 +313,8 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool, prog: &'a mut Program) -> &'a No
             for i in 0..node.args.len() {
                 node.args[i] = walk(&mut node.args[i], prog).clone();
             }
+            let node_ty = *node.ty.borrow().clone().returning.unwrap();
+            node.ty = Rc::new(RefCell::new(node_ty));
             return node;
         }
         NodeType::COMP_STMT => {
