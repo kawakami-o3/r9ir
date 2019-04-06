@@ -7,23 +7,23 @@ use std::collections::HashMap;
 thread_local! {
     static MACROS: RefCell<HashMap<String, Macro>> = RefCell::new(HashMap::new());
 
-    static CTX: RefCell<Context> = RefCell::new(Context::new());
+    static ENV: RefCell<Env> = RefCell::new(Env::new());
 }
 
-fn set_ctx(ctx: Context) {
-    CTX.with(|c| {
-        *c.borrow_mut() = ctx;
+fn set_env(env: Env) {
+    ENV.with(|c| {
+        *c.borrow_mut() = env;
     })
 }
 
-fn get_ctx() -> Option<Context> {
-    CTX.with(|c| {
+fn get_env() -> Option<Env> {
+    ENV.with(|c| {
         Some(c.borrow().clone())
     })
 }
 
-fn ctx_pop() {
-    CTX.with(|c| {
+fn env_pop() {
+    ENV.with(|c| {
         let next = c.borrow().next.clone();
         if next.is_some() {
             *c.borrow_mut() = *next.unwrap();
@@ -31,8 +31,8 @@ fn ctx_pop() {
     })
 }
 
-fn ctx_output() -> Vec<Token> {
-    CTX.with(|c| {
+fn env_output() -> Vec<Token> {
+    ENV.with(|c| {
         return c.borrow().output.clone();
     })
 }
@@ -53,16 +53,16 @@ fn macros_put(key: String, value: Macro) {
 }
 
 #[derive(Clone, Debug)]
-struct Context {
+struct Env {
     input: Vec<Token>,
     output: Vec<Token>,
     pos: usize,
-    next: Option<Box<Context>>,
+    next: Option<Box<Env>>,
 }
 
-impl Context {
-    fn new() -> Context {
-        Context {
+impl Env {
+    fn new() -> Env {
+        Env {
             input: Vec::new(),
             output: Vec::new(),
             pos: 0,
@@ -71,8 +71,8 @@ impl Context {
     }
 }
 
-fn new_ctx(next: Option<Context>, input: Vec<Token>) -> Context {
-    let mut ctx = Context::new();
+fn new_env(next: Option<Env>, input: Vec<Token>) -> Env {
+    let mut ctx = Env::new();
     ctx.input = input;
     if next.is_none() {
         ctx.next = None;
@@ -105,30 +105,30 @@ fn new_macro(ty: MacroType, name: String) {
 }
 
 fn append(v: &mut Vec<Token>) {
-    CTX.with(|ctx| {
-        ctx.borrow_mut().output.append(v);
+    ENV.with(|env| {
+        env.borrow_mut().output.append(v);
     })
 }
 
 fn add(t: Token) {
-    CTX.with(|ctx| {
-        ctx.borrow_mut().output.push(t);
+    ENV.with(|env| {
+        env.borrow_mut().output.push(t);
     })
 }
 
 fn next() -> Token {
-    CTX.with(|ctx| {
-        let pos = ctx.borrow().pos;
-        assert!(pos < ctx.borrow().input.len());
-        ctx.borrow_mut().pos += 1;
-        return ctx.borrow().input[pos].clone();
+    ENV.with(|env| {
+        let pos = env.borrow().pos;
+        assert!(pos < env.borrow().input.len());
+        env.borrow_mut().pos += 1;
+        return env.borrow().input[pos].clone();
     })
 }
 
 fn eof() -> bool {
-    CTX.with(|c| {
-        let ctx = c.borrow();
-        return ctx.pos == ctx.input.len();
+    ENV.with(|c| {
+        let env = c.borrow();
+        return env.pos == env.input.len();
     })
 }
 
@@ -146,9 +146,9 @@ fn ident(msg: String) -> String {
 }
 
 fn peek() -> Token {
-    CTX.with(|c| {
-        let ctx = c.borrow();
-        return ctx.input[ctx.pos].clone();
+    ENV.with(|c| {
+        let env = c.borrow();
+        return env.input[env.pos].clone();
     })
 }
 
@@ -156,7 +156,7 @@ fn consume(ty: TokenType) -> bool {
     if peek().ty != ty {
         return false;
     }
-    CTX.with(|c| {
+    ENV.with(|c| {
         c.borrow_mut().pos += 1;
     });
     return true;
@@ -402,7 +402,7 @@ fn include() {
 }
 
 pub fn preprocess(tokens: Vec<Token>) -> Vec<Token> {
-    set_ctx(new_ctx(get_ctx(), tokens.clone()));
+    set_env(new_env(get_env(), tokens.clone()));
 
     while !eof() {
         let mut t = next();
@@ -435,7 +435,7 @@ pub fn preprocess(tokens: Vec<Token>) -> Vec<Token> {
         }
     }
 
-    let v = ctx_output();
-    ctx_pop();
+    let v = env_output();
+    env_pop();
     return v;
 }

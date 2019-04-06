@@ -18,54 +18,54 @@ thread_local! {
     static SYMBOLS: RefCell<Vec<Symbol>> = RefCell::new(Vec::new());
     static ESCAPED: RefCell<HashMap<char, char>> = RefCell::new(HashMap::new());
 
-    static CTX: RefCell<Context> = RefCell::new(Context::new());
+    static ENV: RefCell<Env> = RefCell::new(Env::new());
     static KEYWORDS: RefCell<HashMap<String, TokenType>> = RefCell::new(HashMap::new());
 }
 
-fn set_ctx(ctx: Context) {
-    CTX.with(|c| {
-        *c.borrow_mut() = ctx;
+fn set_env(env: Env) {
+    ENV.with(|c| {
+        *c.borrow_mut() = env;
     })
 }
 
 fn buf() -> String {
-    CTX.with(|c| {
+    ENV.with(|c| {
         c.borrow().buf.clone()
     })
 }
 
 fn set_buf(s: String) {
-    CTX.with(|c| {
+    ENV.with(|c| {
         c.borrow_mut().buf = s;
     })
 }
 
 fn path() -> String {
-    CTX.with(|c| {
+    ENV.with(|c| {
         c.borrow().path.clone()
     })
 }
 
 fn set_path(s: String) {
-    CTX.with(|c| {
+    ENV.with(|c| {
         c.borrow_mut().path = s;
     })
 }
 
 fn tokens() -> Vec<Token> {
-    CTX.with(|c| {
+    ENV.with(|c| {
         c.borrow().tokens.clone()
     })
 }
 
 fn set_tokens(ts: Vec<Token>) {
-    CTX.with(|c| {
+    ENV.with(|c| {
         c.borrow_mut().tokens = ts;
     })
 }
 
-fn ctx_pop() {
-    CTX.with(|c| {
+fn env_pop() {
+    ENV.with(|c| {
         if let Some(next) = c.borrow().next.clone() {
             *c.borrow_mut() = *next;
         }
@@ -73,7 +73,7 @@ fn ctx_pop() {
 }
 
 fn add(t: Token) {
-    CTX.with(|c| {
+    ENV.with(|c| {
         c.borrow_mut().tokens.push(t);
     })
 }
@@ -159,17 +159,17 @@ fn escaped(c: char) -> Option<char> {
 }
 
 #[derive(Clone, Debug)]
-struct Context {
+struct Env {
     path: String,
     buf: String,
     pos: i32,
     tokens: Vec<Token>,
-    next: Option<Box<Context>>,
+    next: Option<Box<Env>>,
 }
 
-impl Context {
-    fn new() -> Context {
-        Context {
+impl Env {
+    fn new() -> Env {
+        Env {
             path: String::new(),
             buf: String::new(),
             pos: 0,
@@ -338,20 +338,20 @@ fn read_file<T: Read>(file: &mut T) -> String {
     }
 }
 
-fn new_ctx(next: Option<Context>, path: String, buf: String) -> Context {
-    let mut ctx = Context::new();
-    ctx.path = if path == "-" {
+fn new_env(next: Option<Env>, path: String, buf: String) -> Env {
+    let mut env = Env::new();
+    env.path = if path == "-" {
         "(stdin)".to_string()
     } else {
         path
     };
-    ctx.buf = buf;
+    env.buf = buf;
     if next.is_none() {
-        ctx.next = None;
+        env.next = None;
     } else {
-        ctx.next = Some(Box::new(next.unwrap()));
+        env.next = Some(Box::new(next.unwrap()));
     }
-    return ctx;
+    return env;
 }
 
 // Error reporting
@@ -878,14 +878,14 @@ pub fn tokenize(path: String, add_eof: bool) -> Vec<Token> {
     buf = canonicalize_newline(buf);
     buf = remove_backslash_newline(buf);
 
-    set_ctx(new_ctx(None, path, buf));
+    set_env(new_env(None, path, buf));
     scan();
     if add_eof {
         add(new_token(TokenType::EOF, 0));
     }
 
     let mut v = tokens();
-    ctx_pop();
+    env_pop();
 
     v = preprocess(v);
     v = strip_newlines(v);
