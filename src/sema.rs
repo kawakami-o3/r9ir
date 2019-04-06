@@ -38,7 +38,8 @@ fn maybe_decay(base: & mut Node, decay: bool) -> & mut Node {
     let ty_tmp = *node_ty.borrow().clone().ary_of.unwrap();
     base.ty = Rc::new(RefCell::new(ptr_to(Rc::new(RefCell::new(ty_tmp)))));
 
-    base.expr = Some(Box::new(tmp));
+    base.expr = Some(Box::new(tmp.clone()));
+    base.token = tmp.token.clone();
     return base;
 }
 
@@ -58,13 +59,14 @@ fn check_lval(node: Box<Node>) {
     }
 }
 
-fn scale_ptr(op: NodeType, node: Node, ty: Type) -> Node {
-    let mut e = alloc_node();
-    e.op = op;
-    e.lhs = Some(Box::new(node.clone()));
+fn scale_ptr(op: NodeType, base: Node, ty: Type) -> Node {
+    let mut node = alloc_node();
+    node.op = op;
+    node.lhs = Some(Box::new(base.clone()));
     let ptr = ty.ptr_to.unwrap();
-    e.rhs = Some(Box::new(new_int_node(ptr.borrow().size, node.token)));
-    return e;
+    node.rhs = Some(Box::new(new_int_node(ptr.borrow().size, base.token.clone())));
+    node.token = base.token.clone();
+    return node;
 }
 
 fn check_int(node: & Node) {
@@ -259,6 +261,7 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool, prog: &'a mut Program) -> &'a No
                     }
                     None => { }
                 }
+                node.ty = Rc::new(RefCell::new(int_ty()));
                 return node;
             }
         NodeType::COMMA => {
@@ -267,12 +270,14 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool, prog: &'a mut Program) -> &'a No
             node.ty = node.rhs.clone().unwrap().ty;
             return node;
         }
-        NodeType::POST_INC |
-            NodeType::POST_DEC |
-            NodeType::NEG |
-            NodeType::EXCLAM |
-            NodeType::NOT => {
+        NodeType::POST_INC | NodeType::POST_DEC | NodeType::NEG => {
             node.expr = Some(Box::new(walk(&mut *node.expr.clone().unwrap(), prog).clone()));
+            node.ty = node.expr.clone().unwrap().ty;
+            return node;
+        }
+        NodeType::EXCLAM | NodeType::NOT => {
+            node.expr = Some(Box::new(walk(&mut *node.expr.clone().unwrap(), prog).clone()));
+            check_int(&*node.expr.clone().unwrap());
             node.ty = node.expr.clone().unwrap().ty;
             return node;
         }
