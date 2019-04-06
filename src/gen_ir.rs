@@ -84,7 +84,6 @@ pub enum IRType {
     SHL,
     SHR,
     MOD,
-    NEG,
     JMP,
     IF,
     UNLESS,
@@ -461,11 +460,6 @@ fn gen_expr(node: Node) -> i32 {
         NodeType::NOT => {
             let r = gen_expr(*node.expr.unwrap());
             add_imm(IRType::XOR, r, -1);
-            return r;
-        }
-        NodeType::NEG => {
-            let r = gen_expr(*node.expr.unwrap());
-            add(IRType::NEG, r, -1);
             return r;
         }
         NodeType::COMMA => {

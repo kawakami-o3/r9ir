@@ -288,7 +288,6 @@ pub enum NodeType {
     SHL,       // <<
     SHR,       // >>
     MOD,       // %
-    NEG,       // -
     POST_INC,  // post ++
     POST_DEC,  // post --
     MUL_EQ,    // *=
@@ -844,7 +843,7 @@ fn unary(tokens: &Vec<Token>) -> Node {
     let t = &tokens[pos()];
 
     if consume(TokenType::SUB, tokens) {
-        return new_expr(NodeType::NEG, Some(Box::new(t.clone())), unary(tokens));
+        return new_binop(NodeType::SUB, Some(Box::new(t.clone())), new_int_node(0, Some(Box::new(t.clone()))), unary(tokens));
     }
     if consume(TokenType::MUL, tokens) {
         return new_expr(NodeType::DEREF, Some(Box::new(t.clone())), unary(tokens));

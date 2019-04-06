@@ -271,7 +271,7 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool, prog: &'a mut Program) -> &'a No
             node.ty = node.rhs.clone().unwrap().ty;
             return node;
         }
-        NodeType::POST_INC | NodeType::POST_DEC | NodeType::NEG => {
+        NodeType::POST_INC | NodeType::POST_DEC => {
             node.expr = Some(Box::new(walk(&mut *node.expr.clone().unwrap(), prog).clone()));
             node.ty = node.expr.clone().unwrap().ty;
             return node;
