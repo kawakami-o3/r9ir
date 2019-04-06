@@ -301,9 +301,17 @@ pub fn gen_x86(prog: &mut Program) {
         if var.ty.is_extern {
             continue;
         }
-        println!("{}:", var.name);
-        emit!(".ascii \"{}\"", backslash_escape(&var.data));
-    }
+
+        if var.data.is_some() {
+            println!(".data");
+            println!("{}:", var.name);
+            emit!(".ascii \"{}\"", backslash_escape(&var.data.clone().unwrap()));
+        } else {
+            println!(".bss");
+            println!("{}:", var.name);
+            emit!(".zero {}", var.len);
+        }
+   }
 
     println!(".text");
     for f in prog.funcs.iter() {

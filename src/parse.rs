@@ -335,7 +335,7 @@ pub struct Var {
 
     // global
     pub name: String,
-    pub data: String,
+    pub data: Option<String>,
     pub len: usize,
 }
 
@@ -347,7 +347,7 @@ pub fn alloc_var() -> Var {
         offset: 0,
 
         name: String::new(),
-        data: String::new(),
+        data: None,
         len: 0,
     }
 }
@@ -458,7 +458,7 @@ fn add_lvar(ty: Type, name: String) -> Rc<RefCell<Var>> {
     return v;
 }
 
-fn add_gvar(ty: Type, name: String, data: String, len: usize) -> Rc<RefCell<Var>> {
+fn add_gvar(ty: Type, name: String, data: Option<String>, len: usize) -> Rc<RefCell<Var>> {
     let mut var = alloc_var();
     var.ty = ty;
     var.name = name.clone();
@@ -648,7 +648,7 @@ fn string_literal(t: & Token) -> Node {
 
     let mut node = new_node(NodeType::VAR, Some(Box::new(t.clone())));
     node.ty = Rc::new(RefCell::new(ty.clone()));
-    node.var = Some(add_gvar(ty, name, t.str_cnt.clone(), t.len));
+    node.var = Some(add_gvar(ty, name, Some(t.str_cnt.clone()), t.len));
     return node;
 }
 
@@ -1252,7 +1252,7 @@ fn toplevel(tokens: &Vec<Token>) {
         data.push(char::from(0));
     }
     let len = ty.size;
-    add_gvar(ty.clone(), name, data, len as usize);
+    add_gvar(ty.clone(), name, None, len as usize);
 }
 
 fn is_eof(tokens: &Vec<Token>) -> bool {
