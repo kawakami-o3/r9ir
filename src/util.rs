@@ -4,6 +4,19 @@ use crate::parse::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+thread_local! {
+    static NLABEL: RefCell<usize> = RefCell::new(1);
+}
+
+pub fn bump_nlabel() -> usize {
+    NLABEL.with(|n| {
+        let mut nlabel = n.borrow_mut();
+        let ret = *nlabel;
+        *nlabel += 1;
+        return ret;
+    })
+}
+
 pub fn first_char(s: &str) -> char {
     if s.len() == 0 {
         return '\0';

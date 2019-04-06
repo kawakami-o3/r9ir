@@ -20,17 +20,7 @@ macro_rules! emit {
 }
 
 thread_local! {
-    static NLABEL: RefCell<usize> = RefCell::new(0);
     static ESCAPED: RefCell<HashMap<char,char>> = RefCell::new(HashMap::new());
-}
-
-fn bump_nlabel() -> usize {
-    NLABEL.with(|n| {
-        let mut nlabel = n.borrow_mut();
-        let ret = *nlabel;
-        *nlabel += 1;
-        return ret;
-    })
 }
 
 pub const regs: [&'static str; 7] = ["r10", "r11", "rbx", "r12", "r13", "r14", "r15"];

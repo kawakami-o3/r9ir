@@ -29,8 +29,8 @@ thread_local! {
     static PROGRAM: RefCell<Program> = RefCell::new(new_program());
     static POS: RefCell<usize> = RefCell::new(0);
     static ENV: RefCell<Env> = RefCell::new(new_env(None));
-    static LABEL: RefCell<usize> = RefCell::new(1);
     static LVARS: RefCell<Vec<Rc<RefCell<Var>>>> = RefCell::new(Vec::new());
+    static BREAKS: RefCell<Vec<Node>> = RefCell::new(Vec::new());
 }
 
 fn init_lvars() {
@@ -48,6 +48,37 @@ fn lvars() -> Vec<Rc<RefCell<Var>>> {
 fn lvars_push(var: Rc<RefCell<Var>>) {
     LVARS.with(|p| {
         p.borrow_mut().push(var);
+    })
+}
+
+fn init_breaks() {
+    BREAKS.with(|p| {
+        *p.borrow_mut() = Vec::new();
+    })
+}
+
+fn breaks_len() -> usize {
+    BREAKS.with(|p| {
+        return p.borrow().len();
+    })
+}
+
+fn breaks_push(node: Node) {
+    BREAKS.with(|p| {
+        p.borrow_mut().push(node);
+    })
+}
+
+fn breaks_pop() -> Option<Node> {
+    BREAKS.with(|p| {
+        return p.borrow_mut().pop();
+    })
+}
+
+fn breaks_last() -> Node {
+    BREAKS.with(|p| {
+        let l = p.borrow().len(); 
+        return p.borrow()[l-1].clone();
     })
 }
 
@@ -81,14 +112,6 @@ fn dump_pos() -> usize {
     POS.with(|pos| {
         let ret = *pos.borrow();
         *pos.borrow_mut() -= 1;
-        return ret;
-    })
-}
-
-fn bump_label() -> usize {
-    LABEL.with(|s| {
-        let ret = *s.borrow();
-        *s.borrow_mut() += 1;
         return ret;
     })
 }
@@ -379,6 +402,11 @@ pub struct Node {
     pub inc: Option<Box<Node>>,
     pub body: Option<Box<Node>>,
 
+    pub break_label: usize,
+    
+    // For break
+    pub target: Option<Box<Node>>,
+
     // Function definition
     pub stacksize: i32,
     pub globals: Vec<Var>,
@@ -412,6 +440,10 @@ pub fn alloc_node() -> Node {
         inc: None,
         body: None,
 
+        break_label: 0,
+
+        target: None,
+
         stacksize: 0,
         globals: Vec::new(),
         lvars: Vec::new(),
@@ -425,12 +457,6 @@ pub fn alloc_node() -> Node {
 fn null_stmt() -> Node {
     let mut node = alloc_node();
     node.op = NodeType::NULL;
-    return node;
-}
-
-fn break_stmt() -> Node {
-    let mut node = alloc_node();
-    node.op = NodeType::BREAK;
     return node;
 }
 
@@ -618,6 +644,12 @@ pub fn new_node(op: NodeType, t: Option<Box<Token>>) -> Node {
     return node;
 }
 
+fn new_loop(op: NodeType, t: Option<Box<Token>>) -> Node {
+    let mut node = new_node(op, t);
+    node.break_label = bump_nlabel();
+    return node;
+}
+
 fn new_binop(op: NodeType, t: Option<Box<Token>>, lhs: Node, rhs: Node) -> Node {
     let mut node = new_node(op, t);
     node.lhs = Some(Box::new(lhs));
@@ -648,7 +680,7 @@ fn ident(tokens: &Vec<Token>) -> String {
 
 fn string_literal(t: & Token) -> Node {
     let ty = ary_of(char_ty(), t.str_cnt.len() as i32);
-    let name = format!(".L.str{}", bump_label()).to_string();
+    let name = format!(".L.str{}", bump_nlabel()).to_string();
 
     let mut node = new_node(NodeType::VAR, Some(Box::new(t.clone())));
     node.ty = Rc::new(RefCell::new(ty.clone()));
@@ -1098,9 +1130,10 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             return node;
         }
         TokenType::FOR => {
-            let mut node = new_node(NodeType::FOR, Some(Box::new(t.clone())));
+            let mut node = new_loop(NodeType::FOR, Some(Box::new(t.clone())));
             expect(TokenType::BRA, tokens);
             env_push();
+            breaks_push(node.clone());
 
             if is_typename(tokens) {
                 node.init = Some(Box::new(declaration(true, tokens)));
@@ -1121,31 +1154,45 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             }
 
             node.body = Some(Box::new(stmt(tokens)));
+            breaks_pop();
             env_pop();
             return node;
         }
         TokenType::WHILE => {
-            let mut node = new_node(NodeType::FOR, Some(Box::new(t.clone())));
+            let mut node = new_loop(NodeType::FOR, Some(Box::new(t.clone())));
+            breaks_push(node.clone());
+
             node.init = Some(Box::new(null_stmt()));
             node.inc = Some(Box::new(null_stmt()));
             expect(TokenType::BRA, tokens);
             node.cond = Some(Box::new(expr(tokens)));
             expect(TokenType::KET, tokens);
             node.body = Some(Box::new(stmt(tokens)));
+            
+            breaks_pop();
             return node;
         }
         TokenType::DO => {
-            let mut node = new_node(NodeType::DO_WHILE, Some(Box::new(t.clone())));
+            let mut node = new_loop(NodeType::DO_WHILE, Some(Box::new(t.clone())));
+            breaks_push(node.clone());
+
             node.body = Some(Box::new(stmt(tokens)));
             expect(TokenType::WHILE, tokens);
             expect(TokenType::BRA, tokens);
             node.cond = Some(Box::new(expr(tokens)));
             expect(TokenType::KET, tokens);
             expect(TokenType::SEMI_COLON, tokens);
+            
+            breaks_pop();
             return node;
         }
         TokenType::BREAK => {
-            return break_stmt();
+            if breaks_len() == 0 {
+                bad_token(t, "stray break".to_string());
+            }
+            let mut node =  new_node(NodeType::BREAK, Some(Box::new(t.clone())));
+            node.target = Some(Box::new(breaks_last()));
+            return node;
         }
         TokenType::RETURN => {
             let mut node = new_node(NodeType::RETURN, Some(Box::new(t.clone())));
@@ -1206,6 +1253,7 @@ fn toplevel(tokens: &Vec<Token>) {
         prog_nodes_push(node.clone());
 
         init_lvars();
+        init_breaks();
 
         node.borrow_mut().name = name.clone();
 

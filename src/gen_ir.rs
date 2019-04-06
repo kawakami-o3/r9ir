@@ -14,39 +14,18 @@
 #![allow(non_camel_case_types)]
 
 use crate::parse::*;
+use crate::util::*;
 use std::cell::RefCell;
 
 thread_local! {
     static CODE: RefCell<Vec<IR>> = RefCell::new(Vec::new());
 
     static NREG: RefCell<i32> = RefCell::new(1);
-    static NLABEL: RefCell<i32> = RefCell::new(1);
 
     static RETURN_LABEL: RefCell<i32> = RefCell::new(0);
     static RETURN_REG: RefCell<i32> = RefCell::new(0);
     static BREAK_LABEL: RefCell<i32> = RefCell::new(0);
 }
-
-//fn nlabel() -> i32 {
-//    *NLABEL.lock().unwrap()
-//}
-
-fn bump_nlabel() -> i32 {
-    NLABEL.with(|v| {
-        let ret = *v.borrow();
-        *v.borrow_mut() += 1;
-        return ret;
-    })
-}
-
-//fn set_nlabel(i: i32) {
-//    let mut nlabel = NLABEL.lock().unwrap();
-//    *nlabel = i;
-//}
-
-//fn nreg() -> i32 {
-//    *NREG.lock().unwrap()
-//}
 
 fn bump_nreg() -> i32 {
     NREG.with(|v| {
@@ -55,11 +34,6 @@ fn bump_nreg() -> i32 {
         return ret;
     })
 }
-
-//fn set_nreg(i: i32) {
-//    let mut nreg = NREG.lock().unwrap();
-//    *nreg = i;
-//}
 
 fn return_label() -> i32 {
     RETURN_LABEL.with(|v| {
@@ -81,18 +55,6 @@ fn return_reg() -> i32 {
 
 fn set_return_reg(i: i32) {
     RETURN_REG.with(|v| {
-        *v.borrow_mut() = i;
-    })
-}
-
-fn break_label() -> i32 {
-    BREAK_LABEL.with(|v| {
-        *v.borrow()
-    })
-}
-
-fn set_break_label(i: i32) {
-    BREAK_LABEL.with(|v| {
         *v.borrow_mut() = i;
     })
 }
@@ -373,7 +335,7 @@ fn gen_expr(node: Node) -> i32 {
         }
 
         NodeType::LOGAND => {
-            let x = bump_nlabel();
+            let x = bump_nlabel() as i32;
 
             let r1 = gen_expr(*node.lhs.unwrap());
             add(IRType::UNLESS, r1, x);
@@ -387,8 +349,8 @@ fn gen_expr(node: Node) -> i32 {
         }
 
         NodeType::LOGOR => {
-            let x = bump_nlabel();
-            let y = bump_nlabel();
+            let x = bump_nlabel() as i32;
+            let y = bump_nlabel() as i32;
 
             let r1 = gen_expr(*node.lhs.unwrap());
             add(IRType::UNLESS, r1, x);
@@ -453,7 +415,7 @@ fn gen_expr(node: Node) -> i32 {
         NodeType::STMT_EXPR => {
             let orig_label = return_label();
             let orig_reg = return_reg();
-            set_return_label(bump_nlabel());
+            set_return_label(bump_nlabel() as i32);
             let r = bump_nreg();
             set_return_reg(r);
 
@@ -513,8 +475,8 @@ fn gen_expr(node: Node) -> i32 {
         NodeType::POST_INC => { return gen_post_inc(&node, 1); }
         NodeType::POST_DEC => { return gen_post_inc(&node, -1); }
         NodeType::QUEST => {
-            let x = bump_nlabel();
-            let y = bump_nlabel();
+            let x = bump_nlabel() as i32;
+            let y = bump_nlabel() as i32;
             let r = gen_expr(*node.cond.unwrap());
 
             add(IRType::UNLESS, r, x);
@@ -567,8 +529,8 @@ fn gen_stmt(node: Node) {
             let cond = *node.cond.unwrap();
             let then = *node.then.unwrap();
             if node.els.is_some() {
-                let x = bump_nlabel();
-                let y = bump_nlabel();
+                let x = bump_nlabel() as i32;
+                let y = bump_nlabel() as i32;
                 let r = gen_expr(cond.clone());
                 add(IRType::UNLESS, r, x);
                 kill(r);
@@ -580,7 +542,7 @@ fn gen_stmt(node: Node) {
                 return;
             }
 
-            let x = bump_nlabel();
+            let x = bump_nlabel() as i32;
             let r = gen_expr(cond);
 
             add(IRType::UNLESS, r, x);
@@ -589,10 +551,8 @@ fn gen_stmt(node: Node) {
             label(x);
         }
         NodeType::FOR => {
-            let x = bump_nlabel();
-            let y = bump_nlabel();
-            let orig = break_label();
-            set_break_label(bump_nlabel());
+            let x = bump_nlabel() as i32;
+            let y = bump_nlabel() as i32;
 
             gen_stmt(*node.init.unwrap());
             label(x);
@@ -607,26 +567,19 @@ fn gen_stmt(node: Node) {
             }
             jmp(x);
             label(y);
-            label(break_label());
-            set_break_label(orig);
+            label(node.break_label as i32);
         }
         NodeType::DO_WHILE => {
-            let x = bump_nlabel();
-            let orig = break_label();
-            set_break_label(bump_nlabel());
+            let x = bump_nlabel() as i32;
             label(x);
             gen_stmt(*node.body.unwrap());
             let r = gen_expr(*node.cond.unwrap());
             add(IRType::IF, r, x);
             kill(r);
-            label(break_label());
-            set_break_label(orig);
+            label(node.break_label as i32);
         }
         NodeType::BREAK => {
-            if break_label() == 0 {
-                panic!("stray 'break' statement");
-            }
-            jmp(break_label());
+            jmp(node.target.unwrap().break_label as i32);
         }
         NodeType::RETURN => {
             let r = gen_expr(*node.expr.unwrap());
