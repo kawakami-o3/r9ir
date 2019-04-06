@@ -229,6 +229,7 @@ pub enum TokenType {
     DO,         // "do"
     WHILE,      // "while"
     BREAK,      // "break"
+    CONTINUE,   // "continue"
     EQ,         // ==
     NE,         // !=
     LE,         // <=
@@ -460,6 +461,7 @@ fn keyword_map() -> HashMap<String, TokenType> {
     keywords.insert("_Alignof".to_string(), TokenType::ALIGNOF);
     keywords.insert("break".to_string(), TokenType::BREAK);
     keywords.insert("char".to_string(), TokenType::CHAR);
+    keywords.insert("continue".to_string(), TokenType::CONTINUE);
     keywords.insert("do".to_string(), TokenType::DO);
     keywords.insert("else".to_string(), TokenType::ELSE);
     keywords.insert("extern".to_string(), TokenType::EXTERN);

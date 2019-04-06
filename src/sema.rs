@@ -89,7 +89,8 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool, prog: &'a mut Program) -> &'a No
     match node.op {
         NodeType::NUM |
             NodeType::NULL |
-            NodeType::BREAK => {
+            NodeType::BREAK |
+            NodeType::CONTINUE => {
             return node;
         }
         NodeType::VAR => {

@@ -552,27 +552,27 @@ fn gen_stmt(node: Node) {
         }
         NodeType::FOR => {
             let x = bump_nlabel() as i32;
-            let y = bump_nlabel() as i32;
 
             gen_stmt(*node.init.unwrap());
             label(x);
             if node.cond.is_some() {
                 let r = gen_expr(*node.cond.unwrap());
-                add(IRType::UNLESS, r, y);
+                add(IRType::UNLESS, r, node.break_label as i32);
                 kill(r);
             }
             gen_stmt(*node.body.unwrap());
+            label(node.continue_label as i32);
             if node.inc.is_some() {
                 gen_stmt(*node.inc.unwrap());
             }
             jmp(x);
-            label(y);
             label(node.break_label as i32);
         }
         NodeType::DO_WHILE => {
             let x = bump_nlabel() as i32;
             label(x);
             gen_stmt(*node.body.unwrap());
+            label(node.continue_label as i32);
             let r = gen_expr(*node.cond.unwrap());
             add(IRType::IF, r, x);
             kill(r);
@@ -580,6 +580,9 @@ fn gen_stmt(node: Node) {
         }
         NodeType::BREAK => {
             jmp(node.target.unwrap().break_label as i32);
+        }
+        NodeType::CONTINUE => {
+            jmp(node.target.unwrap().continue_label as i32);
         }
         NodeType::RETURN => {
             let r = gen_expr(*node.expr.unwrap());

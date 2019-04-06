@@ -31,6 +31,7 @@ thread_local! {
     static ENV: RefCell<Env> = RefCell::new(new_env(None));
     static LVARS: RefCell<Vec<Rc<RefCell<Var>>>> = RefCell::new(Vec::new());
     static BREAKS: RefCell<Vec<Node>> = RefCell::new(Vec::new());
+    static CONTINUES: RefCell<Vec<Node>> = RefCell::new(Vec::new());
 }
 
 fn init_lvars() {
@@ -78,6 +79,37 @@ fn breaks_pop() -> Option<Node> {
 fn breaks_last() -> Node {
     BREAKS.with(|p| {
         let l = p.borrow().len(); 
+        return p.borrow()[l-1].clone();
+    })
+}
+
+fn init_continues() {
+    CONTINUES.with(|p| {
+        *p.borrow_mut() = Vec::new();
+    })
+}
+
+fn continues_len() -> usize {
+    CONTINUES.with(|p| {
+        return p.borrow().len();
+    })
+}
+
+fn continues_push(node: Node) {
+    CONTINUES.with(|p| {
+        p.borrow_mut().push(node);
+    })
+}
+
+fn continues_pop() -> Option<Node> {
+    CONTINUES.with(|p| {
+        return p.borrow_mut().pop();
+    })
+}
+
+fn continues_last() -> Node {
+    CONTINUES.with(|p| {
+        let l = p.borrow().len();
         return p.borrow()[l-1].clone();
     })
 }
@@ -244,6 +276,7 @@ pub enum NodeType {
     FOR,       // "for"
     DO_WHILE,  // do ... while
     BREAK,     // break
+    CONTINUE,  // continue
     ADDR,      // address-of operator ("&")
     DEREF,     // pointer dereference ("*")
     DOT,       // Struct member access
@@ -403,8 +436,9 @@ pub struct Node {
     pub body: Option<Box<Node>>,
 
     pub break_label: usize,
+    pub continue_label: usize,
     
-    // For break
+    // For break and continue
     pub target: Option<Box<Node>>,
 
     // Function definition
@@ -441,6 +475,7 @@ pub fn alloc_node() -> Node {
         body: None,
 
         break_label: 0,
+        continue_label: 0,
 
         target: None,
 
@@ -647,6 +682,7 @@ pub fn new_node(op: NodeType, t: Option<Box<Token>>) -> Node {
 fn new_loop(op: NodeType, t: Option<Box<Token>>) -> Node {
     let mut node = new_node(op, t);
     node.break_label = bump_nlabel();
+    node.continue_label = bump_nlabel();
     return node;
 }
 
@@ -1134,6 +1170,7 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             expect(TokenType::BRA, tokens);
             env_push();
             breaks_push(node.clone());
+            continues_push(node.clone());
 
             if is_typename(tokens) {
                 node.init = Some(Box::new(declaration(true, tokens)));
@@ -1155,12 +1192,14 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
 
             node.body = Some(Box::new(stmt(tokens)));
             breaks_pop();
+            continues_pop();
             env_pop();
             return node;
         }
         TokenType::WHILE => {
             let mut node = new_loop(NodeType::FOR, Some(Box::new(t.clone())));
             breaks_push(node.clone());
+            continues_push(node.clone());
 
             node.init = Some(Box::new(null_stmt()));
             node.inc = Some(Box::new(null_stmt()));
@@ -1170,11 +1209,13 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             node.body = Some(Box::new(stmt(tokens)));
             
             breaks_pop();
+            continues_pop();
             return node;
         }
         TokenType::DO => {
             let mut node = new_loop(NodeType::DO_WHILE, Some(Box::new(t.clone())));
             breaks_push(node.clone());
+            continues_push(node.clone());
 
             node.body = Some(Box::new(stmt(tokens)));
             expect(TokenType::WHILE, tokens);
@@ -1184,6 +1225,7 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             expect(TokenType::SEMI_COLON, tokens);
             
             breaks_pop();
+            continues_pop();
             return node;
         }
         TokenType::BREAK => {
@@ -1192,6 +1234,17 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             }
             let mut node =  new_node(NodeType::BREAK, Some(Box::new(t.clone())));
             node.target = Some(Box::new(breaks_last()));
+            return node;
+        }
+        TokenType::CONTINUE => {
+            if continues_len() == 0 {
+                bad_token(t, "stray continue".to_string());
+            }
+            let mut node =  new_node(NodeType::CONTINUE, Some(Box::new(t.clone())));
+
+            // 9cc use the last node in 'breaks', not 'continues'.
+            node.target = Some(Box::new(continues_last()));
+
             return node;
         }
         TokenType::RETURN => {
@@ -1254,6 +1307,7 @@ fn toplevel(tokens: &Vec<Token>) {
 
         init_lvars();
         init_breaks();
+        init_continues();
 
         node.borrow_mut().name = name.clone();
 
