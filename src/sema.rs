@@ -81,7 +81,7 @@ fn walk<'a>(node: &'a mut Node, prog: &'a mut Program) -> &'a Node {
     return do_walk(node, true, prog);
 }
 
-fn walk_noconv<'a>(node: &'a mut Node, prog: &'a mut Program) -> &'a Node {
+fn walk_nodecay<'a>(node: &'a mut Node, prog: &'a mut Program) -> &'a Node {
     return do_walk(node, false, prog);
 }
 
@@ -176,7 +176,7 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool, prog: &'a mut Program) -> &'a No
         }
         NodeType::ADD_EQ |
             NodeType::SUB_EQ => {
-                node.lhs = Some(Box::new(walk(&mut *node.lhs.clone().unwrap(), prog).clone()));
+                node.lhs = Some(Box::new(walk_nodecay(&mut *node.lhs.clone().unwrap(), prog).clone()));
                 check_lval(node.lhs.clone().unwrap());
                 node.rhs = Some(Box::new(walk(&mut *node.rhs.clone().unwrap(), prog).clone()));
                 if let Some(ref lhs) = node.lhs {
@@ -200,7 +200,7 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool, prog: &'a mut Program) -> &'a No
             NodeType::BITAND_EQ |
             NodeType::XOR_EQ |
             NodeType::BITOR_EQ => {
-            node.lhs = Some(Box::new(walk(&mut *node.lhs.clone().unwrap(), prog).clone()));
+            node.lhs = Some(Box::new(walk_nodecay(&mut *node.lhs.clone().unwrap(), prog).clone()));
             check_lval(node.lhs.clone().unwrap());
 
             node.rhs = Some(Box::new(walk(&mut *node.rhs.clone().unwrap(), prog).clone()));
@@ -360,7 +360,7 @@ fn sema_funcdef(node: Rc<RefCell<Node>>, prog: &mut Program) {
 
 pub fn get_type(node: &mut Node) -> Type {
     let mut prog = new_program();
-    return walk_noconv(node, &mut prog).ty.borrow().clone();
+    return walk_nodecay(node, &mut prog).ty.borrow().clone();
 }
 
 pub fn sema(prog: &mut Program) {

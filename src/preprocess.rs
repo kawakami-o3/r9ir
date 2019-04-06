@@ -110,7 +110,7 @@ fn append(v: &mut Vec<Token>) {
     })
 }
 
-fn add(t: Token) {
+fn emit(t: Token) {
     ENV.with(|env| {
         env.borrow_mut().output.push(t);
     })
@@ -311,7 +311,7 @@ fn stringize(tmpl: & Token, tokens: Vec<Token>) -> Token {
 
 fn add_special_macro(t: & Token) -> bool {
     if is_ident(t, "__LINE__") {
-        add(new_int(t, get_line_number(t)));
+        emit(new_int(t, get_line_number(t)));
         return true;
     }
     return false;
@@ -322,7 +322,7 @@ fn apply_objlike(m: &mut Macro, _start: & Token) {
         if add_special_macro(t) {
             continue;
         }
-        add(t.clone());
+        emit(t.clone());
     }
 }
 
@@ -343,14 +343,14 @@ fn apply_functionlike(m: &mut Macro, start: & Token) {
         if t.ty == TokenType::PARAM {
             if t.stringize {
                 let j = t.val as usize;
-                add(stringize(t, args.get(&j).unwrap().clone()));
+                emit(stringize(t, args.get(&j).unwrap().clone()));
             } else {
                 let j = t.val as usize;
                 append(&mut args.get(&j).unwrap().clone());
             }
             continue;
         }
-        add(t.clone());
+        emit(t.clone());
     }
 }
 
@@ -413,14 +413,14 @@ pub fn preprocess(tokens: Vec<Token>) -> Vec<Token> {
                     apply(&mut macro_token.clone(), &t);
                 }
                 None => {
-                    add(t.clone());
+                    emit(t.clone());
                 }
             }
             continue;
         }
 
         if t.ty != TokenType::SHARP {
-            add(t.clone());
+            emit(t.clone());
             continue;
         }
 
