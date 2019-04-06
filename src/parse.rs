@@ -246,9 +246,6 @@ pub enum NodeType {
     XOR_EQ,    // ^=
     BITOR_EQ,  // |=
     RETURN,    // "return"
-    SIZEOF,    // "sizeof"
-    ALIGNOF,   // "_Alignof"
-    //TYPEOF,    // "typeof"
     CALL,      // Function call
     FUNC,      // Function definition
     COMP_STMT, // Compound statement
@@ -794,10 +791,10 @@ fn unary(tokens: &Vec<Token>) -> Node {
         return new_expr(NodeType::NOT, Some(Box::new(t.clone())), unary(tokens));
     }
     if consume(TokenType::SIZEOF, tokens) {
-        return new_expr(NodeType::SIZEOF, Some(Box::new(t.clone())), unary(tokens));
+        return new_int_node(get_type(&mut unary(tokens)).size, Some(Box::new(t.clone())));
     }
     if consume(TokenType::ALIGNOF, tokens) {
-        return new_expr(NodeType::ALIGNOF, Some(Box::new(t.clone())), unary(tokens));
+        return new_int_node(get_type(&mut unary(tokens)).align, Some(Box::new(t.clone())));
     }
 
     if consume(TokenType::INC, tokens) {

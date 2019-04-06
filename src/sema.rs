@@ -300,20 +300,6 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool, prog: &'a mut Program) -> &'a No
             node.expr = Some(Box::new(walk(&mut *node.expr.clone().unwrap(), prog).clone()));
             return node;
         }
-        NodeType::SIZEOF => {
-            let mut nexpr = *node.expr.clone().unwrap();
-            let expr = walk_noconv(&mut nexpr, prog);
-            let val = expr.ty.borrow().size;
-
-            *node = new_int_node(val, expr.token.clone());
-            return node;
-        }
-        NodeType::ALIGNOF => {
-            let mut e = node.expr.clone().unwrap();
-            let expr = walk_noconv(&mut e, prog);
-            *node = new_int_node(expr.ty.borrow().align, expr.token.clone());
-            return node;
-        }
         NodeType::CALL => {
             for i in 0..node.args.len() {
                 node.args[i] = walk(&mut node.args[i], prog).clone();
@@ -357,7 +343,7 @@ fn sema_funcdef(node: Rc<RefCell<Node>>, prog: &mut Program) {
 
 pub fn get_type(node: &mut Node) -> Type {
     let mut prog = new_program();
-    return walk(node, &mut prog).ty.borrow().clone();
+    return walk_noconv(node, &mut prog).ty.borrow().clone();
 }
 
 pub fn sema(prog: &mut Program) {
