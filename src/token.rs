@@ -127,9 +127,9 @@ fn init_symbols() {
         symbols.push(Symbol { name: "%=", ty: TokenType::MOD_EQ });
         symbols.push(Symbol { name: "+=", ty: TokenType::ADD_EQ });
         symbols.push(Symbol { name: "-=", ty: TokenType::SUB_EQ });
-        symbols.push(Symbol { name: "&=", ty: TokenType::BITAND_EQ });
+        symbols.push(Symbol { name: "&=", ty: TokenType::AND_EQ });
         symbols.push(Symbol { name: "^=", ty: TokenType::XOR_EQ });
-        symbols.push(Symbol { name: "|=", ty: TokenType::BITOR_EQ });
+        symbols.push(Symbol { name: "|=", ty: TokenType::OR_EQ });
     })
 }
 
@@ -247,9 +247,9 @@ pub enum TokenType {
     SUB_EQ,     // -=
     SHL_EQ,     // <<=
     SHR_EQ,     // >>=
-    BITAND_EQ,  // &=
+    AND_EQ,  // &=
     XOR_EQ,     // ^=
-    BITOR_EQ,   // |=
+    OR_EQ,   // |=
     RETURN,     // "return"
     SIZEOF,     // "sizeof"
     ALIGNOF,    // "_Alignof"

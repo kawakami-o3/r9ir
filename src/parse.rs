@@ -304,9 +304,9 @@ pub enum NodeType {
     SUB_EQ,    // -=
     SHL_EQ,    // <<=
     SHR_EQ,    // >>=
-    BITAND_EQ, // &=
+    AND_EQ, // &=
     XOR_EQ,    // ^=
-    BITOR_EQ,  // |=
+    OR_EQ,  // |=
     RETURN,    // "return"
     CALL,      // Function call
     FUNC,      // Function definition
@@ -445,7 +445,7 @@ pub struct Node {
     pub continue_label: usize,
     pub target: Option<Box<Node>>,
 
-    // Function call
+    // Function definition and function call
     pub args: Vec<Node>,
 
     // For error reporting
@@ -1023,12 +1023,12 @@ fn assignment_op(tokens: &Vec<Token>) -> Option<NodeType> {
         Some(NodeType::SHL_EQ)
     } else if consume(TokenType::SHR_EQ, tokens) {
         Some(NodeType::SHR_EQ)
-    } else if consume(TokenType::BITAND_EQ, tokens) {
-        Some(NodeType::BITAND_EQ)
+    } else if consume(TokenType::AND_EQ, tokens) {
+        Some(NodeType::AND_EQ)
     } else if consume(TokenType::XOR_EQ, tokens) {
         Some(NodeType::XOR_EQ)
-    } else if consume(TokenType::BITOR_EQ, tokens) {
-        Some(NodeType::BITOR_EQ)
+    } else if consume(TokenType::OR_EQ, tokens) {
+        Some(NodeType::OR_EQ)
     } else {
         None
     }

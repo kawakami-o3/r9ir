@@ -197,9 +197,9 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool, prog: &'a mut Program) -> &'a No
             NodeType::MOD_EQ |
             NodeType::SHL_EQ |
             NodeType::SHR_EQ |
-            NodeType::BITAND_EQ |
+            NodeType::AND_EQ |
             NodeType::XOR_EQ |
-            NodeType::BITOR_EQ => {
+            NodeType::OR_EQ => {
             node.lhs = Some(Box::new(walk_nodecay(&mut *node.lhs.clone().unwrap(), prog).clone()));
             check_lval(node.lhs.clone().unwrap());
 

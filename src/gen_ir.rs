@@ -295,9 +295,9 @@ fn to_assign_op(op: NodeType) -> IRType {
         NodeType::SUB_EQ => IRType::SUB,
         NodeType::SHL_EQ => IRType::SHL,
         NodeType::SHR_EQ => IRType::SHR,
-        NodeType::BITAND_EQ => IRType::AND,
+        NodeType::AND_EQ => IRType::AND,
         NodeType::XOR_EQ => IRType::XOR,
-        NodeType::BITOR_EQ => IRType::OR,
+        NodeType::OR_EQ => IRType::OR,
         _ => {
             panic!();
         }
@@ -433,9 +433,9 @@ fn gen_expr(node: Node) -> i32 {
             NodeType::SUB_EQ |
             NodeType::SHL_EQ |
             NodeType::SHR_EQ |
-            NodeType::BITAND_EQ |
+            NodeType::AND_EQ |
             NodeType::XOR_EQ |
-            NodeType::BITOR_EQ => {
+            NodeType::OR_EQ => {
                 return gen_assign_op(node);
         }
         NodeType::EQL => {
