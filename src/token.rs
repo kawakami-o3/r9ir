@@ -490,18 +490,36 @@ macro_rules! error_char {
     };
 }
 
+fn isoctal(c: char) -> bool {
+    '0' <= c && c <= '7'
+}
+
+fn hex(c: char) -> i32 {
+    match c.to_digit(16) {
+        Some(i) => i as i32,
+        None => panic!(),
+    }
+}
+
+// Read a single character in a char or string literal.
 fn c_char(t: &mut Token, p: &String, idx: usize) -> TokenInfo {
     let char_bytes = p.as_bytes();
     let mut c = char::from(char_bytes[idx]);
+    let mut len = 0;
+
+    // Nonescaped
     if c != '\\' {
         t.val = u32::from(c) as i32;
         return TokenInfo {
             token: t.clone(),
-            len: 1,
+            len: len + 1,
         };
     }
 
-    c = char::from(char_bytes[idx+1]);
+    len += 1;
+    c = char::from(char_bytes[idx+len]);
+
+    // Simple (e.g. `\n` or `\a`)
     match escaped(c) {
         Some(esc) => {
             c = esc;
@@ -509,24 +527,44 @@ fn c_char(t: &mut Token, p: &String, idx: usize) -> TokenInfo {
             t.val = u32::from(c) as i32;
             return TokenInfo {
                 token: t.clone(),
-                len: 2,
+                len: len + 1,
             };
         }
         None => { }
     }
 
-    let mut len = 1;
+    // Hexadecimal
+    if c == 'x' {
+        let mut res = 0;
+        len += 1;
+        loop {
+            c = char::from(char_bytes[idx+len]);
+            if let Some(i) = c.to_digit(16) {
+                res = res * 16 + i as i32;
+                len += 1;
+            } else {
+                break;
+            }
+        }
 
-    if '0' <= c && c <= '7' {
+        t.val = res;
+        return TokenInfo {
+            token: t.clone(),
+            len: len,
+        };
+    }
+
+    // Octal
+    if isoctal(c) {
         let mut i = c.to_digit(8).unwrap();
         len += 1;
         c = char::from(char_bytes[idx+len]);
-        if '0' <= c && c <= '7' {
+        if isoctal(c) {
             i = i * 8 + c.to_digit(8).unwrap();
             len += 1;
             c = char::from(char_bytes[idx+len]);
         }
-        if '0' <= c && c <= '7' {
+        if isoctal(c) {
             i = i * 8 + c.to_digit(8).unwrap();
             len += 1;
         }
@@ -635,19 +673,16 @@ fn hexadecimal(p: &String, idx: usize) -> TokenInfo {
         bad_token(&t, "bad hexadecimal number".to_string());
     }
 
-    loop {
-        let c = char::from((&p[ret..ret+1].as_bytes())[0]);
-        if let Some(i) = c.to_digit(16) {
-            t.val = t.val * 16 + i as i32;
-            ret += 1;
-        } else {
-            t.end = ret;
-            return TokenInfo {
-                token: t,
-                len: ret - idx,
-            };
-        }
+    while let Some(i) = char::from((&p[ret..ret+1].as_bytes())[0]).to_digit(16) {
+        t.val = t.val * 16 + i as i32;
+        ret += 1;
     }
+
+    t.end = ret;
+    return TokenInfo {
+        token: t,
+        len: ret - idx,
+    };
 }
 
 fn octal(p: &String, idx: usize) -> TokenInfo {
