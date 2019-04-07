@@ -8,7 +8,6 @@
 use crate::*;
 use crate::preprocess::*;
 use std::cell::RefCell;
-use std::cmp;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io;
@@ -440,15 +439,22 @@ pub fn get_line_number(t: &Token) -> i32 {
     return n;
 }
 
+fn startswith(s1: &String, pos: usize, s2: &str) -> bool {
+    let len = s2.len();
+    if s1.len() < pos + len {
+        false;
+    }
+    return &s1[pos..pos+len] == s2;
+}
+
 fn block_comment(p: &String, idx: usize) -> usize {
     let mut ret = idx + 2;
     while ret < p.len() {
-        if &p[ret..ret+2] != "*/" {
-            ret += 1;
-            continue;
+        if startswith(p, ret, "*/") {
+            ret += 2;
+            return ret - idx;
         }
-        ret += 2;
-        return ret - idx;
+        ret += 1;
     }
     bad_position(idx, "unclosed comment".to_string());
     panic!();
@@ -716,7 +722,7 @@ fn decimal(p: &String, idx: usize) -> TokenInfo {
 }
 
 fn number(p: &String, idx: usize) -> TokenInfo {
-    if &p[idx..idx+2].to_lowercase() == "0x" {
+    if startswith(p, idx, "0x") || startswith(p, idx, "0X") {
         return hexadecimal(p, idx);
     }
     if &p[idx..idx+1] == "0" {
@@ -752,7 +758,7 @@ fn scan() {
         }
 
         // Line comment
-        if c == '/' && char::from(char_bytes[idx+1]) == '/' {
+        if startswith(p, idx, "//") {
             while char::from(char_bytes[idx]) != '\n' {
                 idx += 1;
             }
@@ -760,7 +766,7 @@ fn scan() {
         }
 
         // Block comment
-        if &p[idx..idx+2] == "/*" {
+        if startswith(p, idx, "/*") {
             idx += block_comment(p, idx);
             continue;
         }
@@ -783,8 +789,7 @@ fn scan() {
 
         // Multi-letter symbol
         for s in symbols.iter() {
-            let bs = &char_bytes[idx..cmp::min(idx+s.name.len(), char_bytes.len())];
-            if s.name.as_bytes() != bs {
+            if !startswith(p, idx, s.name) {
                 continue;
             }
 
@@ -856,7 +861,8 @@ fn replace_crlf(p: String) -> String {
     let mut cnt = String::new();
     let mut i = 0;
     while i < p.len() {
-        if i+1 < p.len() && &p[i..i+2] == "\r\n" {
+        // TODO fix
+        if i+1 < p.len() && startswith(&p, i, "\r\n") {
             i += 1;
         }
         cnt.push_str(&p[i..i+1]);
@@ -872,19 +878,23 @@ fn remove_backslash_newline(p: String) -> String {
     let mut ret = String::new();
     let mut i = 0;
     while i < p.len() {
-        if i+1 < p.len() && &p[i..i+2] == "\\\n" {
+        if i+1 < p.len() && startswith(&p, i, "\\\n") {
             cnt += 1;
             i += 2;
-        } else if &p[i..i+1] == "\n" {
+            continue;
+        }
+
+        if &p[i..i+1] == "\n" {
             for _i in 0..cnt+1 {
                 ret.push('\n');
             }
             i += 1;
             cnt = 0;
-        } else {
-            ret.push_str(&p[i..i+1]);
-            i += 1;
+            continue;
         }
+
+        ret.push_str(&p[i..i+1]);
+        i += 1;
     }
     return ret;
 }
