@@ -324,7 +324,6 @@ pub enum CType {
     ARY,
     STRUCT,
     FUNC,
-    //TYPEOF,
 }
 
 #[derive(Clone, Debug, PartialEq)]
