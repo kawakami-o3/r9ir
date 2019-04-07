@@ -478,6 +478,7 @@ fn keyword_map() -> HashMap<String, TokenType> {
     return keywords;
 } 
 
+#[derive(Debug)]
 struct TokenInfo {
     token: Token,
     len: usize,
@@ -489,43 +490,76 @@ macro_rules! error_char {
     };
 }
 
+fn c_char(t: &mut Token, p: &String, idx: usize) -> TokenInfo {
+    let char_bytes = p.as_bytes();
+    let mut c = char::from(char_bytes[idx]);
+    if c != '\\' {
+        t.val = u32::from(c) as i32;
+        return TokenInfo {
+            token: t.clone(),
+            len: 1,
+        };
+    }
+
+    c = char::from(char_bytes[idx+1]);
+    match escaped(c) {
+        Some(esc) => {
+            c = esc;
+
+            t.val = u32::from(c) as i32;
+            return TokenInfo {
+                token: t.clone(),
+                len: 2,
+            };
+        }
+        None => { }
+    }
+
+    let mut len = 1;
+
+    if '0' <= c && c <= '7' {
+        let mut i = c.to_digit(8).unwrap();
+        len += 1;
+        c = char::from(char_bytes[idx+len]);
+        if '0' <= c && c <= '7' {
+            i = i * 8 + c.to_digit(8).unwrap();
+            len += 1;
+            c = char::from(char_bytes[idx+len]);
+        }
+        if '0' <= c && c <= '7' {
+            i = i * 8 + c.to_digit(8).unwrap();
+            len += 1;
+        }
+
+        t.val = i as i32;
+        t.end = idx + len;
+        return TokenInfo {
+            token: t.clone(),
+            len: len,
+        };
+    }
+
+    t.val = u32::from(c) as i32;
+    return TokenInfo {
+        token: t.clone(),
+        len: 2,
+    };
+}
+
 fn char_literal(p: &String, idx: usize) -> TokenInfo {
     let mut t = new_token(TokenType::NUM, idx);
     let mut len = 1;
 
-    if p.len() <= idx + len {
-        error_char!(&t);
-    }
+    let mut info = c_char(&mut t, p, idx + len);
+    len += info.len;
 
-    let char_bytes = p.as_bytes();
-    let mut c = char::from(char_bytes[idx+len]);
-    if c != '\\' {
-        len += 1;
-        t.val = u32::from(c) as i32;
-    } else {
-        if p.len() <= idx + len + 1 {
-            error_char!(&t);
-        }
-        c = char::from(char_bytes[idx+len+1]);
-        match escaped(c) {
-            Some(esc) => {
-                c = esc;
-            }
-            None => { }
-        }
-        len += 2;
-        t.val = u32::from(c) as i32;
-    }
-    
-    if char::from(char_bytes[idx+len]) != '\'' {
+    if &p[idx+len..idx+len+1] != "\'" {
         error_char!(&t);
     }
     len += 1;
-    t.end = idx + len;
-    return TokenInfo {
-        token: t,
-        len: len,
-    };
+    info.len = len;
+    info.token.end = idx + info.len;
+    return info;
 }
 
 macro_rules! error_str {
