@@ -366,7 +366,7 @@ pub fn sema(prog: &mut Program) {
         node.borrow_mut().body = Some(Box::new(walk(&mut body, prog).clone()));
 
         let mut off = 0;
-        for v in node.borrow_mut().lvars.iter_mut() {
+        for v in func.lvars.iter_mut() {
             off = roundup(off, v.borrow().ty.align);
             off += v.borrow().ty.size;
             v.borrow_mut().offset = off;

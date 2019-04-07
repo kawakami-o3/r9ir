@@ -626,8 +626,6 @@ pub fn gen_ir(prog: &mut Program) {
             store_arg(&arg, var.borrow().offset, i as i32);
         }
         gen_stmt(*node.body.clone().unwrap());
-
-        func.stacksize = node.stacksize;
         func.ir = CODE.with(|code| code.borrow().clone());
     }
 }

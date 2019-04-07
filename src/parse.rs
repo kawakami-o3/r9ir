@@ -151,9 +151,10 @@ fn dump_pos() -> usize {
 #[derive(Clone, Debug)]
 pub struct Function {
     pub name: String,
-    pub stacksize: i32,
     pub node: Rc<RefCell<Node>>,
+    pub lvars: Vec<Rc<RefCell<Var>>>,
     pub ir: Vec<IR>,
+    pub stacksize: i32,
 }
 
 #[derive(Clone, Debug)]
@@ -424,10 +425,14 @@ pub struct Node {
     pub stmts: Vec<Node>,        // Compound statemtn
 
     pub name: String,
+
+    // For NodeType::VAR
     pub var: Option<Rc<RefCell<Var>>>,
 
-    // "if" (cond) then "else els
-    // "for" (init; cond; inc) body
+    // "if" ( cond ) then "else els
+    // "for" ( init; cond; inc ) body
+    // "while" ( cond ) body
+    // "do" body "while" ( cond )
     pub cond: Option<Box<Node>>,
     pub then: Option<Box<Node>>,
     pub els: Option<Box<Node>>,
@@ -435,17 +440,11 @@ pub struct Node {
     pub inc: Option<Box<Node>>,
     pub body: Option<Box<Node>>,
 
+    // For break and continue
     pub break_label: usize,
     pub continue_label: usize,
-    
-    // For break and continue
     pub target: Option<Box<Node>>,
 
-    // Function definition
-    pub stacksize: i32,
-    pub globals: Vec<Var>,
-    pub lvars: Vec<Rc<RefCell<Var>>>,
-    
     // Function call
     pub args: Vec<Node>,
 
@@ -478,10 +477,6 @@ pub fn alloc_node() -> Node {
         continue_label: 0,
 
         target: None,
-
-        stacksize: 0,
-        globals: Vec::new(),
-        lvars: Vec::new(),
 
         args: Vec::new(),
 
@@ -1288,15 +1283,6 @@ pub fn compound_stmt(tokens: &Vec<Token>) -> Node {
     return node;
 }
 
-fn new_function(node: Rc<RefCell<Node>>, name: String) -> Function {
-    Function {
-        name: name,
-        node: node,
-        ir: Vec::new(),
-        stacksize: 0,
-    }
-}
-
 fn toplevel(tokens: &Vec<Token>) {
     let is_typedef = consume(TokenType::TYPEDEF, tokens);
     let is_extern = consume(TokenType::EXTERN, tokens);
@@ -1339,8 +1325,6 @@ fn toplevel(tokens: &Vec<Token>) {
             return;
         }
 
-        prog_funcs_push(new_function(node.clone(), name.clone()));
-
         node.borrow_mut().op = NodeType::FUNC;
         let t = &tokens[pos()];
         expect(TokenType::C_BRA, tokens);
@@ -1348,7 +1332,14 @@ fn toplevel(tokens: &Vec<Token>) {
             bad_token(t, format!("typedef has function definition"));
         }
         node.borrow_mut().body = Some(Box::new(compound_stmt(tokens)));
-        node.borrow_mut().lvars = lvars();
+
+        prog_funcs_push(Function {
+            name: name,
+            node: node,
+            lvars: lvars(),
+            ir: Vec::new(),
+            stacksize: 0,
+        });
         return;
     }
 
