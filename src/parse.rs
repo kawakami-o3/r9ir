@@ -120,9 +120,9 @@ fn prog_gvars_push(var: Rc<RefCell<Var>>) {
     })
 }
 
-fn prog_nodes_push(node: Rc<RefCell<Node>>) {
+fn prog_funcs_push(func: Function) {
     PROGRAM.with(|p| {
-        p.borrow_mut().nodes.push(node);
+        p.borrow_mut().funcs.push(func);
     })
 }
 
@@ -149,16 +149,22 @@ fn dump_pos() -> usize {
 }
 
 #[derive(Clone, Debug)]
+pub struct Function {
+    pub name: String,
+    pub stacksize: i32,
+    pub node: Rc<RefCell<Node>>,
+    pub ir: Vec<IR>,
+}
+
+#[derive(Clone, Debug)]
 pub struct Program {
     pub gvars: Vec<Rc<RefCell<Var>>>,
-    pub nodes: Vec<Rc<RefCell<Node>>>,
-    pub funcs: Vec<IR>,
+    pub funcs: Vec<Function>,
 }
 
 pub fn new_program() -> Program {
     Program {
         gvars: Vec::new(),
-        nodes: Vec::new(),
         funcs: Vec::new(),
     }
 }
@@ -341,9 +347,6 @@ pub struct Type {
 
     // Function
     pub returning: Option<Box<Type>>,
-
-    // Typeof
-    pub node: Option<Box<Node>>,
 }
 
 impl Type {
@@ -380,7 +383,6 @@ pub fn alloc_type() -> Type {
         members: None,
         offset: 0,
         returning: None,
-        node: None,
     } 
 }
 
@@ -1287,6 +1289,15 @@ pub fn compound_stmt(tokens: &Vec<Token>) -> Node {
     return node;
 }
 
+fn new_function(node: Rc<RefCell<Node>>, name: String) -> Function {
+    Function {
+        name: name,
+        node: node,
+        ir: Vec::new(),
+        stacksize: 0,
+    }
+}
+
 fn toplevel(tokens: &Vec<Token>) {
     let is_typedef = consume(TokenType::TYPEDEF, tokens);
     let is_extern = consume(TokenType::EXTERN, tokens);
@@ -1302,7 +1313,6 @@ fn toplevel(tokens: &Vec<Token>) {
     if consume(TokenType::BRA, tokens) {
         let t = &tokens[pos()];
         let node = Rc::new(RefCell::new(new_node(NodeType::DECL, Some(Box::new(t.clone())))));
-        prog_nodes_push(node.clone());
 
         init_lvars();
         init_breaks();
@@ -1324,11 +1334,13 @@ fn toplevel(tokens: &Vec<Token>) {
         }
 
         let ty = node.borrow().ty.clone();
-        add_lvar(ty.borrow().clone(), name);
+        add_lvar(ty.borrow().clone(), name.clone());
 
         if consume(TokenType::SEMI_COLON, tokens) {
             return;
         }
+
+        prog_funcs_push(new_function(node.clone(), name.clone()));
 
         node.borrow_mut().op = NodeType::FUNC;
         let t = &tokens[pos()];

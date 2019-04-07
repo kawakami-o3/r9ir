@@ -608,7 +608,8 @@ fn gen_stmt(node: Node) {
 }
 
 pub fn gen_ir(prog: &mut Program) {
-    for n in prog.nodes.iter() {
+    for func in prog.funcs.iter_mut() {
+        let n = func.node.clone();
         let node = n.borrow();
 
         if node.op == NodeType::VARDEF || node.op == NodeType::DECL {
@@ -626,12 +627,7 @@ pub fn gen_ir(prog: &mut Program) {
         }
         gen_stmt(*node.body.clone().unwrap());
 
-        let mut fun = alloc_ir();
-        fun.name = node.name.clone();
-        fun.stacksize = node.stacksize;
-        fun.ir = CODE.with(|code| code.borrow().clone());
-        fun.globals = node.globals.clone();
-
-        prog.funcs.push(fun);
+        func.stacksize = node.stacksize;
+        func.ir = CODE.with(|code| code.borrow().clone());
     }
 }

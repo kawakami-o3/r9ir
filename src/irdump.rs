@@ -1,6 +1,7 @@
 #![allow(dead_code, non_camel_case_types)]
 
 use crate::gen_ir::*;
+use crate::parse::*;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
@@ -122,7 +123,7 @@ pub fn tostr(ir: IR) -> String {
     })
 }
 
-pub fn dump_ir(irv: Vec<IR>) {
+pub fn dump_ir(irv: Vec<Function>) {
     init_irinfo();
 
     for i in 0..irv.len() {

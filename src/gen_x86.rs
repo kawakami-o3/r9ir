@@ -111,7 +111,7 @@ fn argreg(r: usize, size: i32) -> &'static str {
     }
 }
 
-fn gen(fun: &IR) {
+fn gen(fun: &Function) {
     let ret = format!(".Lend{}", bump_nlabel());
 
     println!(".global {}", fun.name);

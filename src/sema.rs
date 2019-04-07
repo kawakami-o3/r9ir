@@ -340,40 +340,39 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool, prog: &'a mut Program) -> &'a No
     }
 }
 
-fn sema_funcdef(node: Rc<RefCell<Node>>, prog: &mut Program) {
-    let mut args = Vec::new();
-    for a in node.borrow_mut().args.iter_mut() {
-        args.push(walk(&mut a.clone(), prog).clone());
-    }
-    node.borrow_mut().args = args;
-    let mut body = node.borrow_mut().body.clone().unwrap();
-    node.borrow_mut().body = Some(Box::new(walk(&mut body, prog).clone()));
-
-    let mut off = 0;
-    for v in node.borrow_mut().lvars.iter_mut() {
-        off = roundup(off, v.borrow().ty.align);
-        off += v.borrow().ty.size;
-        v.borrow_mut().offset = off;
-    }
-    node.borrow_mut().stacksize = off;
-}
-
 pub fn get_type(node: &mut Node) -> Type {
     let mut prog = new_program();
     return walk_nodecay(node, &mut prog).ty.borrow().clone();
 }
 
 pub fn sema(prog: &mut Program) {
-    let nodes = prog.nodes.clone();
+    let mut funcs = prog.funcs.clone();
 
-    for node in nodes.iter() {
+    for func in funcs.iter_mut() {
+        let node = func.node.clone();
         if node.borrow().op == NodeType::DECL {
             continue;
         }
 
         assert!(node.borrow().op == NodeType::FUNC);
-        sema_funcdef(node.clone(), prog);
+
+        let mut args = Vec::new();
+        for a in node.borrow_mut().args.iter_mut() {
+            args.push(walk(&mut a.clone(), prog).clone());
+        }
+        node.borrow_mut().args = args;
+
+        let mut body = node.borrow_mut().body.clone().unwrap();
+        node.borrow_mut().body = Some(Box::new(walk(&mut body, prog).clone()));
+
+        let mut off = 0;
+        for v in node.borrow_mut().lvars.iter_mut() {
+            off = roundup(off, v.borrow().ty.align);
+            off += v.borrow().ty.size;
+            v.borrow_mut().offset = off;
+        }
+        func.stacksize = off;
     }
 
-    prog.nodes = nodes;
+    prog.funcs = funcs;
 }

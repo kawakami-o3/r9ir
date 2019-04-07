@@ -94,8 +94,8 @@ fn main() {
     let prog = &mut parse(&tokens);
     //eprintln!("nodes> {:?}", nodes);
     if dump_node {
-        for i in prog.nodes.iter() {
-            print_node(i.borrow().clone(), 0);
+        for i in prog.funcs.iter() {
+            print_node(i.node.borrow().clone(), 0);
         }
         return;
     }
