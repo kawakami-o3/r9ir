@@ -228,7 +228,7 @@ fn replace_macro_params(m: &mut Macro) {
     m.tokens = tokens;
 }
 
-// Process '#' followed by a macro parameter.
+// Replaces '#' followed by a macro parameter.
 fn replace_hash_ident(m: &mut Macro) {
     let tokens = m.tokens.clone();
     let mut v = Vec::new();
