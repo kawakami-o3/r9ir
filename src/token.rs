@@ -532,7 +532,6 @@ fn c_char(t: &mut Token, p: &String, idx: usize) -> TokenInfo {
         }
 
         t.val = i as i32;
-        t.end = idx + len;
         return TokenInfo {
             token: t.clone(),
             len: len,
@@ -576,24 +575,11 @@ fn string_literal(p: &String, idx: usize) -> TokenInfo {
 
     let char_bytes = p.as_bytes();
     while (idx+len) < p.len() && char::from(char_bytes[idx+len]) != '"' {
-        let mut c = char::from(char_bytes[idx+len]);
-
-        if c != '\\' {
-            ret.push(c);
-            len += 1;
-            continue;
-        }
-
-        len += 1;
-        c = char::from(char_bytes[idx+len]);
-        if c == '\0' {
-            error_str!(&t);
-        }
-        match escaped(c) {
-            Some(esc) => ret.push(esc),
-            None => ret.push(c),
-        }
-        len += 1;
+        let mut t = new_token(TokenType::NUM, idx);
+        let info = c_char(&mut t, p, idx + len);
+        let c = char::from(info.token.val as u8);
+        ret.push(c);
+        len += info.len;
     }
     if (idx+len) >= p.len() {
         error_str!(&t);
