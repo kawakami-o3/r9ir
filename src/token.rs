@@ -799,7 +799,7 @@ fn scan() {
     }
 }
 
-fn canonicalize_newline(p: String) -> String {
+fn replace_crlf(p: String) -> String {
     let mut cnt = String::new();
     let mut i = 0;
     while i < p.len() {
@@ -875,7 +875,7 @@ pub fn tokenize(path: String, add_eof: bool) -> Vec<Token> {
 
     let mut fp = open_file(path.clone());
     let mut buf = read_file(&mut fp);
-    buf = canonicalize_newline(buf);
+    buf = replace_crlf(buf);
     buf = remove_backslash_newline(buf);
 
     set_env(new_env(None, path, buf));
