@@ -162,7 +162,6 @@ fn escaped(c: char) -> Option<char> {
 struct Env {
     path: String,
     buf: String,
-    pos: i32,
     tokens: Vec<Token>,
     next: Option<Box<Env>>,
 }
@@ -172,7 +171,6 @@ impl Env {
         Env {
             path: String::new(),
             buf: String::new(),
-            pos: 0,
             tokens: Vec::new(),
             next: None,
         }
