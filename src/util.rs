@@ -59,6 +59,10 @@ pub fn void_ty() -> Type {
     return new_prim_ty(CType::VOID, 0);
 }
 
+pub fn bool_ty() -> Type {
+    return new_prim_ty(CType::BOOL, 1);
+}
+
 pub fn char_ty() -> Type {
     return new_prim_ty(CType::CHAR, 1);
 }

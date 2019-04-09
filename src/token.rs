@@ -220,6 +220,7 @@ pub enum TokenType {
     CHAR,       // "char"
     VOID,       // "void"
     STRUCT,     // "struct"
+    BOOL,       // "_Bool"
     IF,         // "if"
     ELSE,       // "else"
     FOR,        // "for"
@@ -463,6 +464,7 @@ fn block_comment(p: &String, idx: usize) -> usize {
 fn keyword_map() -> HashMap<String, TokenType> {
     let mut keywords = HashMap::new();
     keywords.insert("_Alignof".to_string(), TokenType::ALIGNOF);
+    keywords.insert("_Bool".to_string(), TokenType::BOOL);
     keywords.insert("break".to_string(), TokenType::BREAK);
     keywords.insert("char".to_string(), TokenType::CHAR);
     keywords.insert("continue".to_string(), TokenType::CONTINUE);

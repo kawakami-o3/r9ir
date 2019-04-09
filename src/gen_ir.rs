@@ -376,8 +376,20 @@ fn gen_expr(node: Node) -> i32 {
         }
 
         NodeType::DEREF => {
-            let r = gen_expr(*node.clone().expr.unwrap());
+            let r = gen_expr(*node.expr.clone().unwrap());
             load(&node, r, r);
+            return r;
+        }
+
+        NodeType::CAST => {
+            let r = gen_expr(*node.expr.clone().unwrap());
+            if node.ty.borrow().ty != CType::BOOL {
+                return r;
+            }
+            let r2 = bump_nreg();
+            add(IRType::IMM, r2, 0);
+            add(IRType::NE, r, r2);
+            kill(r2);
             return r;
         }
 

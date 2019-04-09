@@ -279,6 +279,7 @@ pub enum NodeType {
     DECL,      // declaration
     VARDEF,    // Variable definition
     VAR,       // Variable reference
+    CAST,      // Cast
     IF,        // "if"
     FOR,       // "for"
     DO_WHILE,  // do ... while
@@ -318,9 +319,10 @@ pub enum NodeType {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum CType {
-    INT,
-    CHAR,
     VOID,
+    BOOL,
+    CHAR,
+    INT,
     PTR,
     ARY,
     STRUCT,
@@ -562,7 +564,8 @@ fn is_typename(tokens: &Vec<Token>) -> bool {
         t.ty == TokenType::CHAR ||
         t.ty == TokenType::VOID ||
         t.ty == TokenType::STRUCT ||
-        t.ty == TokenType::TYPEOF;
+        t.ty == TokenType::TYPEOF ||
+        t.ty == TokenType::BOOL;
 }
 
 fn decl_specifiers(tokens: &Vec<Token>) -> Type {
@@ -575,14 +578,17 @@ fn decl_specifiers(tokens: &Vec<Token>) -> Type {
             }
             return ty.unwrap();
         }
-        TokenType::INT => {
-            return int_ty();
+        TokenType::VOID => {
+            return void_ty();
+        }
+        TokenType::BOOL => {
+            return bool_ty();
         }
         TokenType::CHAR => {
             return char_ty();
         }
-        TokenType::VOID => {
-            return void_ty();
+        TokenType::INT => {
+            return int_ty();
         }
         TokenType::TYPEOF => {
             expect(TokenType::BRA, tokens);

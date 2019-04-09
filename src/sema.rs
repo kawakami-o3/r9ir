@@ -9,6 +9,9 @@
 //   Recall that, in C, "array of T" is automatically converted to
 //   "pointer to T" in most contexts.
 //
+// - Insert nodes for implicit cast so that they are explicitly
+//   represented in AST.
+//
 // - Scales operands for pointer arithmetic. E.g. ptr+1 becomes ptr+4
 //   for integer and becomes ptr+8 for pointer.
 //
@@ -61,6 +64,15 @@ fn scale_ptr(op: NodeType, base: Node, ty: Type) -> Node {
     let ptr = ty.ptr_to.unwrap();
     node.rhs = Some(Box::new(new_int_node(ptr.borrow().size, base.token.clone())));
     node.token = base.token.clone();
+    return node;
+}
+
+fn cast(base: Node, ty: Type) -> Node {
+    let mut node = alloc_node();
+    node.op = NodeType::CAST;
+    node.ty = Rc::new(RefCell::new(ty));
+    node.expr = Some(Box::new(base.clone()));
+    node.token = base.token;
     return node;
 }
 
@@ -197,8 +209,18 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool, prog: &'a mut Program) -> &'a No
                 return node;
         }
 
-        NodeType::EQL |
-            NodeType::MUL_EQ |
+        NodeType::EQL => {
+            node.lhs = Some(Box::new(walk_nodecay(&mut *node.lhs.clone().unwrap(), prog).clone()));
+            check_lval(node.lhs.clone().unwrap());
+            node.rhs = Some(Box::new(walk(&mut *node.rhs.clone().unwrap(), prog).clone()));
+            let lty = node.lhs.clone().unwrap().ty;
+            if lty.borrow().ty == CType::BOOL {
+                node.rhs = Some(Box::new(cast(*node.rhs.clone().unwrap(), bool_ty())));
+            }
+            node.ty = node.lhs.clone().unwrap().ty;
+            return node;
+        }
+        NodeType::MUL_EQ |
             NodeType::DIV_EQ |
             NodeType::MOD_EQ |
             NodeType::SHL_EQ |
