@@ -19,11 +19,7 @@ use std::cell::RefCell;
 
 thread_local! {
     static CODE: RefCell<Vec<IR>> = RefCell::new(Vec::new());
-
     static NREG: RefCell<i32> = RefCell::new(1);
-
-    static RETURN_LABEL: RefCell<i32> = RefCell::new(0);
-    static RETURN_REG: RefCell<i32> = RefCell::new(0);
     static BREAK_LABEL: RefCell<i32> = RefCell::new(0);
 }
 
@@ -32,30 +28,6 @@ fn bump_nreg() -> i32 {
         let ret = *v.borrow();
         *v.borrow_mut() += 1;
         return ret;
-    })
-}
-
-fn return_label() -> i32 {
-    RETURN_LABEL.with(|v| {
-        *v.borrow()
-    })
-}
-
-fn set_return_label(i: i32) {
-    RETURN_LABEL.with(|v| {
-        *v.borrow_mut() = i;
-    })
-}
-
-fn return_reg() -> i32 {
-    RETURN_REG.with(|v| {
-        *v.borrow()
-    })
-}
-
-fn set_return_reg(i: i32) {
-    RETURN_REG.with(|v| {
-        *v.borrow_mut() = i;
     })
 }
 
@@ -412,17 +384,18 @@ fn gen_expr(node: Node) -> i32 {
         }
 
         NodeType::STMT_EXPR => {
-            let orig_label = return_label();
-            let orig_reg = return_reg();
-            set_return_label(bump_nlabel() as i32);
+            let stmts = node.body.clone().unwrap().stmts;
+            for i in 0..stmts.len()-1 {
+                gen_stmt(stmts[i].clone());
+            }
+
+            let last = stmts[stmts.len()-1].clone();
+            if last.op == NodeType::EXPR_STMT {
+                return gen_expr(*last.expr.clone().unwrap());
+            }
+
             let r = bump_nreg();
-            set_return_reg(r);
-
-            gen_stmt(*node.body.clone().unwrap());
-            label(return_label());
-
-            set_return_label(orig_label);
-            set_return_reg(orig_reg);
+            add(IRType::IMM, r, 0);
             return r;
         }
 
@@ -580,14 +553,6 @@ fn gen_stmt(node: Node) {
         }
         NodeType::RETURN => {
             let r = gen_expr(*node.expr.unwrap());
-
-            // Statement expression (GNU extension)
-            if return_label() != 0 {
-                add(IRType::MOV, return_reg(), r);
-                kill(r);
-                jmp(return_label());
-                return;
-            }
 
             add(IRType::RETURN, r, -1);
             kill(r);

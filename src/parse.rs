@@ -552,7 +552,7 @@ fn new_prim_ty(ty: CType, size: i32) -> Type {
     return ret;
 }
 
-fn void_ty() -> Type {
+pub fn void_ty() -> Type {
     return new_prim_ty(CType::VOID, 0);
 }
 

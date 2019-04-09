@@ -331,7 +331,13 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool, prog: &'a mut Program) -> &'a No
         }
         NodeType::STMT_EXPR => {
             node.body = Some(Box::new(walk(&mut *node.body.clone().unwrap(), prog).clone()));
-            node.ty = Rc::new(RefCell::new(int_ty()));
+            let stmts = node.body.clone().unwrap().stmts;
+            if stmts.len() > 0 {
+                let last = stmts[stmts.len()-1].clone();
+                node.ty = last.ty;
+            } else {
+                node.ty = Rc::new(RefCell::new(void_ty()));
+            }
             return node;
         }
         _ => {
