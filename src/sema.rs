@@ -50,7 +50,7 @@ macro_rules! bad_node {
 
 fn check_lval(node: Box<Node>) {
     match node.op {
-        NodeType::VAR | NodeType::DEREF | NodeType::DOT => { }
+        NodeType::VARREF | NodeType::DEREF | NodeType::DOT => { }
         _ => {
             bad_node!(node, "not an lvalue");
         }
@@ -99,7 +99,7 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool, prog: &'a mut Program) -> &'a No
             NodeType::CONTINUE => {
             return node;
         }
-        NodeType::VAR => {
+        NodeType::VARREF => {
             return maybe_decay(node, decay);
         }
         NodeType::VARDEF => {

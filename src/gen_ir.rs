@@ -208,7 +208,7 @@ fn gen_lval(node: Node) -> i32 {
         return r;
     }
 
-    assert!(node.op == NodeType::VAR);
+    assert!(node.op == NodeType::VARREF);
     let var = node.var.unwrap();
 
     let r = bump_nreg();
@@ -336,7 +336,7 @@ fn gen_expr(node: Node) -> i32 {
             return r1
         }
 
-        NodeType::VAR |
+        NodeType::VARREF |
             NodeType::DOT => {
             let r = gen_lval(node.clone());
             load(&node, r, r);

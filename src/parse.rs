@@ -278,7 +278,7 @@ pub enum NodeType {
     //STRUCT,    // Struct
     DECL,      // declaration
     VARDEF,    // Variable definition
-    VAR,       // Variable reference
+    VARREF,    // Variable reference
     CAST,      // Cast
     IF,        // "if"
     FOR,       // "for"
@@ -428,7 +428,7 @@ pub struct Node {
 
     pub name: String,
 
-    // For NodeType::VAR
+    // For NodeType::VARREF
     pub var: Option<Rc<RefCell<Var>>>,
 
     // "if" ( cond ) then "else els
@@ -693,7 +693,7 @@ fn string_literal(t: & Token) -> Node {
     let ty = ary_of(char_ty(), t.str_cnt.len() as i32);
     let name = format!(".L.str{}", bump_nlabel()).to_string();
 
-    let mut node = new_node(NodeType::VAR, Some(Box::new(t.clone())));
+    let mut node = new_node(NodeType::VARREF, Some(Box::new(t.clone())));
     node.ty = Rc::new(RefCell::new(ty.clone()));
     node.var = Some(add_gvar(ty, name, Some(t.str_cnt.clone()), t.len));
     return node;
@@ -704,7 +704,7 @@ fn local_variable(t: & Token) -> Node {
     if var.is_none() {
         bad_token(t, "undefined variable".to_string());
     }
-    let mut node = new_node(NodeType::VAR, Some(Box::new(t.clone())));
+    let mut node = new_node(NodeType::VARREF, Some(Box::new(t.clone())));
     let v = var.clone().unwrap();
     node.ty = Rc::new(RefCell::new(v.borrow().ty.clone()));
     node.name = t.name.clone();
