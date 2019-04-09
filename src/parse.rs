@@ -609,7 +609,7 @@ fn decl_specifiers(tokens: &Vec<Token>) -> Type {
             if consume(TokenType::C_BRA, tokens) {
                 let mut ms = Vec::new();
                 while !consume(TokenType::C_KET, tokens) {
-                    ms.push(declaration(false, tokens));
+                    ms.push(declaration_type(tokens));
                 }
                 members = Some(ms);
             }
@@ -1091,15 +1091,36 @@ fn declarator(ty: Rc<RefCell<Type>>, tokens: &Vec<Token>) -> Node {
     return direct_decl(t, tokens);
 }
 
-fn declaration(define: bool, tokens: &Vec<Token>) -> Node {
+fn declaration_type(tokens: &Vec<Token>) -> Node {
+    let ty = decl_specifiers(tokens);
+    let node = declarator(Rc::new(RefCell::new(ty)), tokens);
+    expect(TokenType::SEMI_COLON, tokens);
+    return node;
+}
+
+fn declaration(tokens: &Vec<Token>) -> Node {
     let ty = decl_specifiers(tokens);
     let mut node = declarator(Rc::new(RefCell::new(ty)), tokens);
     expect(TokenType::SEMI_COLON, tokens);
-    if define {
-        node.var = Some(add_lvar(node.ty.borrow().clone(), node.name.clone()));
+    let var = add_lvar(node.ty.borrow().clone(), node.name);
+
+    if node.init.is_none() {
+        return null_stmt();
     }
-    return node;
+
+    // Convert `T var = init` to `T var; var = init`.
+    let t = node.token;
+    let mut lhs = new_node(NodeType::VARREF, t.clone());
+    lhs.ty = Rc::new(RefCell::new(var.borrow().ty.clone()));
+    lhs.var = Some(var);
+
+    let rhs = *node.init.clone().unwrap();
+    node.init = None;
+
+    let expr = new_binop(NodeType::EQL, t.clone(), lhs, rhs);
+    return new_expr(NodeType::EXPR_STMT, t, expr);
 }
+
 
 fn param_declaration(tokens: &Vec<Token>) -> Node {
     let ty = decl_specifiers(tokens);
@@ -1124,7 +1145,7 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
 
     match t.ty {
         TokenType::TYPEDEF => {
-            let node = declaration(false, tokens);
+            let node = declaration_type(tokens);
             assert!(node.name.len()>0);
             env_typedefs_put(node.name, node.ty.borrow().clone());
             return null_stmt();
@@ -1148,7 +1169,7 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             continues_push(node.clone());
 
             if is_typename(tokens) {
-                node.init = Some(Box::new(declaration(true, tokens)));
+                node.init = Some(Box::new(declaration(tokens)));
             } else if consume(TokenType::SEMI_COLON, tokens) {
                 node.init = Some(Box::new(null_stmt()));
             } else {
@@ -1243,7 +1264,7 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
         _ => {
             dump_pos();
             if is_typename(tokens) {
-                return declaration(true, tokens);
+                return declaration(tokens);
             }
             return expr_stmt(tokens);
         }

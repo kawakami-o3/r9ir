@@ -96,20 +96,12 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool, prog: &'a mut Program) -> &'a No
         NodeType::NUM |
             NodeType::NULL |
             NodeType::BREAK |
-            NodeType::CONTINUE => {
+            NodeType::CONTINUE |
+            NodeType::VARDEF => {
             return node;
         }
         NodeType::VARREF => {
             return maybe_decay(node, decay);
-        }
-        NodeType::VARDEF => {
-            match node.init {
-                Some(_) => {
-                    node.init = Some(Box::new(walk(&mut *node.init.clone().unwrap(), prog).clone()));
-                }
-                None => { }
-            }
-            return node;
         }
         NodeType::IF => {
             node.cond = Some(Box::new(walk(&mut *node.cond.clone().unwrap(), prog).clone()));

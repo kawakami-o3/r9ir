@@ -478,19 +478,6 @@ fn gen_stmt(node: Node) {
     }
 
     match node.op {
-        NodeType::VARDEF => {
-            if node.init.is_none() {
-                return;
-            }
-
-            let rhs = gen_expr(*node.init.clone().unwrap());
-            let lhs = bump_nreg();
-            let var = node.var.clone().unwrap();
-            add(IRType::BPREL, lhs, var.borrow().offset);
-            store(&node, lhs, rhs);
-            kill(lhs);
-            kill(rhs);
-        }
         NodeType::IF => {
             let cond = *node.cond.unwrap();
             let then = *node.then.unwrap();
@@ -576,7 +563,7 @@ pub fn gen_ir(prog: &mut Program) {
         let n = func.node.clone();
         let node = n.borrow();
 
-        if node.op == NodeType::VARDEF || node.op == NodeType::DECL {
+        if node.op == NodeType::DECL {
             continue;
         }
 
