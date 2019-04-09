@@ -211,18 +211,16 @@ fn gen_lval(node: Node) -> i32 {
     assert!(node.op == NodeType::VAR);
     let var = node.var.unwrap();
 
-    if var.borrow().is_local {
-        let r = bump_nreg();
-        add(IRType::BPREL, r, var.borrow().offset);
-        return r;
-    }
-
     let r = bump_nreg();
-    let ir_idx = add(IRType::LABEL_ADDR, r, -1);
-    CODE.with(|c| {
-        let code = &mut *c.borrow_mut();
-        code[ir_idx].name = var.borrow().name.clone();
-    });
+    if var.borrow().is_local {
+        add(IRType::BPREL, r, var.borrow().offset);
+    } else {
+        let ir_idx = add(IRType::LABEL_ADDR, r, -1);
+        CODE.with(|c| {
+            let code = &mut *c.borrow_mut();
+            code[ir_idx].name = var.borrow().name.clone();
+        });
+    }
     return r;
 }
 

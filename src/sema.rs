@@ -18,12 +18,7 @@ use crate::parse::*;
 use crate::token::*;
 use crate::util::*;
 use std::cell::RefCell;
-use std::mem;
 use std::rc::Rc;
-
-fn swap(p: &mut Node, q: &mut Node) {
-    mem::swap(p, q);
-}
 
 fn maybe_decay(base: & mut Node, decay: bool) -> & mut Node {
     if !decay || base.ty.borrow().ty != CType::ARY {
@@ -137,7 +132,11 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool, prog: &'a mut Program) -> &'a No
             match (&mut node.lhs, &mut node.rhs) {
                 (Some(ref mut lhs), Some(ref mut rhs)) => {
                     if rhs.ty.borrow().ty == CType::PTR {
-                        swap(lhs, rhs);
+                        //use std::mem;
+                        //mem::swap(lhs, rhs);
+                        let n = lhs.clone();
+                        *lhs = rhs.clone();
+                        *rhs = n;
                     }
                 }
                 _ => {}
