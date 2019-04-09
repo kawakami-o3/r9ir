@@ -149,12 +149,12 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool, prog: &'a mut Program) -> &'a No
             if let Some(ref lhs) = node.lhs {
                 if lhs.ty.borrow().ty == CType::PTR {
                     node.rhs = Some(Box::new(scale_ptr(NodeType::MUL, *node.rhs.clone().unwrap(), lhs.ty.borrow().clone())));
+                    node.ty = node.lhs.clone().unwrap().ty;
+                } else {
+                    node.ty = Rc::new(RefCell::new(int_ty()));
                 }
             }
 
-            if let Some(ref lhs) = node.lhs {
-                node.ty = lhs.ty.clone();
-            }
             return node;
         }
         NodeType::SUB => {
