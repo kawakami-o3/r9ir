@@ -77,10 +77,9 @@ fn cast(base: Node, ty: Type) -> Node {
 }
 
 fn check_int(node: & Node) {
-    if node.ty.borrow().ty != CType::INT {
-        if node.ty.borrow().ty != CType::CHAR {
-            bad_node!(node, "not an integer");
-        }
+    let ty = node.ty.borrow();
+    if ty.ty != CType::INT && ty.ty != CType::CHAR && ty.ty != CType::BOOL {
+        bad_node!(node, "not an integer");
     }
 }
 
