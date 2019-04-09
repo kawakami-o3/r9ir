@@ -161,13 +161,17 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool, prog: &'a mut Program) -> &'a No
             node.lhs = Some(Box::new(walk(&mut *node.lhs.clone().unwrap(), prog).clone()));
             node.rhs = Some(Box::new(walk(&mut *node.rhs.clone().unwrap(), prog).clone()));
 
-            let l = &node.rhs.clone().unwrap().ty;
-            let r = &node.lhs.clone().unwrap().ty;
-            if l.borrow().ty == CType::PTR && r.borrow().ty == CType::PTR {
-                if !same_type(r.clone(), l.clone()) {
+            let lty = &node.rhs.clone().unwrap().ty;
+            let rty = &node.lhs.clone().unwrap().ty;
+
+            if lty.borrow().ty == CType::PTR && rty.borrow().ty == CType::PTR {
+                if !same_type(rty.clone(), lty.clone()) {
                     bad_node!(node, "incompatible pointer");
                 }
-                *node = scale_ptr(NodeType::DIV, node.clone(), l.borrow().clone());
+                *node = scale_ptr(NodeType::DIV, node.clone(), lty.borrow().clone());
+                node.ty = lty.clone();
+            } else {
+                node.ty = Rc::new(RefCell::new(int_ty()));
             }
 
             node.ty = node.lhs.clone().unwrap().ty;
@@ -185,6 +189,9 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool, prog: &'a mut Program) -> &'a No
                 if let Some(ref lhs) = node.lhs {
                     if lhs.ty.borrow().ty == CType::PTR {
                         node.rhs = Some(Box::new(scale_ptr(NodeType::MUL, *node.rhs.clone().unwrap(), lhs.ty.borrow().clone())));
+                        node.ty = lhs.ty.clone();
+                    } else {
+                        node.ty = Rc::new(RefCell::new(int_ty()));
                     }
                 }
                 return node;
@@ -278,7 +285,7 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool, prog: &'a mut Program) -> &'a No
         NodeType::EXCLAM | NodeType::NOT => {
             node.expr = Some(Box::new(walk(&mut *node.expr.clone().unwrap(), prog).clone()));
             check_int(&*node.expr.clone().unwrap());
-            node.ty = node.expr.clone().unwrap().ty;
+            node.ty = Rc::new(RefCell::new(int_ty()));
             return node;
         }
         NodeType::ADDR => {
