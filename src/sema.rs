@@ -329,14 +329,20 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool, prog: &'a mut Program) -> &'a No
             return node;
         }
         NodeType::STMT_EXPR => {
-            node.body = Some(Box::new(walk(&mut *node.body.clone().unwrap(), prog).clone()));
-            let stmts = node.body.clone().unwrap().stmts;
-            if stmts.len() > 0 {
-                let last = stmts[stmts.len()-1].clone();
-                node.ty = last.ty;
-            } else {
-                node.ty = Rc::new(RefCell::new(void_ty()));
+            let mut body = walk(&mut *node.body.clone().unwrap(), prog).clone();
+
+            if body.stmts.len() == 0 {
+                bad_node!(node, "empty statement expression");
             }
+
+            let n = body.stmts.pop().unwrap();
+            if n.op != NodeType::EXPR_STMT {
+                bad_node!(node, "statement expression returning void");
+            }
+
+            node.body = Some(Box::new(body));
+            node.expr = n.expr.clone();
+            node.ty = n.expr.clone().unwrap().ty;
             return node;
         }
         _ => {

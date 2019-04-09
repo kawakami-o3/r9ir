@@ -382,19 +382,8 @@ fn gen_expr(node: Node) -> i32 {
         }
 
         NodeType::STMT_EXPR => {
-            let stmts = node.body.clone().unwrap().stmts;
-            for i in 0..stmts.len()-1 {
-                gen_stmt(stmts[i].clone());
-            }
-
-            let last = stmts[stmts.len()-1].clone();
-            if last.op == NodeType::EXPR_STMT {
-                return gen_expr(*last.expr.clone().unwrap());
-            }
-
-            let r = bump_nreg();
-            add(IRType::IMM, r, 0);
-            return r;
+            gen_stmt(*node.body.unwrap());
+            return gen_expr(*node.expr.unwrap());
         }
 
         NodeType::MUL_EQ |
