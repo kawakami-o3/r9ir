@@ -47,6 +47,32 @@ pub fn ary_of(base: Type, len: i32) -> Type {
     return ty;
 }
 
+fn new_prim_ty(ty: CType, size: i32) -> Type {
+    let mut ret = alloc_type();
+    ret.ty = ty;
+    ret.size = size;
+    ret.align = size;
+    return ret;
+}
+
+pub fn void_ty() -> Type {
+    return new_prim_ty(CType::VOID, 0);
+}
+
+pub fn char_ty() -> Type {
+    return new_prim_ty(CType::CHAR, 1);
+}
+
+pub fn int_ty() -> Type {
+    return new_prim_ty(CType::INT, 4);
+}
+
+pub fn func_ty(base: Type) -> Type {
+    let mut ty = alloc_type();
+    ty.returning = Some(Box::new(base));
+    return ty;
+}
+
 pub fn same_type(x: Rc<RefCell<Type>>, y: Rc<RefCell<Type>>) -> bool {
     if x.borrow().ty != y.borrow().ty {
         return false;

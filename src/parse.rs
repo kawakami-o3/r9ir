@@ -544,32 +544,6 @@ fn expect(ty: TokenType, tokens: &Vec<Token>) {
     bad_token(t, format!("'while' expected"));
 }
 
-fn new_prim_ty(ty: CType, size: i32) -> Type {
-    let mut ret = alloc_type();
-    ret.ty = ty;
-    ret.size = size;
-    ret.align = size;
-    return ret;
-}
-
-pub fn void_ty() -> Type {
-    return new_prim_ty(CType::VOID, 0);
-}
-
-fn char_ty() -> Type {
-    return new_prim_ty(CType::CHAR, 1);
-}
-
-pub fn int_ty() -> Type {
-    return new_prim_ty(CType::INT, 4);
-}
-
-fn func_ty(base: Type) -> Type {
-    let mut ty = alloc_type();
-    ty.returning = Some(Box::new(base));
-    return ty;
-}
-
 fn consume(ty: TokenType, tokens: &Vec<Token>) -> bool {
     let t = &tokens[pos()];
     if t.ty != ty {
