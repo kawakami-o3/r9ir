@@ -733,15 +733,12 @@ fn function_call(t: & Token, tokens: &Vec<Token>) -> Node {
         node.ty = Rc::new(RefCell::new(func_ty(int_ty())));
     }
 
-    if consume(TokenType::KET, tokens) {
-        return node;
-    }
-
-    node.args.push(assign(tokens));
-    while consume(TokenType::COMMA, tokens) {
+    while !consume(TokenType::KET, tokens) {
+        if node.args.len() > 0 {
+            expect(TokenType::COMMA, tokens);
+        }
         node.args.push(assign(tokens));
     }
-    expect(TokenType::KET, tokens);
     return node;
 }
 
@@ -1298,27 +1295,30 @@ fn toplevel(tokens: &Vec<Token>) {
 
     // Function
     if consume(TokenType::BRA, tokens) {
+        // initialize here for 9cc compatibility.
+        init_lvars();
+
+        let mut params = Vec::new();
+        while !consume(TokenType::KET, tokens) {
+            if params.len() > 0 {
+                expect(TokenType::COMMA, tokens);
+            }
+            params.push(param_declaration(tokens));
+        }
+
         let t = &tokens[pos()];
         let node = Rc::new(RefCell::new(new_node(NodeType::DECL, Some(Box::new(t.clone())))));
 
-        init_lvars();
         init_breaks();
         init_continues();
 
         node.borrow_mut().name = name.clone();
+        node.borrow_mut().params = params;
 
         let mut node_ty = alloc_type();
         node_ty.ty = CType::FUNC;
         node_ty.returning = Some(Box::new(ty));
         node.borrow_mut().ty = Rc::new(RefCell::new(node_ty));
-
-        if !consume(TokenType::KET, tokens) {
-            node.borrow_mut().params.push(param_declaration(tokens));
-            while consume(TokenType::COMMA, tokens) {
-                node.borrow_mut().params.push(param_declaration(tokens));
-            }
-            expect(TokenType::KET, tokens);
-        }
 
         let ty = node.borrow().ty.clone();
         add_lvar(ty.borrow().clone(), name.clone());

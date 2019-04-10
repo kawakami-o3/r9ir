@@ -366,9 +366,10 @@ fn apply(m: &mut Macro, start: & Token) {
 fn define_funclike(name: String) {
     new_macro(MacroType::FUNCLIKE, name.clone());
     let mut m = macros_get(&name).unwrap();
-    m.params.push(ident("parameter name expected".to_string()));
     while !consume(TokenType::KET) {
-        get(TokenType::COMMA, "comma expected".to_string());
+        if m.params.len() > 0 {
+            get(TokenType::COMMA, ", expected".to_string());
+        }
         m.params.push(ident("parameter name expected".to_string()));
     }
     m.tokens = read_until_eol();
