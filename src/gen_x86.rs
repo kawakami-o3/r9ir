@@ -281,10 +281,6 @@ fn emit_code(fun: &Function) {
 }
 
 fn emit_data(var: & Var) {
-    if var.ty.is_extern {
-        return;
-    }
-
     if var.data.is_some() {
         let data = backslash_escape(&var.data.clone().unwrap());
         println!(".data");

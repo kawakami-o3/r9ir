@@ -335,7 +335,6 @@ pub struct Type {
     pub ty: CType,
     pub size: i32,   // sizeof
     pub align: i32,  // alignof
-    pub is_extern: bool,
 
     // Pointer
     pub ptr_to: Option<Rc<RefCell<Type>>>,
@@ -379,7 +378,6 @@ pub fn alloc_type() -> Type {
         ty: CType::INT,
         size: 0,
         align: 0,
-        is_extern: false,
         ptr_to: None,
         ary_of: None,
         len: 0,
@@ -523,14 +521,16 @@ fn add_lvar(ty: Type, name: String) -> Rc<RefCell<Var>> {
     return v;
 }
 
-fn add_gvar(ty: Type, name: String, data: Option<String>) -> Rc<RefCell<Var>> {
+fn add_gvar(ty: Type, name: String, data: Option<String>, is_extern: bool) -> Rc<RefCell<Var>> {
     let mut var = alloc_var();
     var.ty = ty;
     var.name = name.clone();
     var.data = data;
     let v = Rc::new(RefCell::new(var));
     env_vars_put(name, v.clone());
-    prog_gvars_push(v.clone());
+    if !is_extern {
+        prog_gvars_push(v.clone());
+    }
     return v;
 }
 
@@ -693,7 +693,7 @@ fn string_literal(t: & Token) -> Node {
 
     let mut node = new_node(NodeType::VARREF, Some(Box::new(t.clone())));
     node.ty = Rc::new(RefCell::new(ty.clone()));
-    node.var = Some(add_gvar(ty, name, Some(t.str_cnt.clone())));
+    node.var = Some(add_gvar(ty, name, Some(t.str_cnt.clone()), false));
     return node;
 }
 
@@ -1342,12 +1342,7 @@ fn toplevel(tokens: &Vec<Token>) {
     }
 
     // Global variable
-    ty.is_extern = is_extern;
-    let mut data = String::new();
-    for _i in 0..ty.size {
-        data.push(char::from(0));
-    }
-    add_gvar(ty.clone(), name, None);
+    add_gvar(ty.clone(), name, None, is_extern);
 }
 
 fn is_eof(tokens: &Vec<Token>) -> bool {
