@@ -1168,9 +1168,7 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
 
             if is_typename(tokens) {
                 node.init = Some(Box::new(declaration(tokens)));
-            } else if consume(TokenType::SEMI_COLON, tokens) {
-                node.init = Some(Box::new(null_stmt()));
-            } else {
+            } else if !consume(TokenType::SEMI_COLON, tokens) {
                 node.init = Some(Box::new(expr_stmt(tokens)));
             }
 
@@ -1180,7 +1178,7 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             }
 
             if !consume(TokenType::KET, tokens) {
-                node.inc = Some(Box::new(new_expr(NodeType::EXPR_STMT, Some(Box::new(t.clone())), expr(tokens))));
+                node.inc = Some(Box::new(expr(tokens)));
                 expect(TokenType::KET, tokens);
             }
 
@@ -1195,8 +1193,6 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             breaks_push(node.clone());
             continues_push(node.clone());
 
-            node.init = Some(Box::new(null_stmt()));
-            node.inc = Some(Box::new(null_stmt()));
             expect(TokenType::BRA, tokens);
             node.cond = Some(Box::new(expr(tokens)));
             expect(TokenType::KET, tokens);

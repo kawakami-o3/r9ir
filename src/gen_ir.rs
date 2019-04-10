@@ -456,8 +456,8 @@ fn gen_expr(node: Node) -> i32 {
             kill(rhs);
             return lhs;
         }
-        _ => {
-            panic!("unknown AST type {:?}", node);
+        t => {
+            panic!("unknown AST type {:?}", t);
         }
     }
 }
@@ -496,7 +496,9 @@ fn gen_stmt(node: Node) {
         NodeType::FOR => {
             let x = bump_nlabel() as i32;
 
-            gen_stmt(*node.init.unwrap());
+            if node.init.is_some() {
+                gen_stmt(*node.init.unwrap());
+            }
             label(x);
             if node.cond.is_some() {
                 let r = gen_expr(*node.cond.unwrap());
@@ -506,7 +508,7 @@ fn gen_stmt(node: Node) {
             gen_stmt(*node.body.unwrap());
             label(node.continue_label as i32);
             if node.inc.is_some() {
-                gen_stmt(*node.inc.unwrap());
+                kill(gen_expr(*node.inc.unwrap()));
             }
             jmp(x);
             label(node.break_label as i32);
@@ -542,8 +544,8 @@ fn gen_stmt(node: Node) {
                 gen_stmt(n);
             }
         }
-        _ => {
-            panic!("unknown node: {:?}", node.ty);
+        t => {
+            panic!("unknown node: {:?}", t);
         }
     }
 }

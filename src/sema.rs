@@ -112,7 +112,9 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool, prog: &'a mut Program) -> &'a No
             return node;
         }
         NodeType::FOR => {
-            node.init = Some(Box::new(walk(&mut *node.init.clone().unwrap(), prog).clone()));
+            if node.init.is_some() {
+                node.init = Some(Box::new(walk(&mut *node.init.clone().unwrap(), prog).clone()));
+            }
             if let Some(mut cond) = node.cond.clone() {
                 node.cond = Some(Box::new(walk(&mut cond, prog).clone()));
             }
