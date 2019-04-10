@@ -541,19 +541,13 @@ fn gen_stmt(node: Node) {
 
 pub fn gen_ir(prog: &mut Program) {
     for func in prog.funcs.iter_mut() {
-        let n = func.node.clone();
-        let node = n.borrow();
-
-        if node.op == NodeType::DECL {
-            continue;
-        }
-
-        assert!(node.op == NodeType::FUNC);
-
         init_code();
+        
+        assert!(func.node.borrow().op == NodeType::FUNC);
 
-        for i in 0..node.params.len() {
-            let var = &node.params[i];
+        let len = func.node.borrow().params.len();
+        for i in 0..len {
+            let var = &func.node.borrow().params[i];
             let ir_idx = add(IRType::STORE_ARG, var.borrow().offset, i as i32);
 
             CODE.with(|c| {
@@ -562,7 +556,8 @@ pub fn gen_ir(prog: &mut Program) {
                 ir.size = var.borrow().ty.size;
             });
         }
-        gen_stmt(*node.body.clone().unwrap());
+
+        gen_stmt(*func.node.borrow().body.clone().unwrap());
         func.ir = CODE.with(|code| code.borrow().clone());
     }
 }
