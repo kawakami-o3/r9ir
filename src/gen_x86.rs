@@ -192,11 +192,7 @@ fn emit_code(fun: &Function) {
                 emit!("or {}, {}", regs[lhs as usize], regs[rhs as usize]);
             }
             IRType::XOR => {
-                if ir.is_imm {
-                    emit!("xor {}, {}", regs[lhs as usize], rhs);
-                } else {
-                    emit!("xor {}, {}", regs[lhs as usize], regs[rhs as usize]);
-                }
+                emit!("xor {}, {}", regs[lhs as usize], regs[rhs as usize]);
             }
             IRType::SHL => {
                 emit!("mov cl, {}", regs8[rhs as usize]);
@@ -230,33 +226,13 @@ fn emit_code(fun: &Function) {
                 emit!("mov [rbp{}], {}", lhs, argreg(rhs as usize, ir.size));
             }
             IRType::ADD => {
-                if ir.is_imm {
-                    emit!("add {}, {}", regs[lhs as usize], rhs);
-                } else {
-                    emit!("add {}, {}", regs[lhs as usize], regs[rhs as usize]);
-                }
+                emit!("add {}, {}", regs[lhs as usize], regs[rhs as usize]);
             }
             IRType::SUB => {
-                if ir.is_imm {
-                    emit!("sub {}, {}", regs[lhs as usize], rhs);
-                } else {
-                    emit!("sub {}, {}", regs[lhs as usize], regs[rhs as usize]);
-                }
+                emit!("sub {}, {}", regs[lhs as usize], regs[rhs as usize]);
             }
             IRType::MUL => loop {
-                if !ir.is_imm {
-                    emit!("mov rax, {}", regs[rhs as usize]);
-                    emit!("imul {}", regs[lhs as usize]);
-                    emit!("mov {}, rax", regs[lhs as usize]);
-                    break;
-                }
-
-                if rhs < 256 && rhs.count_ones() == 1 {
-                    emit!("shl {}, {}", regs[lhs as usize], rhs.trailing_zeros());
-                    break;
-                }
-
-                emit!("mov rax, {}", rhs);
+                emit!("mov rax, {}", regs[rhs as usize]);
                 emit!("imul {}", regs[lhs as usize]);
                 emit!("mov {}, rax", regs[lhs as usize]);
                 break;

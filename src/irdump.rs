@@ -92,11 +92,7 @@ pub fn tostr(ir: IR) -> String {
         let info = irinfo.get(&ir.op).unwrap();
 
         match info.ty {
-            IRInfoType::BINARY => if ir.is_imm {
-                format!("  {} r{}, {}", info.name, ir.lhs, ir.rhs)
-            }else {
-                format!("  {} r{}, r{}", info.name, ir.lhs, ir.rhs)
-            },
+            IRInfoType::BINARY => format!("  {} r{}, r{}", info.name, ir.lhs, ir.rhs),
             IRInfoType::LABEL => format!(".L{}:", ir.lhs),
             IRInfoType::LABEL_ADDR => format!("  {} r{}, {}", info.name, ir.lhs, ir.name),
             IRInfoType::IMM => format!("  {} {}", ir.name, ir.lhs),

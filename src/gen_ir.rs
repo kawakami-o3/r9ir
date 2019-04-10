@@ -90,9 +90,6 @@ pub struct IR {
     // Load/store size in bytes
     pub size: i32,
 
-    // For binary operator. If true, rhs is an immediate.
-    pub is_imm: bool,
-
     // Function call
     pub name: String,
     pub nargs: usize,
@@ -111,8 +108,6 @@ fn alloc_ir() -> IR {
         rhs: 0,
 
         size: 0,
-
-        is_imm: false,
 
         name: String::new(),
         nargs: 0,
@@ -134,18 +129,6 @@ fn add(op: IRType, lhs: i32, rhs: i32) -> usize {
         (*code.borrow_mut()).push(ir);
         return code.borrow().len() - 1;
     });
-}
-
-fn add_imm(op: IRType, lhs: i32, rhs: i32) -> usize {
-    let ir_idx = add(op, lhs, rhs);
-
-    CODE.with(|c| {
-        let code = &mut *c.borrow_mut();
-        let ir = &mut code[ir_idx];
-        ir.is_imm = true;
-    });
-
-    return ir_idx;
 }
 
 fn kill(r: i32) {
@@ -180,6 +163,13 @@ fn store(node: & Node, dst: i32, src: i32) {
     });
 }
 
+fn gen_imm(op: IRType, r: i32, imm: i32) {
+    let r2 = bump_nreg();
+    add(IRType::IMM, r2, imm);
+    add(op, r, r2);
+    kill(r2);
+}
+
 // In C, all expressions that can be written on the left-hand side of
 // the '=' operator must have an address in memory. In other words, if
 // you can apply the '&' operator to take an address of some
@@ -204,7 +194,7 @@ fn gen_lval(node: Node) -> i32 {
 
     if node.op == NodeType::DOT {
         let r = gen_lval(*node.expr.unwrap());
-        add_imm(IRType::ADD, r, node.ty.borrow().offset);
+        gen_imm(IRType::ADD, r, node.ty.borrow().offset);
         return r;
     }
 
@@ -244,7 +234,7 @@ fn gen_pre_inc(node: & Node, num: i32) -> i32 {
     let addr = gen_lval(*node.expr.clone().unwrap());
     let val = bump_nreg();
     load(&node, val, addr);
-    add_imm(IRType::ADD, val, num * get_inc_scale(&node));
+    gen_imm(IRType::ADD, val, num * get_inc_scale(&node));
     store(&node, addr, val);
     kill(addr);
     return val;
@@ -252,7 +242,7 @@ fn gen_pre_inc(node: & Node, num: i32) -> i32 {
 
 fn gen_post_inc(node: & Node, num: i32) -> i32 {
     let val = gen_pre_inc(&node, num);
-    add_imm(IRType::SUB, val, num * get_inc_scale(&node));
+    gen_imm(IRType::SUB, val, num * get_inc_scale(&node));
     return val;
 }
 
@@ -431,7 +421,7 @@ fn gen_expr(node: Node) -> i32 {
         NodeType::SHR => { return gen_binop(IRType::SHR, node); }
         NodeType::NOT => {
             let r = gen_expr(*node.expr.unwrap());
-            add_imm(IRType::XOR, r, -1);
+            gen_imm(IRType::XOR, r, -1);
             return r;
         }
         NodeType::COMMA => {
