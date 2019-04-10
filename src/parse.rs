@@ -1248,13 +1248,7 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             return node;
         }
         TokenType::C_BRA => {
-            env_push();
-            let mut node = new_node(NodeType::COMP_STMT, Some(Box::new(t.clone())));
-            while !consume(TokenType::C_KET, tokens) {
-                node.stmts.push(stmt(tokens));
-            }
-            env_pop();
-            return node;
+            return compound_stmt(tokens);
         }
         TokenType::SEMI_COLON => {
             return null_stmt();
