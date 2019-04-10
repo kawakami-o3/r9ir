@@ -96,8 +96,7 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool, prog: &'a mut Program) -> &'a No
         NodeType::NUM |
             NodeType::NULL |
             NodeType::BREAK |
-            NodeType::CONTINUE |
-            NodeType::VARDEF => {
+            NodeType::CONTINUE => {
             return node;
         }
         NodeType::VARREF => {
@@ -323,7 +322,6 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool, prog: &'a mut Program) -> &'a No
                 None => {}
             }
 
-
             let ty_tmp = node.expr.clone().unwrap().ty;
             node.ty = ty_tmp.borrow().clone().ptr_to.unwrap();
             return maybe_decay(node, decay);
@@ -385,12 +383,6 @@ pub fn sema(prog: &mut Program) {
         }
 
         assert!(node.borrow().op == NodeType::FUNC);
-
-        let mut args = Vec::new();
-        for a in node.borrow_mut().args.iter_mut() {
-            args.push(walk(&mut a.clone(), prog).clone());
-        }
-        node.borrow_mut().args = args;
 
         let mut body = node.borrow_mut().body.clone().unwrap();
         node.borrow_mut().body = Some(Box::new(walk(&mut body, prog).clone()));

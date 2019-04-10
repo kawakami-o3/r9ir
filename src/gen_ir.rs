@@ -170,16 +170,6 @@ fn store(node: & Node, dst: i32, src: i32) {
     });
 }
 
-fn store_arg(node: & Node, bpoff: i32, argreg: i32) {
-    let ir_idx = add(IRType::STORE_ARG, bpoff, argreg);
-
-    CODE.with(|c| {
-        let code = &mut *c.borrow_mut();
-        let ir = &mut code[ir_idx];
-        ir.size = node.ty.borrow().size;
-    });
-}
-
 // In C, all expressions that can be written on the left-hand side of
 // the '=' operator must have an address in memory. In other words, if
 // you can apply the '&' operator to take an address of some
@@ -571,10 +561,15 @@ pub fn gen_ir(prog: &mut Program) {
 
         init_code();
 
-        for i in 0..node.args.len() {
-            let arg = &node.args[i];
-            let var = arg.var.clone().unwrap();
-            store_arg(&arg, var.borrow().offset, i as i32);
+        for i in 0..node.params.len() {
+            let var = &node.params[i];
+            let ir_idx = add(IRType::STORE_ARG, var.borrow().offset, i as i32);
+
+            CODE.with(|c| {
+                let code = &mut *c.borrow_mut();
+                let ir = &mut code[ir_idx];
+                ir.size = var.borrow().ty.size;
+            });
         }
         gen_stmt(*node.body.clone().unwrap());
         func.ir = CODE.with(|code| code.borrow().clone());

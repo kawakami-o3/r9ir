@@ -355,15 +355,20 @@ pub struct Type {
 impl Type {
     fn fix_struct_offsets(&mut self) {
         let mut off = 0;
-        for t2 in self.members.clone().unwrap().values() {
-            off = roundup(off, t2.borrow().align);
-            t2.borrow_mut().offset = off;
-            off += t2.borrow().size;
+        match self.members {
+            Some(ref ms) => {
+                for t2 in ms.values() {
+                    off = roundup(off, t2.borrow().align);
+                    t2.borrow_mut().offset = off;
+                    off += t2.borrow().size;
 
-            let align = t2.borrow().align;
-            if self.align < align {
-                self.align = align;
+                    let align = t2.borrow().align;
+                    if self.align < align {
+                        self.align = align;
+                    }
+                }
             }
+            None => {}
         }
         self.size = roundup(off, self.align);
     }
@@ -387,13 +392,13 @@ pub fn alloc_type() -> Type {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Var {
     pub ty: Type,
+    pub name: String,
     pub is_local: bool,
 
     // local
     pub offset: i32,
 
     // global
-    pub name: String,
     pub data: Option<String>,
     pub len: usize,
 }
@@ -443,7 +448,10 @@ pub struct Node {
     pub continue_label: usize,
     pub target: Option<Box<Node>>,
 
-    // Function definition and function call
+    // Function definition
+    pub params: Vec<Rc<RefCell<Var>>>,
+
+    // Function call
     pub args: Vec<Node>,
 
     // For error reporting
@@ -476,6 +484,7 @@ pub fn alloc_node() -> Node {
 
         target: None,
 
+        params: Vec::new(),
         args: Vec::new(),
 
         token: None,
@@ -1114,15 +1123,15 @@ fn declaration(tokens: &Vec<Token>) -> Node {
 }
 
 
-fn param_declaration(tokens: &Vec<Token>) -> Node {
-    let ty = decl_specifiers(tokens);
-    let mut node = declarator(Rc::new(RefCell::new(ty)), tokens);
-    if node.ty.borrow().ty == CType::ARY {
-        let tmp = Rc::new(RefCell::new(*node.ty.borrow().ary_of.clone().unwrap()));
-        node.ty = Rc::new(RefCell::new(ptr_to(tmp)));
+fn param_declaration(tokens: &Vec<Token>) -> Rc<RefCell<Var>> {
+    let mut ty = decl_specifiers(tokens);
+    let node = declarator(Rc::new(RefCell::new(ty)), tokens);
+    ty = node.ty.borrow().clone();
+    if ty.ty == CType::ARY {
+        let ary_of = ty.clone().ary_of;
+        ty = ptr_to(Rc::new(RefCell::new(*ary_of.clone().unwrap())));
     }
-    node.var = Some(add_lvar(node.ty.borrow().clone(), node.name.clone()));
-    return node;
+    return add_lvar(ty, node.name);
 }
 
 fn expr_stmt(tokens: &Vec<Token>) -> Node {
@@ -1304,9 +1313,9 @@ fn toplevel(tokens: &Vec<Token>) {
         node.borrow_mut().ty = Rc::new(RefCell::new(node_ty));
 
         if !consume(TokenType::KET, tokens) {
-            node.borrow_mut().args.push(param_declaration(tokens));
+            node.borrow_mut().params.push(param_declaration(tokens));
             while consume(TokenType::COMMA, tokens) {
-                node.borrow_mut().args.push(param_declaration(tokens));
+                node.borrow_mut().params.push(param_declaration(tokens));
             }
             expect(TokenType::KET, tokens);
         }
