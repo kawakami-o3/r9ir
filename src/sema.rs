@@ -238,15 +238,14 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool, prog: &'a mut Program) -> &'a No
                 bad_node!(node, format!("incomplete type: {:?}", node.expr));
             }
 
-            for m in ty.borrow().clone().members.unwrap().iter() {
-                if m.name != node.name {
-                    continue;
-                }
-
-                node.ty = m.ty.clone();
-                return maybe_decay(node, decay);
+            let members = ty.borrow().members.clone().unwrap();
+            let node_ty = members.get(&node.name);
+            if node_ty.is_none() {
+                bad_node!(node, format!("member missing: {}", node.name));
             }
-            bad_node!(node, format!("member missing: {}", node.name));
+
+            node.ty = node_ty.unwrap().clone();
+            return maybe_decay(node, decay);
         }
         NodeType::QUEST => {
             node.cond = Some(Box::new(walk(&mut *node.cond.clone().unwrap(), prog).clone()));

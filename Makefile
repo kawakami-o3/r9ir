@@ -35,6 +35,6 @@ dump-ir2:
 
 clean:
 	cargo clean
-	rm -f tmp-test
+	rm -f tmp-test1 tmp-test2
 
 .PHONY: all build test clean

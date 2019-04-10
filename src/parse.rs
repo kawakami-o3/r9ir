@@ -23,6 +23,7 @@ use crate::sema::*;
 use crate::util::*;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::rc::Rc;
 
 thread_local! {
@@ -344,7 +345,7 @@ pub struct Type {
     pub len: i32,
 
     // Struct
-    pub members: Option<Vec<Node>>,
+    pub members: Option<BTreeMap<String, Rc<RefCell<Type>>>>,
     pub offset: i32,
 
     // Function
@@ -352,23 +353,18 @@ pub struct Type {
 }
 
 impl Type {
-    fn add_members(&mut self, members: Vec<Node>) {
+    fn fix_struct_offsets(&mut self) {
         let mut off = 0;
-        let mut ms = members.clone();
-        for node in ms.iter_mut() {
-            assert!(node.op == NodeType::VARDEF);
+        for t2 in self.members.clone().unwrap().values() {
+            off = roundup(off, t2.borrow().align);
+            t2.borrow_mut().offset = off;
+            off += t2.borrow().size;
 
-            let node_align = node.ty.borrow().align;
-            off = roundup(off, node.ty.borrow().align);
-            node.ty.borrow_mut().offset = off;
-            off += node.ty.borrow().size;
-
-            if self.align < node_align {
-                self.align = node_align;
+            let align = t2.borrow().align;
+            if self.align < align {
+                self.align = align;
             }
         }
-
-        self.members = Some(ms.clone());
         self.size = roundup(off, self.align);
     }
 }
@@ -597,30 +593,14 @@ fn decl_specifiers(tokens: &Vec<Token>) -> Type {
             return get_type(&mut node);
         }
         TokenType::STRUCT => {
-
-            let mut tag: Option<String> = None;
             let t = &tokens[pos()];
+            let mut ty: Option<Type> = None;
+            let mut tag: Option<String> = None;
+
             if t.ty == TokenType::IDENT {
                 bump_pos();
                 tag = Some(t.name.clone());
-            }
-
-            let mut members: Option<Vec<Node>> = None;
-            if consume(TokenType::C_BRA, tokens) {
-                let mut ms = Vec::new();
-                while !consume(TokenType::C_KET, tokens) {
-                    ms.push(declaration_type(tokens));
-                }
-                members = Some(ms);
-            }
-
-            if tag.is_none() && members.is_none() {
-                bad_token(t, "bad struct definition".to_string());
-            }
-
-            let mut ty: Option<Type> = None;
-            if tag.is_some() && members.is_none() {
-                ty = find_tag(&tag.clone().unwrap());
+                ty = find_tag(&t.name);
             }
 
             if ty.is_none() {
@@ -629,15 +609,27 @@ fn decl_specifiers(tokens: &Vec<Token>) -> Type {
                 ty = Some(ty_tmp);
             }
 
-            if members.is_some() {
+            if consume(TokenType::C_BRA, tokens) {
                 let mut ty_tmp = ty.clone().unwrap();
-                ty_tmp.add_members(members.unwrap());
-                if tag.is_some() {
-                    env_tags_put(tag.unwrap(), ty_tmp.clone());
+                let mut members = BTreeMap::new();
+                while !consume(TokenType::C_KET, tokens) {
+                    let node = declaration_type(tokens);
+                    members.insert(node.name, node.ty);
                 }
-
-                ty = Some(ty_tmp.clone());
+                ty_tmp.members = Some(members);
+                ty_tmp.fix_struct_offsets();
+                ty = Some(ty_tmp);
             }
+
+            if tag.is_none() && ty.clone().unwrap().members.is_none() {
+                bad_token(t, "bad struct definition".to_string());
+            }
+
+            if tag.is_some() {
+                let ty_tmp = ty.clone().unwrap();
+                env_tags_put(tag.unwrap(), ty_tmp.clone());
+            }
+
             return ty.unwrap();
         }
         _ => {
