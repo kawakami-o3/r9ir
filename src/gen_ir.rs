@@ -119,7 +119,7 @@ fn alloc_ir() -> IR {
     };
 }
 
-fn add(op: IRType, lhs: i32, rhs: i32) -> usize {
+fn emit(op: IRType, lhs: i32, rhs: i32) -> usize {
     let mut ir = alloc_ir();
     ir.op = op;
     ir.lhs = lhs;
@@ -132,19 +132,19 @@ fn add(op: IRType, lhs: i32, rhs: i32) -> usize {
 }
 
 fn kill(r: i32) {
-    add(IRType::KILL, r, -1);
+    emit(IRType::KILL, r, -1);
 }
 
 fn label(x: i32) {
-    add(IRType::LABEL, x, -1);
+    emit(IRType::LABEL, x, -1);
 }
 
 fn jmp(x: i32) {
-    add(IRType::JMP, x, -1);
+    emit(IRType::JMP, x, -1);
 }
 
 fn load(node: & Node, dst: i32, src: i32) {
-    let ir_idx = add(IRType::LOAD, dst, src);
+    let ir_idx = emit(IRType::LOAD, dst, src);
 
     CODE.with(|c| {
         let code = &mut *c.borrow_mut();
@@ -154,7 +154,7 @@ fn load(node: & Node, dst: i32, src: i32) {
 }
 
 fn store(node: & Node, dst: i32, src: i32) {
-    let ir_idx = add(IRType::STORE, dst, src);
+    let ir_idx = emit(IRType::STORE, dst, src);
 
     CODE.with(|c| {
         let code = &mut *c.borrow_mut();
@@ -165,8 +165,8 @@ fn store(node: & Node, dst: i32, src: i32) {
 
 fn gen_imm(op: IRType, r: i32, imm: i32) {
     let r2 = bump_nreg();
-    add(IRType::IMM, r2, imm);
-    add(op, r, r2);
+    emit(IRType::IMM, r2, imm);
+    emit(op, r, r2);
     kill(r2);
 }
 
@@ -203,9 +203,9 @@ fn gen_lval(node: Node) -> i32 {
 
     let r = bump_nreg();
     if var.borrow().is_local {
-        add(IRType::BPREL, r, var.borrow().offset);
+        emit(IRType::BPREL, r, var.borrow().offset);
     } else {
-        let ir_idx = add(IRType::LABEL_ADDR, r, -1);
+        let ir_idx = emit(IRType::LABEL_ADDR, r, -1);
         CODE.with(|c| {
             let code = &mut *c.borrow_mut();
             code[ir_idx].name = var.borrow().name.clone();
@@ -217,7 +217,7 @@ fn gen_lval(node: Node) -> i32 {
 fn gen_binop(ty: IRType, node: Node) -> i32 {
     let r1 = gen_expr(*node.lhs.unwrap());
     let r2 = gen_expr(*node.rhs.unwrap());
-    add(ty, r1, r2);
+    emit(ty, r1, r2);
     kill(r2);
     return r1;
 }
@@ -270,7 +270,7 @@ fn gen_assign_op(node: Node) -> i32 {
     let val = bump_nreg();
 
     load(&node, val, dst);
-    add(to_assign_op(node.op.clone()), val, src);
+    emit(to_assign_op(node.op.clone()), val, src);
     kill(src);
     store(&node, dst, val);
     kill(dst);
@@ -281,7 +281,7 @@ fn gen_expr(node: Node) -> i32 {
     match node.op {
         NodeType::NUM => {
             let r = bump_nreg();
-            add(IRType::IMM, r, node.val);
+            emit(IRType::IMM, r, node.val);
             return r;
         }
 
@@ -297,12 +297,12 @@ fn gen_expr(node: Node) -> i32 {
             let x = bump_nlabel() as i32;
 
             let r1 = gen_expr(*node.lhs.unwrap());
-            add(IRType::UNLESS, r1, x);
+            emit(IRType::UNLESS, r1, x);
             let r2 = gen_expr(*node.rhs.unwrap());
-            add(IRType::MOV, r1, r2);
+            emit(IRType::MOV, r1, r2);
             kill(r2);
-            add(IRType::UNLESS, r1, x);
-            add(IRType::IMM, r1, 1);
+            emit(IRType::UNLESS, r1, x);
+            emit(IRType::IMM, r1, 1);
             label(x);
             return r1;
         }
@@ -312,16 +312,16 @@ fn gen_expr(node: Node) -> i32 {
             let y = bump_nlabel() as i32;
 
             let r1 = gen_expr(*node.lhs.unwrap());
-            add(IRType::UNLESS, r1, x);
-            add(IRType::IMM, r1, 1);
+            emit(IRType::UNLESS, r1, x);
+            emit(IRType::IMM, r1, 1);
             jmp(y);
             label(x);
 
             let r2 = gen_expr(*node.rhs.unwrap());
-            add(IRType::MOV, r1, r2);
+            emit(IRType::MOV, r1, r2);
             kill(r2);
-            add(IRType::UNLESS, r1, y);
-            add(IRType::IMM, r1, 1);
+            emit(IRType::UNLESS, r1, y);
+            emit(IRType::IMM, r1, 1);
             label(y);
             return r1
         }
@@ -341,7 +341,7 @@ fn gen_expr(node: Node) -> i32 {
 
             let r = bump_nreg();
 
-            let ir_idx = add(IRType::CALL, r, -1);
+            let ir_idx = emit(IRType::CALL, r, -1);
 
             let (nargs, args) = CODE.with(|c| {
                 let code = &mut *c.borrow_mut();
@@ -377,8 +377,8 @@ fn gen_expr(node: Node) -> i32 {
                 return r;
             }
             let r2 = bump_nreg();
-            add(IRType::IMM, r2, 0);
-            add(IRType::NE, r, r2);
+            emit(IRType::IMM, r2, 0);
+            emit(IRType::NE, r, r2);
             kill(r2);
             return r;
         }
@@ -435,15 +435,15 @@ fn gen_expr(node: Node) -> i32 {
             let y = bump_nlabel() as i32;
             let r = gen_expr(*node.cond.unwrap());
 
-            add(IRType::UNLESS, r, x);
+            emit(IRType::UNLESS, r, x);
             let r2 = gen_expr(*node.then.unwrap());
-            add(IRType::MOV, r, r2);
+            emit(IRType::MOV, r, r2);
             kill(r2);
             jmp(y);
 
             label(x);
             let r3 = gen_expr(*node.els.unwrap());
-            add(IRType::MOV, r, r3);
+            emit(IRType::MOV, r, r3);
             kill(r2);
             label(y);
             return r;
@@ -451,8 +451,8 @@ fn gen_expr(node: Node) -> i32 {
         NodeType::EXCLAM => {
             let lhs = gen_expr(*node.expr.unwrap());
             let rhs = bump_nreg();
-            add(IRType::IMM, rhs, 0);
-            add(IRType::EQ, lhs, rhs);
+            emit(IRType::IMM, rhs, 0);
+            emit(IRType::EQ, lhs, rhs);
             kill(rhs);
             return lhs;
         }
@@ -472,7 +472,7 @@ fn gen_stmt(node: Node) {
             let x = bump_nlabel() as i32;
             let y = bump_nlabel() as i32;
             let r = gen_expr(*node.cond.unwrap());
-            add(IRType::UNLESS, r, x);
+            emit(IRType::UNLESS, r, x);
             kill(r);
             gen_stmt(*node.then.unwrap());
             jmp(y);
@@ -491,7 +491,7 @@ fn gen_stmt(node: Node) {
             label(x);
             if node.cond.is_some() {
                 let r = gen_expr(*node.cond.unwrap());
-                add(IRType::UNLESS, r, node.break_label as i32);
+                emit(IRType::UNLESS, r, node.break_label as i32);
                 kill(r);
             }
             gen_stmt(*node.body.unwrap());
@@ -508,7 +508,7 @@ fn gen_stmt(node: Node) {
             gen_stmt(*node.body.unwrap());
             label(node.continue_label as i32);
             let r = gen_expr(*node.cond.unwrap());
-            add(IRType::IF, r, x);
+            emit(IRType::IF, r, x);
             kill(r);
             label(node.break_label as i32);
         }
@@ -521,7 +521,7 @@ fn gen_stmt(node: Node) {
         NodeType::RETURN => {
             let r = gen_expr(*node.expr.unwrap());
 
-            add(IRType::RETURN, r, -1);
+            emit(IRType::RETURN, r, -1);
             kill(r);
         }
         NodeType::EXPR_STMT => {
@@ -540,7 +540,7 @@ fn gen_stmt(node: Node) {
 }
 
 fn gen_param(var: & Rc<RefCell<Var>>, i: usize) {
-    let ir_idx = add(IRType::STORE_ARG, var.borrow().offset, i as i32);
+    let ir_idx = emit(IRType::STORE_ARG, var.borrow().offset, i as i32);
 
     CODE.with(|c| {
         let code = &mut *c.borrow_mut();
