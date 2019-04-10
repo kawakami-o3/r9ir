@@ -125,7 +125,7 @@ fn next() -> Token {
     })
 }
 
-fn eof() -> bool {
+fn is_eof() -> bool {
     ENV.with(|c| {
         let env = c.borrow();
         return env.pos == env.input.len();
@@ -164,7 +164,7 @@ fn consume(ty: TokenType) -> bool {
 
 fn read_until_eol() -> Vec<Token> {
     let mut v = Vec::new();
-    while !eof() {
+    while !is_eof() {
         let t = next();
         if t.ty == TokenType::NEW_LINE {
             break;
@@ -258,7 +258,7 @@ fn read_one_arg() -> Vec<Token> {
     let start = peek();
     let mut level = 0;
 
-    while !eof() {
+    while !is_eof() {
         let t = peek();
         if level == 0 {
             if t.ty == TokenType::KET || t.ty == TokenType::COMMA {
@@ -404,7 +404,7 @@ fn include() {
 pub fn preprocess(tokens: Vec<Token>) -> Vec<Token> {
     set_env(new_env(get_env(), tokens.clone()));
 
-    while !eof() {
+    while !is_eof() {
         let mut t = next();
 
         if t.ty == TokenType::IDENT {
