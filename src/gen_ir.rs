@@ -469,29 +469,18 @@ fn gen_stmt(node: Node) {
 
     match node.op {
         NodeType::IF => {
-            let cond = *node.cond.unwrap();
-            let then = *node.then.unwrap();
-            if node.els.is_some() {
-                let x = bump_nlabel() as i32;
-                let y = bump_nlabel() as i32;
-                let r = gen_expr(cond.clone());
-                add(IRType::UNLESS, r, x);
-                kill(r);
-                gen_stmt(then.clone());
-                jmp(y);
-                label(x);
-                gen_stmt(*node.els.unwrap());
-                label(y);
-                return;
-            }
-
             let x = bump_nlabel() as i32;
-            let r = gen_expr(cond);
-
+            let y = bump_nlabel() as i32;
+            let r = gen_expr(*node.cond.unwrap());
             add(IRType::UNLESS, r, x);
             kill(r);
-            gen_stmt(then);
+            gen_stmt(*node.then.unwrap());
+            jmp(y);
             label(x);
+            if node.els.is_some() {
+                gen_stmt(*node.els.unwrap());
+            }
+            label(y);
         }
         NodeType::FOR => {
             let x = bump_nlabel() as i32;
