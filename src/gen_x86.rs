@@ -111,9 +111,10 @@ fn argreg(r: usize, size: i32) -> &'static str {
     }
 }
 
-fn gen(fun: &Function) {
+fn emit_code(fun: &Function) {
     let ret = format!(".Lend{}", bump_nlabel());
 
+    println!(".text");
     println!(".global {}", fun.name);
     println!("{}:", fun.name);
     emit!("push rbp");
@@ -279,29 +280,33 @@ fn gen(fun: &Function) {
     emit!("ret");
 }
 
+fn emit_data(var: & Var) {
+    if var.ty.is_extern {
+        return;
+    }
+
+    if var.data.is_some() {
+        let data = backslash_escape(&var.data.clone().unwrap());
+        println!(".data");
+        println!("{}:", var.name);
+        emit!(".ascii \"{}\"", data);
+        return;
+    }
+
+    println!(".bss");
+    println!("{}:", var.name);
+    emit!(".zero {}", var.ty.len);
+}
+
 pub fn gen_x86(prog: &mut Program) {
     println!(".intel_syntax noprefix");
 
     println!(".data");
     for v in prog.gvars.iter() {
-        let var = v.borrow();
-        if var.ty.is_extern {
-            continue;
-        }
-
-        if var.data.is_some() {
-            println!(".data");
-            println!("{}:", var.name);
-            emit!(".ascii \"{}\"", backslash_escape(&var.data.clone().unwrap()));
-        } else {
-            println!(".bss");
-            println!("{}:", var.name);
-            emit!(".zero {}", var.len);
-        }
+        emit_data(&v.borrow());
    }
 
-    println!(".text");
     for f in prog.funcs.iter() {
-        gen(f);
+        emit_code(f);
     }
 }
