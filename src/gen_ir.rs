@@ -11,11 +11,21 @@
 // Such infinite number of registers are mapped to a finite registers
 // in a later pass.
 
+
+// let mut off = 0;
+// for v in func.lvars.iter_mut() {
+//     off = roundup(off, v.borrow().ty.align);
+//     off += v.borrow().ty.size;
+//     v.borrow_mut().offset = off;
+// }
+// func.stacksize = off;
+
 #![allow(non_camel_case_types)]
 
 use crate::parse::*;
 use crate::util::*;
 use std::cell::RefCell;
+use std::rc::Rc;
 
 thread_local! {
     static CODE: RefCell<Vec<IR>> = RefCell::new(Vec::new());
@@ -539,25 +549,43 @@ fn gen_stmt(node: Node) {
     }
 }
 
+fn gen_param(var: & Rc<RefCell<Var>>, i: usize) {
+    let ir_idx = add(IRType::STORE_ARG, var.borrow().offset, i as i32);
+
+    CODE.with(|c| {
+        let code = &mut *c.borrow_mut();
+        let ir = &mut code[ir_idx];
+        ir.size = var.borrow().ty.size;
+    });
+}
+
 pub fn gen_ir(prog: &mut Program) {
     for func in prog.funcs.iter_mut() {
         init_code();
         
         assert!(func.node.borrow().op == NodeType::FUNC);
 
-        let len = func.node.borrow().params.len();
-        for i in 0..len {
-            let var = &func.node.borrow().params[i];
-            let ir_idx = add(IRType::STORE_ARG, var.borrow().offset, i as i32);
+        // Assign an offset from RBP to each local variable.
+        let mut off = 0;
+        for v in func.lvars.iter_mut() {
+            off = roundup(off, v.borrow().ty.align);
+            off += v.borrow().ty.size;
+            v.borrow_mut().offset = off;
+        }
+        func.stacksize = off;
 
-            CODE.with(|c| {
-                let code = &mut *c.borrow_mut();
-                let ir = &mut code[ir_idx];
-                ir.size = var.borrow().ty.size;
-            });
+        // Emit IR.
+        let params = func.node.borrow().clone().params;
+        for i in 0..params.len() {
+            gen_param(&params[i], i)
         }
 
         gen_stmt(*func.node.borrow().body.clone().unwrap());
         func.ir = CODE.with(|code| code.borrow().clone());
+
+        // Later passes shouldn't need the following members,
+        // so make it explicit.
+        func.lvars = Vec::new();
+        func.node = Rc::new(RefCell::new(alloc_node()));
     }
 }
