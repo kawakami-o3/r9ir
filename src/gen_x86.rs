@@ -144,7 +144,7 @@ fn emit_code(fun: &Function) {
                 emit!("mov {}, {}", regs[lhs as usize], rhs);
             }
             IRType::BPREL => {
-                emit!("lea {}, [rbp-{}]", regs[lhs as usize], rhs);
+                emit!("lea {}, [rbp{}]", regs[lhs as usize], rhs);
             }
             IRType::MOV => {
                 emit!("mov {}, {}", regs[lhs as usize], regs[rhs as usize]);
@@ -227,7 +227,7 @@ fn emit_code(fun: &Function) {
                 emit!("mov [{}], {}", regs[lhs as usize], reg(rhs as usize, ir.size));
             }
             IRType::STORE_ARG => {
-                emit!("mov [rbp-{}], {}", lhs, argreg(rhs as usize, ir.size));
+                emit!("mov [rbp{}], {}", lhs, argreg(rhs as usize, ir.size));
             }
             IRType::ADD => {
                 if ir.is_imm {

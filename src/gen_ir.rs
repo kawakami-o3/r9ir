@@ -568,9 +568,9 @@ pub fn gen_ir(prog: &mut Program) {
         // Assign an offset from RBP to each local variable.
         let mut off = 0;
         for v in func.lvars.iter_mut() {
-            off = roundup(off, v.borrow().ty.align);
             off += v.borrow().ty.size;
-            v.borrow_mut().offset = off;
+            off = roundup(off, v.borrow().ty.align);
+            v.borrow_mut().offset = -off;
         }
         func.stacksize = off;
 
