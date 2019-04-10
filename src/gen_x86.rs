@@ -8,6 +8,15 @@ use crate::*;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
+macro_rules! p {
+    ($fmt:expr) => {
+        println!($fmt);
+    };
+    ($fmt:expr,$($x:tt)*) => {
+        println!($fmt, $( $x )*);
+    };
+}
+
 macro_rules! emit {
     ($fmt:expr) => {
         print!("\t");
@@ -114,9 +123,9 @@ fn argreg(r: usize, size: i32) -> &'static str {
 fn emit_code(fun: &Function) {
     let ret = format!(".Lend{}", bump_nlabel());
 
-    println!(".text");
-    println!(".global {}", fun.name);
-    println!("{}:", fun.name);
+    p!(".text");
+    p!(".global {}", fun.name);
+    p!("{}:", fun.name);
     emit!("push rbp");
     emit!("mov rbp, rsp");
     emit!("sub rsp, {}", roundup(fun.stacksize, 16));
@@ -159,7 +168,7 @@ fn emit_code(fun: &Function) {
                 emit!("mov {}, rax", regs[lhs as usize]);
             }
             IRType::LABEL => {
-                println!(".L{}:", lhs);
+                p!(".L{}:", lhs);
             }
             IRType::LABEL_ADDR => {
                 emit!("lea {}, {}", regs[lhs as usize], ir.name);
@@ -270,7 +279,7 @@ fn emit_code(fun: &Function) {
             }
         }
     }
-    println!("{}:", ret);
+    p!("{}:", ret);
     emit!("pop r15");
     emit!("pop r14");
     emit!("pop r13");
@@ -282,22 +291,20 @@ fn emit_code(fun: &Function) {
 
 fn emit_data(var: & Var) {
     if var.data.is_some() {
-        let data = backslash_escape(&var.data.clone().unwrap());
-        println!(".data");
-        println!("{}:", var.name);
-        emit!(".ascii \"{}\"", data);
+        p!(".data");
+        p!("{}:", var.name);
+        emit!(".ascii \"{}\"", backslash_escape(&var.data.clone().unwrap()));
         return;
     }
 
-    println!(".bss");
-    println!("{}:", var.name);
+    p!(".bss");
+    p!("{}:", var.name);
     emit!(".zero {}", var.ty.len);
 }
 
 pub fn gen_x86(prog: &mut Program) {
-    println!(".intel_syntax noprefix");
+    p!(".intel_syntax noprefix");
 
-    println!(".data");
     for v in prog.gvars.iter() {
         emit_data(&v.borrow());
    }
