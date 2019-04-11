@@ -181,26 +181,6 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool, prog: &'a mut Program) -> &'a No
             node.ty = node.lhs.clone().unwrap().ty;
             return node;
         }
-        NodeType::ADD_EQ |
-            NodeType::SUB_EQ => {
-                node.lhs = Some(Box::new(walk_nodecay(&mut *node.lhs.clone().unwrap(), prog).clone()));
-                check_lval(node.lhs.clone().unwrap());
-                node.rhs = Some(Box::new(walk(&mut *node.rhs.clone().unwrap(), prog).clone()));
-                if let Some(ref lhs) = node.lhs {
-                    node.ty = lhs.ty.clone();
-                }
-
-                if let Some(ref lhs) = node.lhs {
-                    if lhs.ty.borrow().ty == CType::PTR {
-                        node.rhs = Some(Box::new(scale_ptr(NodeType::MUL, *node.rhs.clone().unwrap(), lhs.ty.borrow().clone())));
-                        node.ty = lhs.ty.clone();
-                    } else {
-                        node.ty = Rc::new(RefCell::new(int_ty()));
-                    }
-                }
-                return node;
-        }
-
         NodeType::EQL => {
             node.lhs = Some(Box::new(walk_nodecay(&mut *node.lhs.clone().unwrap(), prog).clone()));
             check_lval(node.lhs.clone().unwrap());
@@ -209,21 +189,6 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool, prog: &'a mut Program) -> &'a No
             if lty.borrow().ty == CType::BOOL {
                 node.rhs = Some(Box::new(cast(*node.rhs.clone().unwrap(), bool_ty())));
             }
-            node.ty = node.lhs.clone().unwrap().ty;
-            return node;
-        }
-        NodeType::MUL_EQ |
-            NodeType::DIV_EQ |
-            NodeType::MOD_EQ |
-            NodeType::SHL_EQ |
-            NodeType::SHR_EQ |
-            NodeType::AND_EQ |
-            NodeType::XOR_EQ |
-            NodeType::OR_EQ => {
-            node.lhs = Some(Box::new(walk_nodecay(&mut *node.lhs.clone().unwrap(), prog).clone()));
-            check_lval(node.lhs.clone().unwrap());
-
-            node.rhs = Some(Box::new(walk(&mut *node.rhs.clone().unwrap(), prog).clone()));
             node.ty = node.lhs.clone().unwrap().ty;
             return node;
         }

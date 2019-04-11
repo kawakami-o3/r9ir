@@ -299,16 +299,6 @@ pub enum NodeType {
     MOD,       // %
     POST_INC,  // post ++
     POST_DEC,  // post --
-    MUL_EQ,    // *=
-    DIV_EQ,    // /=
-    MOD_EQ,    // %=
-    ADD_EQ,    // +=
-    SUB_EQ,    // -=
-    SHL_EQ,    // <<=
-    SHR_EQ,    // >>=
-    AND_EQ, // &=
-    XOR_EQ,    // ^=
-    OR_EQ,  // |=
     RETURN,    // "return"
     CALL,      // Function call
     FUNC,      // Function definition
@@ -836,10 +826,10 @@ fn unary(tokens: &Vec<Token>) -> Node {
     }
 
     if consume(TokenType::INC, tokens) {
-        return new_binop(NodeType::ADD_EQ, Some(Box::new(t.clone())), unary(tokens), new_int_node(1, Some(Box::new(t.clone()))));
+        return new_assign_eq(NodeType::ADD, unary(tokens), new_int_node(1, Some(Box::new(t.clone()))));
     }
     if consume(TokenType::DEC, tokens) {
-        return new_binop(NodeType::SUB_EQ, Some(Box::new(t.clone())), unary(tokens), new_int_node(1, Some(Box::new(t.clone()))));
+        return new_assign_eq(NodeType::SUB, unary(tokens), new_int_node(1, Some(Box::new(t.clone()))));
     }
 
     return postfix(tokens);
@@ -981,42 +971,71 @@ fn conditional(tokens: &Vec<Token>) -> Node {
     return node;
 }
 
-fn assignment_op(tokens: &Vec<Token>) -> Option<NodeType> {
-    if consume(TokenType::EQL, tokens) {
-        Some(NodeType::EQL)
-    } else if consume(TokenType::MUL_EQ, tokens) {
-        Some(NodeType::MUL_EQ)
-    } else if consume(TokenType::DIV_EQ, tokens) {
-        Some(NodeType::DIV_EQ)
-    } else if consume(TokenType::MOD_EQ, tokens) {
-        Some(NodeType::MOD_EQ)
-    } else if consume(TokenType::ADD_EQ, tokens) {
-        Some(NodeType::ADD_EQ)
-    } else if consume(TokenType::SUB_EQ, tokens) {
-        Some(NodeType::SUB_EQ)
-    } else if consume(TokenType::SHL_EQ, tokens) {
-        Some(NodeType::SHL_EQ)
-    } else if consume(TokenType::SHR_EQ, tokens) {
-        Some(NodeType::SHR_EQ)
-    } else if consume(TokenType::AND_EQ, tokens) {
-        Some(NodeType::AND_EQ)
-    } else if consume(TokenType::XOR_EQ, tokens) {
-        Some(NodeType::XOR_EQ)
-    } else if consume(TokenType::OR_EQ, tokens) {
-        Some(NodeType::OR_EQ)
-    } else {
-        None
-    }
+fn new_stmt_expr(t: Option<Box<Token>>, stmts: Vec<Node>) -> Node {
+    let mut node = new_node(NodeType::STMT_EXPR, t.clone());
+    let mut node_body = new_node(NodeType::COMP_STMT, t);
+    node_body.stmts = stmts;
+    node.body = Some(Box::new(node_body));
+    return node;
+}
+
+fn new_varref(t: Option<Box<Token>>, var: Rc<RefCell<Var>>) -> Node {
+    let mut node = new_node(NodeType::VARREF, t);
+    node.ty = Rc::new(RefCell::new(var.borrow().ty.clone()));
+    node.var = Some(var);
+    return node;
+}
+
+// `x op= y` where x is of type T is compiled as
+// `({T *z = &x; *z = *z op y; *z})`.
+fn new_assign_eq(op: NodeType, lhs: Node, rhs: Node) -> Node {
+    let mut stmts = Vec::new();
+    let t = lhs.token.clone();
+
+    let var = add_lvar(ptr_to(lhs.ty.clone()), "tmp".to_string());
+    let e1 = new_binop(NodeType::EQL, t.clone(), new_varref(t.clone(), var.clone()), new_expr(NodeType::ADDR, t.clone(), lhs));
+    stmts.push(new_expr(NodeType::EXPR_STMT, t.clone(), e1));
+
+    let lhs2 = new_expr(NodeType::DEREF, t.clone(), new_varref(t.clone(), var.clone()));
+    let rhs2 = new_binop(op, t.clone(), new_expr(NodeType::DEREF, t.clone(), new_varref(t.clone(), var.clone())), rhs);
+    let e2 = new_binop(NodeType::EQL, t.clone(), lhs2, rhs2);
+    stmts.push(new_expr(NodeType::EXPR_STMT, t.clone(), e2));
+
+    let ref3 = new_varref(t.clone(), var);
+    let e3 = new_expr(NodeType::DEREF, t.clone(), ref3);
+    stmts.push(new_expr(NodeType::EXPR_STMT, t.clone(), e3));
+    return new_stmt_expr(t, stmts);
 }
 
 fn assign(tokens: &Vec<Token>) -> Node {
     let lhs = conditional(tokens);
     let t = &tokens[pos()];
-    let op = assignment_op(tokens);
-    if let Some(o) = op {
-        return new_binop(o, Some(Box::new(t.clone())), lhs, assign(tokens));
+
+    if consume(TokenType::EQL, tokens) {
+        new_binop(NodeType::EQL, Some(Box::new(t.clone())), lhs, assign(tokens))
+    } else if consume(TokenType::MUL_EQ, tokens) {
+        new_assign_eq(NodeType::MUL, lhs, assign(tokens))
+    } else if consume(TokenType::DIV_EQ, tokens) {
+        new_assign_eq(NodeType::DIV, lhs, assign(tokens))
+    } else if consume(TokenType::MOD_EQ, tokens) {
+        new_assign_eq(NodeType::MOD, lhs, assign(tokens))
+    } else if consume(TokenType::ADD_EQ, tokens) {
+        new_assign_eq(NodeType::ADD, lhs, assign(tokens))
+    } else if consume(TokenType::SUB_EQ, tokens) {
+        new_assign_eq(NodeType::SUB, lhs, assign(tokens))
+    } else if consume(TokenType::SHL_EQ, tokens) {
+        new_assign_eq(NodeType::SHL, lhs, assign(tokens))
+    } else if consume(TokenType::SHR_EQ, tokens) {
+        new_assign_eq(NodeType::SHR, lhs, assign(tokens))
+    } else if consume(TokenType::AND_EQ, tokens) {
+        new_assign_eq(NodeType::LOGAND, lhs, assign(tokens))
+    } else if consume(TokenType::XOR_EQ, tokens) {
+        new_assign_eq(NodeType::XOR, lhs, assign(tokens))
+    } else if consume(TokenType::OR_EQ, tokens) {
+        new_assign_eq(NodeType::OR, lhs, assign(tokens))
+    } else {
+        lhs
     }
-    return lhs;
 }
 
 fn expr(tokens: &Vec<Token>) -> Node {
@@ -1105,10 +1124,7 @@ fn declaration(tokens: &Vec<Token>) -> Node {
 
     // Convert `T var = init` to `T var; var = init`.
     let t = node.token;
-    let mut lhs = new_node(NodeType::VARREF, t.clone());
-    lhs.ty = Rc::new(RefCell::new(var.borrow().ty.clone()));
-    lhs.var = Some(var);
-
+    let lhs = new_varref(t.clone(), var);
     let rhs = *node.init.clone().unwrap();
     node.init = None;
 

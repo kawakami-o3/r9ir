@@ -246,37 +246,6 @@ fn gen_post_inc(node: & Node, num: i32) -> i32 {
     return val;
 }
 
-fn to_assign_op(op: NodeType) -> IRType {
-    match op {
-        NodeType::MUL_EQ => IRType::MUL,
-        NodeType::DIV_EQ => IRType::DIV,
-        NodeType::MOD_EQ => IRType::MOD,
-        NodeType::ADD_EQ => IRType::ADD,
-        NodeType::SUB_EQ => IRType::SUB,
-        NodeType::SHL_EQ => IRType::SHL,
-        NodeType::SHR_EQ => IRType::SHR,
-        NodeType::AND_EQ => IRType::AND,
-        NodeType::XOR_EQ => IRType::XOR,
-        NodeType::OR_EQ => IRType::OR,
-        _ => {
-            panic!();
-        }
-    }
-}
-
-fn gen_assign_op(node: Node) -> i32 {
-    let src = gen_expr(*node.rhs.clone().unwrap());
-    let dst = gen_lval(*node.lhs.clone().unwrap());
-    let val = bump_nreg();
-
-    load(&node, val, dst);
-    emit(to_assign_op(node.op.clone()), val, src);
-    kill(src);
-    store(&node, dst, val);
-    kill(dst);
-    return val;
-}
-
 fn gen_expr(node: Node) -> i32 {
     match node.op {
         NodeType::NUM => {
@@ -388,18 +357,6 @@ fn gen_expr(node: Node) -> i32 {
             return gen_expr(*node.expr.unwrap());
         }
 
-        NodeType::MUL_EQ |
-            NodeType::DIV_EQ |
-            NodeType::MOD_EQ |
-            NodeType::ADD_EQ |
-            NodeType::SUB_EQ |
-            NodeType::SHL_EQ |
-            NodeType::SHR_EQ |
-            NodeType::AND_EQ |
-            NodeType::XOR_EQ |
-            NodeType::OR_EQ => {
-                return gen_assign_op(node);
-        }
         NodeType::EQL => {
             let rhs = gen_expr(*node.clone().rhs.unwrap());
             let lhs = gen_lval(*node.clone().lhs.unwrap());
