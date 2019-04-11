@@ -384,14 +384,21 @@ pub fn print_line(start: & String, path: & String, pos: usize) {
         eprintln!("error at {}:{}:{}", path, line+1, col+1);
         eprintln!();
 
+        // Print out the line containing the error location.
         while char::from(bytes[idx]) != '\n' {
             target.push(char::from(bytes[idx]));
             idx += 1;
         }
         eprintln!("{}", target);
 
-        for _i in 0..col {
-            eprint!(" ");
+        // Show tabs for tabs and spaces for other characters
+        // so that the column matches
+        for i in 0..col {
+            if char::from(bytes[i]) == '\t' {
+                eprint!("\t");
+            } else {
+                eprint!(" ");
+            }
         }
         eprintln!("^");
         eprintln!();
