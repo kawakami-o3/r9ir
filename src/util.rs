@@ -47,7 +47,7 @@ pub fn ary_of(base: Type, len: i32) -> Type {
     return ty;
 }
 
-fn new_prim_ty(ty: CType, size: i32) -> Type {
+fn new_ty(ty: CType, size: i32) -> Type {
     let mut ret = alloc_type();
     ret.ty = ty;
     ret.size = size;
@@ -56,19 +56,19 @@ fn new_prim_ty(ty: CType, size: i32) -> Type {
 }
 
 pub fn void_ty() -> Type {
-    return new_prim_ty(CType::VOID, 0);
+    return new_ty(CType::VOID, 0);
 }
 
 pub fn bool_ty() -> Type {
-    return new_prim_ty(CType::BOOL, 1);
+    return new_ty(CType::BOOL, 1);
 }
 
 pub fn char_ty() -> Type {
-    return new_prim_ty(CType::CHAR, 1);
+    return new_ty(CType::CHAR, 1);
 }
 
 pub fn int_ty() -> Type {
-    return new_prim_ty(CType::INT, 4);
+    return new_ty(CType::INT, 4);
 }
 
 pub fn func_ty(base: Type) -> Type {
