@@ -788,8 +788,9 @@ fn primary(tokens: & Vec<Token>) -> Node {
     panic!(); // To avoid compile error.
 }
 
-fn new_stmt_expr(t: Option<Box<Token>>, exprs: Vec<Node>) -> Node {
-    let last = exprs.clone().pop();
+fn new_stmt_expr(t: Option<Box<Token>>, es: Vec<Node>) -> Node {
+    let mut exprs = es;
+    let last = exprs.pop();
 
     let mut v = Vec::new();
     for e in exprs.iter() {
