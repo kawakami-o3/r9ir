@@ -90,7 +90,7 @@ fn main() {
 
     // Tokenize and parse.
     let tokens = tokenize(path, true);
-    //for i in tokens.iter() { eprintln!(">> {:?}", i); }
+    //for i in tokens.iter() { eprintln!(">> {:?} {:?}", i.ty, i.name); }
     let prog = &mut parse(&tokens);
     //eprintln!("nodes> {:?}", nodes);
     if dump_node {

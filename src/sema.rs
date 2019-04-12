@@ -255,11 +255,6 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool, prog: &'a mut Program) -> &'a No
             node.ty = node.rhs.clone().unwrap().ty;
             return node;
         }
-        NodeType::POST_INC | NodeType::POST_DEC => {
-            node.expr = Some(Box::new(walk(&mut *node.expr.clone().unwrap(), prog).clone()));
-            node.ty = node.expr.clone().unwrap().ty;
-            return node;
-        }
         NodeType::EXCLAM | NodeType::NOT => {
             node.expr = Some(Box::new(walk(&mut *node.expr.clone().unwrap(), prog).clone()));
             check_int(&*node.expr.clone().unwrap());
@@ -313,20 +308,11 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool, prog: &'a mut Program) -> &'a No
             return node;
         }
         NodeType::STMT_EXPR => {
-            let mut body = walk(&mut *node.body.clone().unwrap(), prog).clone();
-
-            if body.stmts.len() == 0 {
-                bad_node!(node, "empty statement expression");
+            for i in 0..node.stmts.len() {
+                node.stmts[i] = walk(&mut node.stmts[i], prog).clone();
             }
-
-            let n = body.stmts.pop().unwrap();
-            if n.op != NodeType::EXPR_STMT {
-                bad_node!(node, "statement expression returning void");
-            }
-
-            node.body = Some(Box::new(body));
-            node.expr = n.expr.clone();
-            node.ty = n.expr.clone().unwrap().ty;
+            node.expr = Some(Box::new(walk(&mut *node.expr.clone().unwrap(), prog).clone()));
+            node.ty = node.expr.clone().unwrap().ty;
             return node;
         }
         _ => {

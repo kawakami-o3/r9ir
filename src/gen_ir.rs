@@ -222,30 +222,6 @@ fn gen_binop(ty: IRType, node: Node) -> i32 {
     return r1;
 }
 
-fn get_inc_scale(node: & Node) -> i32 {
-    if node.ty.borrow().ty == CType::PTR {
-        let tmp = node.ty.borrow().clone().ptr_to.unwrap();
-        return tmp.borrow().size;
-    }
-    return 1;
-}
-
-fn gen_pre_inc(node: & Node, num: i32) -> i32 {
-    let addr = gen_lval(*node.expr.clone().unwrap());
-    let val = bump_nreg();
-    load(&node, val, addr);
-    gen_imm(IRType::ADD, val, num * get_inc_scale(&node));
-    store(&node, addr, val);
-    kill(addr);
-    return val;
-}
-
-fn gen_post_inc(node: & Node, num: i32) -> i32 {
-    let val = gen_pre_inc(&node, num);
-    gen_imm(IRType::SUB, val, num * get_inc_scale(&node));
-    return val;
-}
-
 fn gen_expr(node: Node) -> i32 {
     match node.op {
         NodeType::NUM => {
@@ -353,7 +329,9 @@ fn gen_expr(node: Node) -> i32 {
         }
 
         NodeType::STMT_EXPR => {
-            gen_stmt(*node.body.unwrap());
+            for n in node.stmts.iter() {
+                gen_stmt(n.clone());
+            }
             return gen_expr(*node.expr.unwrap());
         }
 
@@ -385,8 +363,6 @@ fn gen_expr(node: Node) -> i32 {
             kill(gen_expr(*node.lhs.unwrap()));
             return gen_expr(*node.rhs.unwrap());
         }
-        NodeType::POST_INC => { return gen_post_inc(&node, 1); }
-        NodeType::POST_DEC => { return gen_post_inc(&node, -1); }
         NodeType::QUEST => {
             let x = bump_nlabel() as i32;
             let y = bump_nlabel() as i32;

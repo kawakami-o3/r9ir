@@ -1,4 +1,5 @@
 CC := RUST_BACKTRACE=1 cargo run -q
+#CC := cargo run -q
 
 all: build
 
