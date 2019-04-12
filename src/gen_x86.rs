@@ -275,7 +275,7 @@ fn emit_data(var: & Var) {
 
     p!(".bss");
     p!("{}:", var.name);
-    emit!(".zero {}", var.ty.len);
+    emit!(".zero {}", var.ty.size);
 }
 
 pub fn gen_x86(prog: &mut Program) {
