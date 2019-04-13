@@ -293,22 +293,6 @@ fn read_args() -> HashMap<usize, Vec<Token>> {
     return v;
 }
 
-fn stringize(tmpl: & Token, tokens: Vec<Token>) -> Token {
-    let mut sb = String::new();
-
-    for i in 0..tokens.len() {
-        let t = &tokens[i];
-        if i > 0 {
-            sb.push(' ');
-        }
-        sb.push_str(tokstr(&t));
-    }
-    sb.push('\0');
-
-    let len = sb.len();
-    return new_string(tmpl, sb, len);
-}
-
 fn add_special_macro(t: & Token) -> bool {
     if is_ident(t, "__LINE__") {
         emit(new_int(t, get_line_number(t)));
@@ -343,7 +327,8 @@ fn apply_functionlike(m: &mut Macro, start: & Token) {
         if t.ty == TokenType::PARAM {
             if t.stringize {
                 let j = t.val as usize;
-                emit(stringize(t, args.get(&j).unwrap().clone()));
+                let s = stringize(args.get(&j).unwrap().clone());
+                emit(new_string(t, s.clone(), s.len()));
             } else {
                 let j = t.val as usize;
                 append(&mut args.get(&j).unwrap().clone());

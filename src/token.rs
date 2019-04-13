@@ -434,11 +434,6 @@ pub fn bad_position(idx: usize, msg: String) {
     panic!(msg);
 }
 
-pub fn tokstr(t: &Token) -> &str {
-    assert!(t.start != 0 || t.end != 0);
-    return &t.buf[t.start..t.end];
-}
-
 pub fn get_line_number(t: &Token) -> i32 {
     let mut n = 0;
     for i in 0..t.end {
@@ -447,6 +442,21 @@ pub fn get_line_number(t: &Token) -> i32 {
         }
     }
     return n;
+}
+
+pub fn stringize(tokens: Vec<Token>) -> String {
+    let mut sb = String::new();
+
+    for i in 0..tokens.len() {
+        let t = &tokens[i];
+        if i > 0 {
+            sb.push(' ');
+        }
+        assert!(t.start != 0 || t.end != 0);
+        sb.push_str(&t.buf[t.start..t.end]);
+    }
+    sb.push('\0'); // EOS
+    return sb;
 }
 
 fn startswith(s1: &String, pos: usize, s2: &str) -> bool {
