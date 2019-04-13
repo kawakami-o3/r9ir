@@ -98,38 +98,34 @@ fn kill(ri: i32) {
     })
 }
 
-fn visit(irv: &mut Vec<IR>) {
-    for i in 0..irv.len() {
-        let mut ir = &mut irv[i];
-
-        match irinfo_get(&ir.op).unwrap().ty {
-            IRInfoType::BINARY => {
+fn visit(ir: &mut IR) {
+    match irinfo_get(&ir.op).unwrap().ty {
+        IRInfoType::BINARY => {
+            ir.lhs = alloc(ir.lhs);
+            ir.rhs = alloc(ir.rhs);
+        }
+        IRInfoType::REG |
+            IRInfoType::REG_IMM |
+            IRInfoType::REG_LABEL |
+            IRInfoType::LABEL_ADDR => {
+                ir.lhs = alloc(ir.lhs);
+            }
+        IRInfoType::MEM |
+            IRInfoType::REG_REG => {
                 ir.lhs = alloc(ir.lhs);
                 ir.rhs = alloc(ir.rhs);
             }
-            IRInfoType::REG |
-                IRInfoType::REG_IMM |
-                IRInfoType::REG_LABEL |
-                IRInfoType::LABEL_ADDR => {
-                ir.lhs = alloc(ir.lhs);
+        IRInfoType::CALL => {
+            ir.lhs = alloc(ir.lhs);
+            for i in 0..ir.nargs {
+                ir.args[i] = alloc(ir.args[i]);
             }
-            IRInfoType::MEM |
-                IRInfoType::REG_REG => {
-                ir.lhs = alloc(ir.lhs);
-                ir.rhs = alloc(ir.rhs);
-            }
-            IRInfoType::CALL => {
-                ir.lhs = alloc(ir.lhs);
-                for i in 0..ir.nargs {
-                    ir.args[i] = alloc(ir.args[i]);
-                }
-            }
-            _ => {}
         }
+        _ => {}
+    }
 
-        for r in ir.kill.iter() {
-            kill(reg_map_get(*r));
-        }
+    for r in ir.kill.iter() {
+        kill(reg_map_get(*r));
     }
 }
 
@@ -138,7 +134,9 @@ pub fn alloc_regs(prog: &mut Program) -> &mut Program {
     init_used();
     for i in 0..prog.funcs.len() {
         let fun = &mut prog.funcs[i];
-        visit(&mut fun.ir);
+        for ir in fun.ir.iter_mut() {
+            visit(ir);
+        }
     }
     return prog;
 }
