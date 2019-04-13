@@ -783,20 +783,23 @@ fn function_call(t: & Token, tokens: &Vec<Token>) -> Node {
 
 fn stmt_expr(tokens: & Vec<Token>) -> Node {
     let t = &tokens[pos()];
-    let mut n = compound_stmt(tokens);
-    expect(TokenType::KET, tokens);
+    let mut v = Vec::new();
 
-    if n.stmts.len() == 0 {
-        bad_token(t, "empty statement expression".to_string());
+    env_push();
+    v.push(stmt(tokens));
+    while !consume(TokenType::C_KET, tokens) {
+        v.push(stmt(tokens));
     }
+    expect(TokenType::KET, tokens);
+    env_pop();
 
-    let last = n.stmts.pop().unwrap();
+    let last = v.pop().unwrap();
     if last.op != NodeType::EXPR_STMT {
-        bad_token(t, "statement expression returning void".to_string());
+        bad_token(&*last.token.unwrap(), "statement expression returning void".to_string());
     }
 
     let mut node = new_node(NodeType::STMT_EXPR, Some(Box::new(t.clone())));
-    node.stmts = n.stmts;
+    node.stmts = v;
     node.expr = last.expr;
     return node;
 }
