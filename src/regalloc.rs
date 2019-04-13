@@ -90,6 +90,14 @@ fn alloc(ir_reg: i32) -> i32 {
     panic!("register exhausted");
 }
 
+fn kill(ri: i32) {
+    USED.with(|u| {
+        let r = ri as usize;
+        assert!(u.borrow()[r]);
+        u.borrow_mut()[r] = false;
+    })
+}
+
 fn visit(irv: &mut Vec<IR>) {
     for i in 0..irv.len() {
         let mut ir = &mut irv[i];
@@ -119,10 +127,8 @@ fn visit(irv: &mut Vec<IR>) {
             _ => {}
         }
 
-        if ir.op == IRType::KILL {
-            assert!(used_get(ir.lhs));
-            used_set(ir.lhs, false);
-            ir.op = IRType::NOP;
+        for r in ir.kill.iter() {
+            kill(reg_map_get(*r));
         }
     }
 }

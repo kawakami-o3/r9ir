@@ -72,7 +72,6 @@ pub enum IRType {
     LOAD,
     STORE,
     STORE_ARG,
-    KILL,
     ADD,
     SUB,
     MUL,
@@ -99,6 +98,9 @@ pub struct IR {
     pub stacksize: i32,
     pub ir: Vec<IR>,
     pub globals: Vec<Var>,
+
+    // For liveness tracking
+    pub kill: Vec<i32>,
 }
 
 fn alloc_ir() -> IR {
@@ -116,6 +118,8 @@ fn alloc_ir() -> IR {
         stacksize: 0,
         ir: Vec::new(),
         globals: Vec::new(),
+
+        kill: Vec::new(),
     };
 }
 
@@ -132,7 +136,10 @@ fn emit(op: IRType, lhs: i32, rhs: i32) -> usize {
 }
 
 fn kill(r: i32) {
-    emit(IRType::KILL, r, -1);
+    CODE.with(|c| {
+        let len = c.borrow().len();
+        c.borrow_mut()[len-1].kill.push(r);
+    })
 }
 
 fn label(x: i32) {
