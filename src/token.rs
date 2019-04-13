@@ -354,6 +354,15 @@ fn new_env(next: Option<Env>, path: String, buf: String) -> Env {
     return env;
 }
 
+// Returns true if s1 starts with s2
+fn startswith(s1: &String, pos: usize, s2: &str) -> bool {
+    let len = s2.len();
+    if s1.len() < pos + len {
+        false;
+    }
+    return &s1[pos..pos+len] == s2;
+}
+
 // Error reporting
 
 // Finds a line pointed by a given pointer from the input file
@@ -444,12 +453,26 @@ pub fn get_line_number(t: &Token) -> i32 {
     return n;
 }
 
+// Returns true if Token t followed a space or a comment
+// in an original source file.
+fn need_space(t: & Token) -> bool {
+    let c = char::from(t.buf.as_bytes()[t.start-1]);
+    if c.is_whitespace() {
+        return true;
+    }
+    return t.start >= 2 && startswith(&t.buf, t.start - 2, "*/");
+}
+
+// For C preprocessor.
 pub fn stringize(tokens: Vec<Token>) -> String {
     let mut sb = String::new();
 
     for i in 0..tokens.len() {
         let t = &tokens[i];
-        if i > 0 {
+        if t.ty == TokenType::NEW_LINE {
+            continue;
+        }
+        if i > 0 && need_space(t) {
             sb.push(' ');
         }
         assert!(t.start != 0 || t.end != 0);
@@ -457,14 +480,6 @@ pub fn stringize(tokens: Vec<Token>) -> String {
     }
     sb.push('\0'); // EOS
     return sb;
-}
-
-fn startswith(s1: &String, pos: usize, s2: &str) -> bool {
-    let len = s2.len();
-    if s1.len() < pos + len {
-        false;
-    }
-    return &s1[pos..pos+len] == s2;
 }
 
 fn block_comment(p: &String, idx: usize) -> usize {
