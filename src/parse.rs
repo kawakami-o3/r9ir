@@ -290,7 +290,6 @@ fn env_pop() {
     })
 }
 
-
 #[derive(Clone, Debug, PartialEq)]
 pub enum NodeType {
     ADD,       // +
@@ -408,16 +407,18 @@ pub fn alloc_type() -> Type {
     } 
 }
 
+// Represents a variable.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Var {
     pub ty: Type,
     pub name: String,
     pub is_local: bool,
 
-    // local
+    // Local variables are compiled to offsets from RBP.
     pub offset: i32,
 
-    // global
+    // Global variables are compiled to labels with optional
+    // initialized data.
     pub data: Option<String>,
 }
 
@@ -433,7 +434,7 @@ pub fn alloc_var() -> Var {
     }
 }
 
-
+// AST node
 #[derive(Clone, Debug, PartialEq)]
 pub struct Node {
     pub op: NodeType,            // Node type
@@ -866,7 +867,6 @@ fn new_post_inc(t: Option<Box<Token>>, e: Node, imm: i32) -> Node {
     v.push(new_varref(t.clone(), var2));
     return new_stmt_expr(t, v);
 }
-
 
 fn postfix(tokens: &Vec<Token>) -> Node {
     let mut lhs = primary(tokens);
