@@ -31,8 +31,9 @@ thread_local! {
     static POS: RefCell<usize> = RefCell::new(0);
     static ENV: RefCell<Env> = RefCell::new(new_env(None));
     static LVARS: RefCell<Vec<Rc<RefCell<Var>>>> = RefCell::new(Vec::new());
-    static BREAKS: RefCell<Vec<Node>> = RefCell::new(Vec::new());
-    static CONTINUES: RefCell<Vec<Node>> = RefCell::new(Vec::new());
+    static BREAKS: RefCell<Vec<Rc<RefCell<Node>>>> = RefCell::new(Vec::new());
+    static CONTINUES: RefCell<Vec<Rc<RefCell<Node>>>> = RefCell::new(Vec::new());
+    static SWITCHES: RefCell<Vec<Rc<RefCell<Node>>>> = RefCell::new(Vec::new());
 }
 
 fn init_lvars() {
@@ -65,19 +66,19 @@ fn breaks_len() -> usize {
     })
 }
 
-fn breaks_push(node: Node) {
+fn breaks_push(node: Rc<RefCell<Node>>) {
     BREAKS.with(|p| {
         p.borrow_mut().push(node);
     })
 }
 
-fn breaks_pop() -> Option<Node> {
+fn breaks_pop() -> Option<Rc<RefCell<Node>>> {
     BREAKS.with(|p| {
         return p.borrow_mut().pop();
     })
 }
 
-fn breaks_last() -> Node {
+fn breaks_last() -> Rc<RefCell<Node>> {
     BREAKS.with(|p| {
         let l = p.borrow().len(); 
         return p.borrow()[l-1].clone();
@@ -96,22 +97,53 @@ fn continues_len() -> usize {
     })
 }
 
-fn continues_push(node: Node) {
+fn continues_push(node: Rc<RefCell<Node>>) {
     CONTINUES.with(|p| {
         p.borrow_mut().push(node);
     })
 }
 
-fn continues_pop() -> Option<Node> {
+fn continues_pop() -> Option<Rc<RefCell<Node>>> {
     CONTINUES.with(|p| {
         return p.borrow_mut().pop();
     })
 }
 
-fn continues_last() -> Node {
+fn continues_last() -> Rc<RefCell<Node>> {
     CONTINUES.with(|p| {
         let l = p.borrow().len();
         return p.borrow()[l-1].clone();
+    })
+}
+
+fn init_switches() {
+    SWITCHES.with(|p| {
+        *p.borrow_mut() = Vec::new();
+    })
+}
+
+fn switches_len() -> usize {
+    SWITCHES.with(|p| {
+        return p.borrow().len();
+    })
+}
+
+fn switches_push(node: Rc<RefCell<Node>>) {
+    SWITCHES.with(|p| {
+        p.borrow_mut().push(node);
+    })
+}
+
+fn switches_pop() -> Option<Rc<RefCell<Node>>> {
+    SWITCHES.with(|p| {
+        return p.borrow_mut().pop();
+    })
+}
+
+fn switches_last() -> Rc<RefCell<Node>> {
+    SWITCHES.with(|p| {
+        let l = p.borrow().len(); 
+        p.borrow_mut()[l-1].clone()
     })
 }
 
@@ -283,6 +315,8 @@ pub enum NodeType {
     IF,        // "if"
     FOR,       // "for"
     DO_WHILE,  // do ... while
+    SWITCH,    // switch
+    CASE,      // case
     BREAK,     // break
     CONTINUE,  // continue
     ADDR,      // address-of operator ("&")
@@ -419,6 +453,8 @@ pub struct Node {
     // "for" ( init; cond; inc ) body
     // "while" ( cond ) body
     // "do" body "while" ( cond )
+    // "switch" ( cond ) body
+    // "case" val ":" body
     pub cond: Option<Box<Node>>,
     pub then: Option<Box<Node>>,
     pub els: Option<Box<Node>>,
@@ -426,7 +462,11 @@ pub struct Node {
     pub inc: Option<Box<Node>>,
     pub body: Option<Box<Node>>,
 
-    // For break and continue
+    // For switch and case
+    pub cases: Vec<Node>,
+    pub case_label: usize,
+
+    // For case, break and continue
     pub break_label: usize,
     pub continue_label: usize,
     pub target: Option<Box<Node>>,
@@ -461,6 +501,9 @@ pub fn alloc_node() -> Node {
         init: None,
         inc: None,
         body: None,
+
+        cases: Vec::new(),
+        case_label: 0,
 
         break_label: 0,
         continue_label: 0,
@@ -1088,6 +1131,15 @@ fn expr(tokens: &Vec<Token>) -> Node {
     return new_binop(NodeType::COMMA, Some(Box::new(t.clone())), lhs, expr(tokens));
 }
 
+fn const_expr(tokens: &Vec<Token>) -> i32 {
+    let t = &tokens[pos()];
+    let node = expr(tokens);
+    if node.op != NodeType::NUM {
+        bad_token(t, "constant expression expected".to_string());
+    }
+    return node.val;
+}
+
 fn read_array<'a>(ty: &'a mut Type, tokens: &Vec<Token>) -> &'a mut Type {
     let mut v = Vec::new();
 
@@ -1097,12 +1149,7 @@ fn read_array<'a>(ty: &'a mut Type, tokens: &Vec<Token>) -> &'a mut Type {
             continue;
         }
 
-        let t = &tokens[pos()];
-        let len = expr(tokens);
-        if len.op != NodeType::NUM {
-            bad_token(t, "number expected".to_string());
-        }
-        v.push(len.val);
+        v.push(const_expr(tokens));
         expect(TokenType::S_KET, tokens);
     }
     for len in v.iter().rev() {
@@ -1213,62 +1260,91 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             return node;
         }
         TokenType::FOR => {
-            let mut node = new_loop(NodeType::FOR, Some(Box::new(t.clone())));
+            let mut node = Rc::new(RefCell::new(new_loop(NodeType::FOR, Some(Box::new(t.clone())))));
             expect(TokenType::BRA, tokens);
             env_push();
             breaks_push(node.clone());
             continues_push(node.clone());
 
             if is_typename(tokens) {
-                node.init = Some(Box::new(declaration(tokens)));
+                node.borrow_mut().init = Some(Box::new(declaration(tokens)));
             } else if !consume(TokenType::SEMI_COLON, tokens) {
-                node.init = Some(Box::new(expr_stmt(tokens)));
+                node.borrow_mut().init = Some(Box::new(expr_stmt(tokens)));
             }
 
             if !consume(TokenType::SEMI_COLON, tokens) {
-                node.cond = Some(Box::new(expr(tokens)));
+                node.borrow_mut().cond = Some(Box::new(expr(tokens)));
                 expect(TokenType::SEMI_COLON, tokens);
             }
 
             if !consume(TokenType::KET, tokens) {
-                node.inc = Some(Box::new(expr(tokens)));
+                node.borrow_mut().inc = Some(Box::new(expr(tokens)));
                 expect(TokenType::KET, tokens);
             }
 
-            node.body = Some(Box::new(stmt(tokens)));
+            node.borrow_mut().body = Some(Box::new(stmt(tokens)));
             breaks_pop();
             continues_pop();
             env_pop();
-            return node;
+            return node.borrow().clone();
         }
         TokenType::WHILE => {
-            let mut node = new_loop(NodeType::FOR, Some(Box::new(t.clone())));
+            let mut node = Rc::new(RefCell::new(new_loop(NodeType::FOR, Some(Box::new(t.clone())))));
             breaks_push(node.clone());
             continues_push(node.clone());
 
             expect(TokenType::BRA, tokens);
-            node.cond = Some(Box::new(expr(tokens)));
+            node.borrow_mut().cond = Some(Box::new(expr(tokens)));
             expect(TokenType::KET, tokens);
-            node.body = Some(Box::new(stmt(tokens)));
+            node.borrow_mut().body = Some(Box::new(stmt(tokens)));
             
             breaks_pop();
             continues_pop();
-            return node;
+            return node.borrow().clone();
         }
         TokenType::DO => {
-            let mut node = new_loop(NodeType::DO_WHILE, Some(Box::new(t.clone())));
+            let mut node = Rc::new(RefCell::new(new_loop(NodeType::DO_WHILE, Some(Box::new(t.clone())))));
             breaks_push(node.clone());
             continues_push(node.clone());
 
-            node.body = Some(Box::new(stmt(tokens)));
+            node.borrow_mut().body = Some(Box::new(stmt(tokens)));
             expect(TokenType::WHILE, tokens);
             expect(TokenType::BRA, tokens);
-            node.cond = Some(Box::new(expr(tokens)));
+            node.borrow_mut().cond = Some(Box::new(expr(tokens)));
             expect(TokenType::KET, tokens);
             expect(TokenType::SEMI_COLON, tokens);
             
             breaks_pop();
             continues_pop();
+            return node.borrow().clone();
+        }
+        TokenType::SWITCH => {
+            let mut node = Rc::new(RefCell::new(new_node(NodeType::SWITCH, Some(Box::new(t.clone())))));
+            node.borrow_mut().break_label = bump_nlabel();
+
+            expect(TokenType::BRA, tokens);
+            node.borrow_mut().cond = Some(Box::new(expr(tokens)));
+            expect(TokenType::KET, tokens);
+
+            breaks_push(node.clone());
+            switches_push(node.clone());
+            node.borrow_mut().body = Some(Box::new(stmt(tokens)));
+            breaks_pop();
+            switches_pop();
+            return node.borrow().clone();
+        }
+        TokenType::CASE => {
+            if switches_len() == 0 {
+                bad_token(t, "stray case".to_string());
+            }
+            let mut node = new_node(NodeType::CASE, Some(Box::new(t.clone())));
+            node.case_label = bump_nlabel();
+            node.val = const_expr(tokens);
+            expect(TokenType::COLON, tokens);
+            node.body = Some(Box::new(stmt(tokens)));
+
+            let s = switches_last();
+            s.borrow_mut().cases.push(node.clone());
             return node;
         }
         TokenType::BREAK => {
@@ -1276,7 +1352,8 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
                 bad_token(t, "stray break".to_string());
             }
             let mut node =  new_node(NodeType::BREAK, Some(Box::new(t.clone())));
-            node.target = Some(Box::new(breaks_last()));
+            let b = breaks_last();
+            node.target = Some(Box::new(b.borrow().clone()));
             return node;
         }
         TokenType::CONTINUE => {
@@ -1286,7 +1363,8 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             let mut node =  new_node(NodeType::CONTINUE, Some(Box::new(t.clone())));
 
             // 9cc use the last node in 'breaks', not 'continues'.
-            node.target = Some(Box::new(continues_last()));
+            let c = continues_last();
+            node.target = Some(Box::new(c.borrow().clone()));
 
             return node;
         }
@@ -1354,6 +1432,7 @@ fn toplevel(tokens: &Vec<Token>) {
 
         init_breaks();
         init_continues();
+        init_switches();
 
         node.borrow_mut().name = name.clone();
         node.borrow_mut().params = params;

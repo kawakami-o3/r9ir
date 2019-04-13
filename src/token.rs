@@ -226,6 +226,8 @@ pub enum TokenType {
     FOR,        // "for"
     DO,         // "do"
     WHILE,      // "while"
+    SWITCH,     // "switch"
+    CASE,       // "case"
     BREAK,      // "break"
     CONTINUE,   // "continue"
     EQ,         // ==
@@ -473,6 +475,7 @@ fn keyword_map() -> HashMap<String, TokenType> {
     keywords.insert("_Alignof".to_string(), TokenType::ALIGNOF);
     keywords.insert("_Bool".to_string(), TokenType::BOOL);
     keywords.insert("break".to_string(), TokenType::BREAK);
+    keywords.insert("case".to_string(), TokenType::CASE);
     keywords.insert("char".to_string(), TokenType::CHAR);
     keywords.insert("continue".to_string(), TokenType::CONTINUE);
     keywords.insert("do".to_string(), TokenType::DO);
@@ -484,6 +487,7 @@ fn keyword_map() -> HashMap<String, TokenType> {
     keywords.insert("return".to_string(), TokenType::RETURN);
     keywords.insert("sizeof".to_string(), TokenType::SIZEOF);
     keywords.insert("struct".to_string(), TokenType::STRUCT);
+    keywords.insert("switch".to_string(), TokenType::SWITCH);
     keywords.insert("typedef".to_string(), TokenType::TYPEDEF);
     keywords.insert("typeof".to_string(), TokenType::TYPEOF);
     keywords.insert("void".to_string(), TokenType::VOID);

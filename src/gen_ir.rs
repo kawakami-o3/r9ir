@@ -445,6 +445,24 @@ fn gen_stmt(node: Node) {
             kill(r);
             label(node.break_label as i32);
         }
+        NodeType::SWITCH => {
+            let r = gen_expr(*node.cond.unwrap());
+            for c in node.cases {
+                let r2 = bump_nreg();
+                emit(IRType::IMM, r2, c.val);
+                emit(IRType::EQ, r2, r);
+                emit(IRType::IF, r2, c.case_label as i32);
+                kill(r2);
+            }
+            kill(r);
+            jmp(node.break_label as i32);
+            gen_stmt(*node.body.unwrap());
+            label(node.break_label as i32);
+        }
+        NodeType::CASE => {
+            label(node.case_label as i32);
+            gen_stmt(*node.body.unwrap());
+        }
         NodeType::BREAK => {
             jmp(node.target.unwrap().break_label as i32);
         }

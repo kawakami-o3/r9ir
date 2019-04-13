@@ -124,8 +124,12 @@ fn do_walk<'a>(node: &'a mut Node, decay: bool, prog: &'a mut Program) -> &'a No
             node.body = Some(Box::new(walk(&mut *node.body.clone().unwrap(), prog).clone()));
             return node;
         }
-        NodeType::DO_WHILE => {
+        NodeType::DO_WHILE | NodeType::SWITCH => {
             node.cond = Some(Box::new(walk(&mut *node.cond.clone().unwrap(), prog).clone()));
+            node.body = Some(Box::new(walk(&mut *node.body.clone().unwrap(), prog).clone()));
+            return node;
+        }
+        NodeType::CASE => {
             node.body = Some(Box::new(walk(&mut *node.body.clone().unwrap(), prog).clone()));
             return node;
         }
