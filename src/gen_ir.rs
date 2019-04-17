@@ -196,28 +196,27 @@ fn new_bb() -> Rc<RefCell<BB>> {
     return b;
 }
 
-fn emit(op: IRType, lhs: i32, rhs: i32) -> Rc<RefCell<IR>> {
+fn new_ir(op: IRType) -> Rc<RefCell<IR>> {
     let mut ir = alloc_ir();
     ir.op = op;
-    ir.lhs = lhs;
-    ir.rhs = rhs;
-
     let i = Rc::new(RefCell::new(ir));
     out_ir_push(i.clone());
     return i;
 }
 
-fn br(r: i32, then: Rc<RefCell<BB>>, els: Rc<RefCell<BB>>) -> Rc<RefCell<IR>> {
-    let mut ir = alloc_ir();
-    ir.op = IRType::BR;
-    ir.lhs = r;
-    ir.bb1 = then;
-    ir.bb2 = els;
-    ir.kill = Vec::new();
+fn emit(op: IRType, lhs: i32, rhs: i32) -> Rc<RefCell<IR>> {
+    let ir = new_ir(op);
+    ir.borrow_mut().lhs = lhs;
+    ir.borrow_mut().rhs = rhs;
+    return ir;
+}
 
-    let i = Rc::new(RefCell::new(ir));
-    out_ir_push(i.clone());
-    return i;
+fn br(r: i32, then: Rc<RefCell<BB>>, els: Rc<RefCell<BB>>) -> Rc<RefCell<IR>> {
+    let ir = new_ir(IRType::BR);
+    ir.borrow_mut().lhs = r;
+    ir.borrow_mut().bb1 = then;
+    ir.borrow_mut().bb2 = els;
+    return ir;
 }
 
 fn kill(r: i32) {
@@ -226,13 +225,8 @@ fn kill(r: i32) {
 }
 
 fn jmp(bb: Rc<RefCell<BB>>) {
-    let mut ir = alloc_ir();
-    ir.op = IRType::JMP;
-    ir.bb1 = bb;
-    ir.kill = Vec::new();
-
-    let i = Rc::new(RefCell::new(ir));
-    out_ir_push(i);
+    let ir = new_ir(IRType::JMP);
+    ir.borrow_mut().bb1 = bb;
 }
 
 fn load(node: Rc<RefCell<Node>>, dst: i32, src: i32) {
