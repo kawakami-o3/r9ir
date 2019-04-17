@@ -24,9 +24,9 @@ fn get_env() -> Option<Env> {
 
 fn env_pop() {
     ENV.with(|c| {
-        let next = c.borrow().next.clone();
-        if next.is_some() {
-            *c.borrow_mut() = *next.unwrap();
+        let prev = c.borrow().prev.clone();
+        if prev.is_some() {
+            *c.borrow_mut() = *prev.unwrap();
         }
     })
 }
@@ -57,7 +57,7 @@ struct Env {
     input: Vec<Token>,
     output: Vec<Token>,
     pos: usize,
-    next: Option<Box<Env>>,
+    prev: Option<Box<Env>>,
 }
 
 impl Env {
@@ -66,18 +66,18 @@ impl Env {
             input: Vec::new(),
             output: Vec::new(),
             pos: 0,
-            next: None,
+            prev: None,
         }
     }
 }
 
-fn new_env(next: Option<Env>, input: Vec<Token>) -> Env {
+fn new_env(prev: Option<Env>, input: Vec<Token>) -> Env {
     let mut ctx = Env::new();
     ctx.input = input;
-    if next.is_none() {
-        ctx.next = None;
+    if prev.is_none() {
+        ctx.prev = None;
     } else {
-        ctx.next = Some(Box::new(next.unwrap()));
+        ctx.prev = Some(Box::new(prev.unwrap()));
     }
     return ctx;
 }

@@ -65,8 +65,8 @@ fn set_tokens(ts: Vec<Token>) {
 
 fn env_pop() {
     ENV.with(|c| {
-        if let Some(next) = c.borrow().next.clone() {
-            *c.borrow_mut() = *next;
+        if let Some(prev) = c.borrow().prev.clone() {
+            *c.borrow_mut() = *prev;
         }
     })
 }
@@ -162,7 +162,7 @@ struct Env {
     path: String,
     buf: String,
     tokens: Vec<Token>,
-    next: Option<Box<Env>>,
+    prev: Option<Box<Env>>,
 }
 
 impl Env {
@@ -171,7 +171,7 @@ impl Env {
             path: String::new(),
             buf: String::new(),
             tokens: Vec::new(),
-            next: None,
+            prev: None,
         }
     }
 }
@@ -338,7 +338,7 @@ fn read_file<T: Read>(file: &mut T) -> String {
     }
 }
 
-fn new_env(next: Option<Env>, path: String, buf: String) -> Env {
+fn new_env(prev: Option<Env>, path: String, buf: String) -> Env {
     let mut env = Env::new();
     env.path = if path == "-" {
         "(stdin)".to_string()
@@ -346,10 +346,10 @@ fn new_env(next: Option<Env>, path: String, buf: String) -> Env {
         path
     };
     env.buf = buf;
-    if next.is_none() {
-        env.next = None;
+    if prev.is_none() {
+        env.prev = None;
     } else {
-        env.next = Some(Box::new(next.unwrap()));
+        env.prev = Some(Box::new(prev.unwrap()));
     }
     return env;
 }

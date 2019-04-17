@@ -208,16 +208,16 @@ struct Env {
     vars: HashMap<String, Rc<RefCell<Var>>>,
     typedefs: HashMap<String, Type>,
     tags: HashMap<String, Type>,
-    next: Option<Box<Env>>,
+    prev: Option<Box<Env>>,
 }
 
 impl Env {
     fn find_var(& self, name: & String) -> Option<Rc<RefCell<Var>>> {
         match self.vars.get(name) {
             None => {
-                match self.next {
+                match self.prev {
                     None => None,
-                    Some(ref next) => next.find_var(name),
+                    Some(ref prev) => prev.find_var(name),
                 }
             }
             v => Some(v.unwrap().clone()),
@@ -227,9 +227,9 @@ impl Env {
     fn find_typedef(& self, name: & String) -> Option<Type> {
         match self.typedefs.get(name) {
             None => {
-                match self.next {
+                match self.prev {
                     None => None,
-                    Some(ref next) => next.find_typedef(name),
+                    Some(ref prev) => prev.find_typedef(name),
                 }
             }
             ty => Some(ty.unwrap().clone()),
@@ -239,9 +239,9 @@ impl Env {
     fn find_tag(& self, name: & String) -> Option<Type> {
         match self.tags.get(name) {
             None => {
-                match self.next {
+                match self.prev {
                     None => None,
-                    Some(ref next) => next.find_tag(name),
+                    Some(ref prev) => prev.find_tag(name),
                 }
             }
             ty => Some(ty.unwrap().clone()),
@@ -249,12 +249,12 @@ impl Env {
     }
 }
 
-fn new_env(next: Option<Box<Env>>) -> Env {
+fn new_env(prev: Option<Box<Env>>) -> Env {
     Env{
         vars: HashMap::new(),
         typedefs: HashMap::new(),
         tags: HashMap::new(),
-        next: next,
+        prev: prev,
     }
 }
 
@@ -285,7 +285,7 @@ fn env_push() {
 
 fn env_pop() {
     ENV.with(|env| {
-        let e = env.borrow().next.clone().unwrap();
+        let e = env.borrow().prev.clone().unwrap();
         *env.borrow_mut() = *e;
     })
 }
