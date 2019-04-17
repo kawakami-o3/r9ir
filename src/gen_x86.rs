@@ -74,12 +74,12 @@ fn escaped(c: char) -> Option<char> {
 }
 
 fn emit_cmp(insn: &str, ir: &IR) {
-    let lhs = ir.lhs as usize;
-    let rhs = ir.rhs as usize;
+    let r0 = ir.r0 as usize;
+    let r2 = ir.r2 as usize;
 
-    emit!("cmp {}, {}", regs[lhs], regs[rhs]);
-    emit!("{} {}", insn, regs8[lhs]);
-    emit!("movzb {}, {}", regs[lhs], regs8[lhs]);
+    emit!("cmp {}, {}", regs[r0], regs[r2]);
+    emit!("{} {}", insn, regs8[r0]);
+    emit!("movzb {}, {}", regs[r0], regs8[r0]);
 }
 
 fn reg(r: usize, size: i32) -> &'static str {
@@ -101,21 +101,21 @@ fn argreg(r: usize, size: i32) -> &'static str {
 }
 
 fn emit_ir(ir: & IR, ret: & String) {
-    let lhs = ir.lhs;
-    let rhs = ir.rhs;
+    let r0 = ir.r0;
+    let r2 = ir.r2;
 
     match ir.op {
         IRType::IMM => {
-            emit!("mov {}, {}", regs[lhs as usize], ir.imm);
+            emit!("mov {}, {}", regs[r0 as usize], ir.imm);
         }
         IRType::BPREL => {
-            emit!("lea {}, [rbp{}]", regs[lhs as usize], ir.imm);
+            emit!("lea {}, [rbp{}]", regs[r0 as usize], ir.imm);
         }
         IRType::MOV => {
-            emit!("mov {}, {}", regs[lhs as usize], regs[rhs as usize]);
+            emit!("mov {}, {}", regs[r0 as usize], regs[r2 as usize]);
         }
         IRType::RETURN => {
-            emit!("mov rax, {}", regs[lhs as usize]);
+            emit!("mov rax, {}", regs[r0 as usize]);
             emit!("jmp {}", ret);
         }
         IRType::CALL => {
@@ -130,10 +130,10 @@ fn emit_ir(ir: & IR, ret: & String) {
             emit!("pop r11");
             emit!("pop r10");
 
-            emit!("mov {}, rax", regs[lhs as usize]);
+            emit!("mov {}, rax", regs[r0 as usize]);
         }
         IRType::LABEL_ADDR => {
-            emit!("lea {}, {}", regs[lhs as usize], ir.name);
+            emit!("lea {}, {}", regs[r0 as usize], ir.name);
         }
         IRType::EQ => {
             emit_cmp("sete", ir)
@@ -148,65 +148,65 @@ fn emit_ir(ir: & IR, ret: & String) {
             emit_cmp("setle", ir)
         }
         IRType::AND => {
-            emit!("and {}, {}", regs[lhs as usize], regs[rhs as usize]);
+            emit!("and {}, {}", regs[r0 as usize], regs[r2 as usize]);
         }
         IRType::OR => {
-            emit!("or {}, {}", regs[lhs as usize], regs[rhs as usize]);
+            emit!("or {}, {}", regs[r0 as usize], regs[r2 as usize]);
         }
         IRType::XOR => {
-            emit!("xor {}, {}", regs[lhs as usize], regs[rhs as usize]);
+            emit!("xor {}, {}", regs[r0 as usize], regs[r2 as usize]);
         }
         IRType::SHL => {
-            emit!("mov cl, {}", regs8[rhs as usize]);
-            emit!("shl {}, cl", regs[lhs as usize]);
+            emit!("mov cl, {}", regs8[r2 as usize]);
+            emit!("shl {}, cl", regs[r0 as usize]);
         }
         IRType::SHR => {
-            emit!("mov cl, {}", regs8[rhs as usize]);
-            emit!("shr {}, cl", regs[lhs as usize]);
+            emit!("mov cl, {}", regs8[r2 as usize]);
+            emit!("shr {}, cl", regs[r0 as usize]);
         }
         IRType::JMP => {
             emit!("jmp .L{}", ir.bb1.borrow().label);
         }
         IRType::BR => {
-            emit!("cmp {}, 0", regs[lhs as usize]);
+            emit!("cmp {}, 0", regs[r0 as usize]);
             emit!("jne .L{}", ir.bb1.borrow().label);
             emit!("jmp .L{}", ir.bb2.borrow().label);
         }
         IRType::LOAD => {
-            emit!("mov {}, [{}]", reg(lhs as usize, ir.size), regs[rhs as usize]);
+            emit!("mov {}, [{}]", reg(r0 as usize, ir.size), regs[r2 as usize]);
             if ir.size == 1 {
-                emit!("movzb {}, {}", regs[lhs as usize], regs8[lhs as usize]);
+                emit!("movzb {}, {}", regs[r0 as usize], regs8[r0 as usize]);
             }
         }
         IRType::STORE => {
-            emit!("mov [{}], {}", regs[lhs as usize], reg(rhs as usize, ir.size));
+            emit!("mov [{}], {}", regs[r0 as usize], reg(r2 as usize, ir.size));
         }
         IRType::STORE_ARG => {
             emit!("mov [rbp{}], {}", ir.imm, argreg(ir.imm2 as usize, ir.size));
         }
         IRType::ADD => {
-            emit!("add {}, {}", regs[lhs as usize], regs[rhs as usize]);
+            emit!("add {}, {}", regs[r0 as usize], regs[r2 as usize]);
         }
         IRType::SUB => {
-            emit!("sub {}, {}", regs[lhs as usize], regs[rhs as usize]);
+            emit!("sub {}, {}", regs[r0 as usize], regs[r2 as usize]);
         }
         IRType::MUL => loop {
-            emit!("mov rax, {}", regs[rhs as usize]);
-            emit!("imul {}", regs[lhs as usize]);
-            emit!("mov {}, rax", regs[lhs as usize]);
+            emit!("mov rax, {}", regs[r2 as usize]);
+            emit!("imul {}", regs[r0 as usize]);
+            emit!("mov {}, rax", regs[r0 as usize]);
             break;
         }
         IRType::DIV => {
-            emit!("mov rax, {}", regs[lhs as usize]);
+            emit!("mov rax, {}", regs[r0 as usize]);
             emit!("cqo");
-            emit!("idiv {}", regs[rhs as usize]);
-            emit!("mov {}, rax", regs[lhs as usize]);
+            emit!("idiv {}", regs[r2 as usize]);
+            emit!("mov {}, rax", regs[r0 as usize]);
         }
         IRType::MOD => {
-            emit!("mov rax, {}", regs[lhs as usize]);
+            emit!("mov rax, {}", regs[r0 as usize]);
             emit!("cqo");
-            emit!("idiv {}", regs[rhs as usize]);
-            emit!("mov {}, rdx", regs[lhs as usize]);
+            emit!("idiv {}", regs[r2 as usize]);
+            emit!("mov {}, rdx", regs[r0 as usize]);
         }
         IRType::NOP => {}
     }

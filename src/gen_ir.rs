@@ -140,8 +140,9 @@ pub fn alloc_bb() -> BB {
 #[derive(Clone, Debug, PartialEq)]
 pub struct IR {
     pub op: IRType,
-    pub lhs: i32,
-    pub rhs: i32,
+
+    pub r0: i32,
+    pub r2: i32,
 
     pub imm: i32,
     pub imm2: i32,
@@ -170,8 +171,9 @@ pub struct IR {
 fn alloc_ir() -> IR {
     IR {
         op: IRType::NOP,
-        lhs: 0,
-        rhs: 0,
+
+        r0: 0,
+        r2: 0,
 
         imm: 0,
         imm2: 0,
@@ -211,16 +213,16 @@ fn new_ir(op: IRType) -> Rc<RefCell<IR>> {
     return i;
 }
 
-fn emit(op: IRType, lhs: i32, rhs: i32) -> Rc<RefCell<IR>> {
+fn emit(op: IRType, r0: i32, r2: i32) -> Rc<RefCell<IR>> {
     let ir = new_ir(op);
-    ir.borrow_mut().lhs = lhs;
-    ir.borrow_mut().rhs = rhs;
+    ir.borrow_mut().r0 = r0;
+    ir.borrow_mut().r2 = r2;
     return ir;
 }
 
 fn br(r: i32, then: Rc<RefCell<BB>>, els: Rc<RefCell<BB>>) -> Rc<RefCell<IR>> {
     let ir = new_ir(IRType::BR);
-    ir.borrow_mut().lhs = r;
+    ir.borrow_mut().r0 = r;
     ir.borrow_mut().bb1 = then;
     ir.borrow_mut().bb2 = els;
     return ir;
@@ -238,7 +240,7 @@ fn jmp(bb: Rc<RefCell<BB>>) {
 
 fn imm(r: i32, imm: i32) {
     let ir = new_ir(IRType::IMM);
-    ir.borrow_mut().lhs = r;
+    ir.borrow_mut().r0 = r;
     ir.borrow_mut().imm = imm;
 }
 
@@ -293,7 +295,7 @@ fn gen_lval(node: Rc<RefCell<Node>>) -> i32 {
     let r = bump_nreg();
     if var.borrow().is_local {
         let ir = new_ir(IRType::BPREL);
-        ir.borrow_mut().lhs = r;
+        ir.borrow_mut().r0 = r;
         ir.borrow_mut().imm = var.borrow().offset;
     } else {
         let ir = emit(IRType::LABEL_ADDR, r, -1);
@@ -303,11 +305,11 @@ fn gen_lval(node: Rc<RefCell<Node>>) -> i32 {
 }
 
 fn gen_binop(ty: IRType, node: Rc<RefCell<Node>>) -> i32 {
-    let r1 = gen_expr(node.borrow().lhs.clone().unwrap());
-    let r2 = gen_expr(node.borrow().rhs.clone().unwrap());
-    emit(ty, r1, r2);
-    kill(r2);
-    return r1;
+    let lhs = gen_expr(node.borrow().lhs.clone().unwrap());
+    let rhs = gen_expr(node.borrow().rhs.clone().unwrap());
+    emit(ty, lhs, rhs);
+    kill(rhs);
+    return lhs;
 }
 
 fn gen_expr(node: Rc<RefCell<Node>>) -> i32 {
@@ -493,12 +495,12 @@ fn gen_expr(node: Rc<RefCell<Node>>) -> i32 {
             return r;
         }
         NodeType::EXCLAM => {
-            let lhs = gen_expr(node.borrow().expr.clone().unwrap());
-            let rhs = bump_nreg();
-            imm(rhs, 0);
-            emit(IRType::EQ, lhs, rhs);
-            kill(rhs);
-            return lhs;
+            let r0 = gen_expr(node.borrow().expr.clone().unwrap());
+            let r2 = bump_nreg();
+            imm(r2, 0);
+            emit(IRType::EQ, r0, r2);
+            kill(r2);
+            return r0;
         }
         t => {
             panic!("unknown AST type {:?}", t);

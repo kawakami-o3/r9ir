@@ -99,14 +99,14 @@ fn kill(ri: i32) {
 }
 
 fn visit(ir: Rc<RefCell<IR>>) {
-    let lhs = ir.borrow().lhs;
-    if lhs != 0 {
-        ir.borrow_mut().lhs = alloc(lhs);
+    let r0 = ir.borrow().r0;
+    if r0 > 0 {
+        ir.borrow_mut().r0 = alloc(r0);
     }
 
-    let rhs = ir.borrow().rhs;
-    if rhs > 0 {
-        ir.borrow_mut().rhs = alloc(rhs);
+    let r2 = ir.borrow().r2;
+    if r2 > 0 {
+        ir.borrow_mut().r2 = alloc(r2);
     }
 
     let op = ir.borrow().op.clone();
