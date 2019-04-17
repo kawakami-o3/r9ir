@@ -293,7 +293,7 @@ fn read_args() -> HashMap<usize, Vec<Token>> {
     return v;
 }
 
-fn add_special_macro(t: & Token) -> bool {
+fn emit_special_macro(t: & Token) -> bool {
     if is_ident(t, "__LINE__") {
         emit(new_int(t, get_line_number(t)));
         return true;
@@ -303,7 +303,7 @@ fn add_special_macro(t: & Token) -> bool {
 
 fn apply_objlike(m: &mut Macro, _start: & Token) {
     for t in m.tokens.iter() {
-        if add_special_macro(t) {
+        if emit_special_macro(t) {
             continue;
         }
         emit(t.clone());
@@ -320,7 +320,7 @@ fn apply_functionlike(m: &mut Macro, start: & Token) {
 
     for i in 0..m.tokens.len() {
         let t = &m.tokens[i];
-        if add_special_macro(t) {
+        if emit_special_macro(t) {
             continue;
         }
 
