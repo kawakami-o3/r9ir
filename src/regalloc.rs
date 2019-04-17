@@ -16,6 +16,7 @@ use crate::gen_ir::*;
 use crate::irdump::*;
 use crate::*;
 use std::cell::RefCell;
+use std::rc::Rc;
 
 thread_local! {
     static USED: RefCell<Vec<bool>> = RefCell::new(Vec::new());
@@ -98,33 +99,43 @@ fn kill(ri: i32) {
     })
 }
 
-fn visit(ir: &mut IR) {
-    match irinfo_get(&ir.op).unwrap().ty {
+fn visit(ir: Rc<RefCell<IR>>) {
+    let op = ir.borrow().op.clone();
+    match irinfo_get(&op).unwrap().ty {
         IRInfoType::BINARY => {
-            ir.lhs = alloc(ir.lhs);
-            ir.rhs = alloc(ir.rhs);
+            let lhs = ir.borrow().lhs;
+            let rhs = ir.borrow().rhs;
+            ir.borrow_mut().lhs = alloc(lhs);
+            ir.borrow_mut().rhs = alloc(rhs);
         }
         IRInfoType::REG |
             IRInfoType::REG_IMM |
             IRInfoType::REG_LABEL |
-            IRInfoType::LABEL_ADDR => {
-                ir.lhs = alloc(ir.lhs);
+            IRInfoType::LABEL_ADDR |
+            IRInfoType::BR => {
+                let lhs = ir.borrow().lhs;
+                ir.borrow_mut().lhs = alloc(lhs);
             }
         IRInfoType::MEM |
             IRInfoType::REG_REG => {
-                ir.lhs = alloc(ir.lhs);
-                ir.rhs = alloc(ir.rhs);
+                let lhs = ir.borrow().lhs;
+                let rhs = ir.borrow().rhs;
+                ir.borrow_mut().lhs = alloc(lhs);
+                ir.borrow_mut().rhs = alloc(rhs);
             }
         IRInfoType::CALL => {
-            ir.lhs = alloc(ir.lhs);
-            for i in 0..ir.nargs {
-                ir.args[i] = alloc(ir.args[i]);
+            let lhs = ir.borrow().lhs;
+            ir.borrow_mut().lhs = alloc(lhs);
+            let nargs = ir.borrow().nargs;
+            for i in 0..nargs {
+                let arg = ir.borrow().args[i];
+                ir.borrow_mut().args[i] = alloc(arg);
             }
         }
         _ => {}
     }
 
-    for r in ir.kill.iter() {
+    for r in ir.borrow().kill.iter() {
         kill(reg_map_get(*r));
     }
 }
@@ -133,9 +144,11 @@ pub fn alloc_regs(prog: &mut Program) -> &mut Program {
     init_reg_map();
     init_used();
     for i in 0..prog.funcs.len() {
-        let fun = &mut prog.funcs[i];
-        for ir in fun.ir.iter_mut() {
-            visit(ir);
+        let fun = &prog.funcs[i];
+        for bb in fun.borrow().bbs.iter() {
+            for ir in bb.borrow().ir.iter() {
+                visit(ir.clone());
+            }
         }
     }
     return prog;

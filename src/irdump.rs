@@ -4,6 +4,7 @@ use crate::gen_ir::*;
 use crate::parse::*;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 thread_local! {
     pub static IRINFO: RefCell<HashMap<IRType, IRInfo>> = RefCell::new(HashMap::new());
@@ -23,6 +24,7 @@ pub enum IRInfoType {
     REG_IMM,
     STORE_ARG,
     REG_LABEL,
+    BR,
     CALL,
     NULL,
 }
@@ -67,8 +69,7 @@ fn init_irinfo() {
         irinfo.insert(IRType::STORE_ARG, IRInfo { name: "STORE_ARG", ty: IRInfoType::STORE_ARG });
         irinfo.insert(IRType::SUB, IRInfo { name: "SUB", ty: IRInfoType::BINARY });
         irinfo.insert(IRType::BPREL, IRInfo { name: "BPREL", ty: IRInfoType::REG_IMM });
-        irinfo.insert(IRType::IF, IRInfo { name: "IF", ty: IRInfoType::REG_LABEL });
-        irinfo.insert(IRType::UNLESS, IRInfo { name: "UNLESS", ty: IRInfoType::REG_LABEL });
+        irinfo.insert(IRType::BR, IRInfo { name: "BR", ty: IRInfoType::BR });
         irinfo.insert(IRType::NULL, IRInfo { name: "", ty: IRInfoType::NULL });
     })
 }
@@ -96,12 +97,15 @@ pub fn tostr(ir: IR) -> String {
             IRInfoType::LABEL_ADDR => format!("  {} r{}, {}", info.name, ir.lhs, ir.name),
             IRInfoType::IMM => format!("  {} {}", ir.name, ir.lhs),
             IRInfoType::REG => format!("  {} r{}", info.name, ir.lhs),
-            IRInfoType::JMP => format!("  {} .L{}", info.name, ir.lhs),
+            IRInfoType::JMP => format!("  {} .L{}", info.name, ir.bb1.borrow().label),
             IRInfoType::REG_REG => format!("  {} r{}, r{}", info.name, ir.lhs, ir.rhs),
             IRInfoType::MEM => format!("  {}{} r{}, r{}", info.name, ir.size, ir.lhs, ir.rhs),
             IRInfoType::REG_IMM => format!("  {} r{}, {}", info.name, ir.lhs, ir.rhs),
             IRInfoType::STORE_ARG => format!("  {}{} {}, {}", info.name, ir.size, ir.lhs, ir.rhs),
             IRInfoType::REG_LABEL => format!("  {} r{}, .L{}", info.name, ir.lhs, ir.rhs),
+            IRInfoType::BR => {
+                format!("  {} r{}, .L{} .L{}", info.name, ir.lhs, ir.bb1.borrow().label, ir.bb2.borrow().label)
+            }
             IRInfoType::CALL => {
                 let mut s = String::new();
                 s.push_str(&format!("  r{} = {}(", ir.lhs, ir.name));
@@ -118,14 +122,18 @@ pub fn tostr(ir: IR) -> String {
     })
 }
 
-pub fn dump_ir(irv: Vec<Function>) {
+pub fn dump_ir(irv: Vec<Rc<RefCell<Function>>>) {
     init_irinfo();
 
-    for i in 0..irv.len() {
-        let fun = &irv[i];
-        eprintln!("{}():", fun.name);
-        for j in 0..fun.ir.len() {
-            eprintln!("{}", tostr(fun.ir[j].clone()));
+    for fun in irv.iter() {
+        eprintln!("{}:", fun.borrow().name);
+
+        for bb in fun.borrow().bbs.iter() {
+            eprintln!(".L{}:", bb.borrow().label);
+
+            for i in bb.borrow().ir.iter() {
+                eprintln!("{}", tostr(i.borrow().clone()));
+            }
         }
     }
 }

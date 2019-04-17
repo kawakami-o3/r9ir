@@ -188,15 +188,12 @@ fn emit_ir(ir: & IR, ret: & String) {
             emit!("shr {}, cl", regs[lhs as usize]);
         }
         IRType::JMP => {
-            emit!("jmp .L{}", lhs);
+            emit!("jmp .L{}", ir.bb1.borrow().label);
         }
-        IRType::IF => {
+        IRType::BR => {
             emit!("cmp {}, 0", regs[lhs as usize]);
-            emit!("jne .L{}", rhs);
-        }
-        IRType::UNLESS => {
-            emit!("cmp {}, 0", regs[lhs as usize]);
-            emit!("je .L{}", rhs);
+            emit!("jne .L{}", ir.bb1.borrow().label);
+            emit!("jmp .L{}", ir.bb2.borrow().label);
         }
         IRType::LOAD => {
             emit!("mov {}, [{}]", reg(lhs as usize, ir.size), regs[rhs as usize]);
@@ -255,9 +252,11 @@ fn emit_code(fun: &Function) {
     emit!("push r14");
     emit!("push r15");
 
-    for i in 0..fun.ir.len() {
-        let ir = &fun.ir[i as usize];
-        emit_ir(ir, &ret);
+    for bb in fun.bbs.iter() {
+        p!(".L{}:", bb.borrow().label);
+        for ir in bb.borrow().ir.iter() {
+            emit_ir(&*ir.borrow(), &ret);
+        }
     }
     p!("{}:", ret);
     emit!("pop r15");
@@ -290,6 +289,6 @@ pub fn gen_x86(prog: &mut Program) {
    }
 
     for f in prog.funcs.iter() {
-        emit_code(f);
+        emit_code(&*f.borrow());
     }
 }

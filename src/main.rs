@@ -19,21 +19,25 @@ use crate::regalloc::*;
 use crate::sema::*;
 use crate::token::*;
 use std::env;
+use std::cell::RefCell;
+use std::rc::Rc;
 
-fn print_node(node: Node, offset: usize) {
+fn print_node(n: Rc<RefCell<Node>>, offset: usize) {
     for _i in 0..offset {
         eprint!(" ");
     }
-    eprintln!("{:?} {} '{}' {:?}", node.op, node.val, node.name, node.ty);
+
+    let node = n.borrow().clone();
+    eprintln!("{:?} {} '{}' {:?}", node.op, node.val, node.name, node.ty.borrow().ty);
     //eprintln!("{:?}", node);
     if node.rhs.is_some() {
-        print_node(*node.rhs.clone().unwrap(), offset+2);
+        print_node(node.rhs.clone().unwrap(), offset+2);
     }
     if node.lhs.is_some() {
-        print_node(*node.lhs.clone().unwrap(), offset+2);
+        print_node(node.lhs.clone().unwrap(), offset+2);
     }
     if node.expr.is_some() {
-        print_node(*node.expr.clone().unwrap(), offset+2);
+        print_node(node.expr.clone().unwrap(), offset+2);
     }
     //eprintln!(">> {}", node.stmts.len());
     for i in node.stmts.iter() {
@@ -41,12 +45,12 @@ fn print_node(node: Node, offset: usize) {
     }
 
 
-    if node.cond.is_some() { print_node(*node.cond.clone().unwrap(), offset+2); }
-    if node.then.is_some() { print_node(*node.then.clone().unwrap(), offset+2); }
-    if node.els.is_some() { print_node(*node.els.clone().unwrap(), offset+2); }
-    if node.init.is_some() { print_node(*node.init.clone().unwrap(), offset+2); }
-    if node.inc.is_some() { print_node(*node.inc.clone().unwrap(), offset+2); }
-    if node.body.is_some() { print_node(*node.body.clone().unwrap(), offset+2); }
+    if node.cond.is_some() { print_node(node.cond.clone().unwrap(), offset+2); }
+    if node.then.is_some() { print_node(node.then.clone().unwrap(), offset+2); }
+    if node.els.is_some() { print_node(node.els.clone().unwrap(), offset+2); }
+    if node.init.is_some() { print_node(node.init.clone().unwrap(), offset+2); }
+    if node.inc.is_some() { print_node(node.inc.clone().unwrap(), offset+2); }
+    if node.body.is_some() { print_node(node.body.clone().unwrap(), offset+2); }
 
     for i in node.args.iter() {
         print_node(i.clone(), offset+2);
@@ -92,10 +96,10 @@ fn main() {
     let tokens = tokenize(path, true);
     //for i in tokens.iter() { eprintln!(">> {:?} {:?}", i.ty, i.name); }
     let prog = &mut parse(&tokens);
-    //eprintln!("nodes> {:?}", nodes);
     if dump_node {
         for i in prog.funcs.iter() {
-            print_node(i.node.borrow().clone(), 0);
+            let n = i.borrow().node.clone();
+            print_node(n.clone(), 0);
         }
         return;
     }

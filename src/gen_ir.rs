@@ -28,9 +28,62 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 thread_local! {
-    static CODE: RefCell<Vec<IR>> = RefCell::new(Vec::new());
+    static FN: RefCell<Option<Rc<RefCell<Function>>>> = RefCell::new(None);
+    static OUT: RefCell<Option<Rc<RefCell<BB>>>> = RefCell::new(None);
     static NREG: RefCell<i32> = RefCell::new(1);
     static BREAK_LABEL: RefCell<i32> = RefCell::new(0);
+}
+
+fn set_fn(fun: Rc<RefCell<Function>>) {
+    FN.with(|f| {
+        *f.borrow_mut() = Some(fun);
+    })
+}
+
+fn fn_bbs_push(bb: Rc<RefCell<BB>>) {
+    FN.with(|f| {
+        match *f.borrow() {
+            Some(ref fun) => {
+                fun.borrow_mut().bbs.push(bb);
+            }
+            None => {
+                panic!();
+            }
+        }
+    })
+}
+
+fn set_out(bb: Rc<RefCell<BB>>) {
+    OUT.with(|o| {
+        *o.borrow_mut() = Some(bb);
+    })
+}
+
+fn out_ir_push(ir: Rc<RefCell<IR>>) {
+    OUT.with(|o| {
+        match *o.borrow() {
+            Some(ref out) => {
+                out.borrow_mut().ir.push(ir);
+            }
+            None => {
+                panic!();
+            }
+        }
+    })
+}
+
+fn out_ir_last() -> Rc<RefCell<IR>> {
+    OUT.with(|o| {
+        match *o.borrow() {
+            Some(ref out) => {
+                let len = out.borrow().ir.len();
+                return out.borrow().ir[len-1].clone();
+            }
+            None => {
+                panic!();
+            }
+        }
+    })
 }
 
 fn bump_nreg() -> i32 {
@@ -38,12 +91,6 @@ fn bump_nreg() -> i32 {
         let ret = *v.borrow();
         *v.borrow_mut() += 1;
         return ret;
-    })
-}
-
-fn init_code() {
-    CODE.with(|code| {
-        *code.borrow_mut() = Vec::new();
     })
 }
 
@@ -67,8 +114,7 @@ pub enum IRType {
     SHR,
     MOD,
     JMP,
-    IF,
-    UNLESS,
+    BR,
     LOAD,
     STORE,
     STORE_ARG,
@@ -80,11 +126,27 @@ pub enum IRType {
     NULL,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
+pub struct BB {
+    pub label: usize,
+    pub ir: Vec<Rc<RefCell<IR>>>,
+}
+
+pub fn alloc_bb() -> BB {
+    BB {
+        label: 0,
+        ir: Vec::new(),
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct IR {
     pub op: IRType,
     pub lhs: i32,
     pub rhs: i32,
+
+    pub bb1: Rc<RefCell<BB>>,
+    pub bb2: Rc<RefCell<BB>>,
 
     // Load/store size in bytes
     pub size: i32,
@@ -104,10 +166,13 @@ pub struct IR {
 }
 
 fn alloc_ir() -> IR {
-    return IR {
+    IR {
         op: IRType::NOP,
         lhs: 0,
         rhs: 0,
+
+        bb1: Rc::new(RefCell::new(alloc_bb())),
+        bb2: Rc::new(RefCell::new(alloc_bb())),
 
         size: 0,
 
@@ -120,54 +185,67 @@ fn alloc_ir() -> IR {
         globals: Vec::new(),
 
         kill: Vec::new(),
-    };
+    }
 }
 
-fn emit(op: IRType, lhs: i32, rhs: i32) -> usize {
+fn new_bb() -> Rc<RefCell<BB>> {
+    let mut bb = alloc_bb();
+    bb.label = bump_nlabel();
+    bb.ir = Vec::new();
+    let b = Rc::new(RefCell::new(bb));
+    fn_bbs_push(b.clone());
+    return b;
+}
+
+fn emit(op: IRType, lhs: i32, rhs: i32) -> Rc<RefCell<IR>> {
     let mut ir = alloc_ir();
     ir.op = op;
     ir.lhs = lhs;
     ir.rhs = rhs;
 
-    return CODE.with(|code| {
-        (*code.borrow_mut()).push(ir);
-        return code.borrow().len() - 1;
-    });
+    let i = Rc::new(RefCell::new(ir));
+    out_ir_push(i.clone());
+    return i;
+}
+
+fn br(r: i32, then: Rc<RefCell<BB>>, els: Rc<RefCell<BB>>) -> Rc<RefCell<IR>> {
+    let mut ir = alloc_ir();
+    ir.op = IRType::BR;
+    ir.lhs = r;
+    ir.bb1 = then;
+    ir.bb2 = els;
+    ir.kill = Vec::new();
+
+    let i = Rc::new(RefCell::new(ir));
+    out_ir_push(i.clone());
+    return i;
 }
 
 fn kill(r: i32) {
-    CODE.with(|c| {
-        let len = c.borrow().len();
-        c.borrow_mut()[len-1].kill.push(r);
-    })
+    let ir = out_ir_last();
+    ir.borrow_mut().kill.push(r);
 }
 
-fn label(x: i32) {
-    emit(IRType::LABEL, x, -1);
+fn jmp(bb: Rc<RefCell<BB>>) {
+    let mut ir = alloc_ir();
+    ir.op = IRType::JMP;
+    ir.bb1 = bb;
+    ir.kill = Vec::new();
+
+    let i = Rc::new(RefCell::new(ir));
+    out_ir_push(i);
 }
 
-fn jmp(x: i32) {
-    emit(IRType::JMP, x, -1);
+fn load(node: Rc<RefCell<Node>>, dst: i32, src: i32) {
+    let ir = emit(IRType::LOAD, dst, src);
+    let ty = node.borrow().ty.clone();
+    ir.borrow_mut().size = ty.borrow().size;
 }
 
-fn load(node: & Node, dst: i32, src: i32) {
-    let ir_idx = emit(IRType::LOAD, dst, src);
-
-    CODE.with(|c| {
-        let code = &mut *c.borrow_mut();
-        let ir = &mut code[ir_idx];
-        ir.size = node.ty.borrow().size;
-    });
-}
-
-fn store(node: & Node, dst: i32, src: i32) {
-    let ir_idx = emit(IRType::STORE, dst, src);
-
-    CODE.with(|c| {
-        let code = &mut *c.borrow_mut();
-        let ir = &mut code[ir_idx];
-        ir.size = node.ty.borrow().size;
-    });
+fn store(node: Rc<RefCell<Node>>, dst: i32, src: i32) {
+    let ir = emit(IRType::STORE, dst, src);
+    let ty = node.borrow().ty.clone();
+    ir.borrow_mut().size = ty.borrow().size;
 }
 
 fn gen_imm(op: IRType, r: i32, imm: i32) {
@@ -194,46 +272,46 @@ fn gen_imm(op: IRType, r: i32, imm: i32) {
 // conversion.
 //
 // This function evaluates a given node as an lvalue.
-fn gen_lval(node: Node) -> i32 {
-    if node.op == NodeType::DEREF {
-        return gen_expr(*node.expr.unwrap());
+fn gen_lval(node: Rc<RefCell<Node>>) -> i32 {
+    let node_op = node.borrow().op.clone();
+    if node_op == NodeType::DEREF {
+        return gen_expr(node.borrow().expr.clone().unwrap());
     }
 
-    if node.op == NodeType::DOT {
-        let r = gen_lval(*node.expr.unwrap());
-        gen_imm(IRType::ADD, r, node.ty.borrow().offset);
+    if node_op == NodeType::DOT {
+        let r = gen_lval(node.borrow().expr.clone().unwrap());
+        let ty = node.borrow().ty.clone();
+        gen_imm(IRType::ADD, r, ty.borrow().offset);
         return r;
     }
 
-    assert!(node.op == NodeType::VARREF);
-    let var = node.var.unwrap();
+    assert!(node_op == NodeType::VARREF);
+    let var = node.borrow().var.clone().unwrap();
 
     let r = bump_nreg();
     if var.borrow().is_local {
         emit(IRType::BPREL, r, var.borrow().offset);
     } else {
-        let ir_idx = emit(IRType::LABEL_ADDR, r, -1);
-        CODE.with(|c| {
-            let code = &mut *c.borrow_mut();
-            code[ir_idx].name = var.borrow().name.clone();
-        });
+        let ir = emit(IRType::LABEL_ADDR, r, -1);
+        ir.borrow_mut().name = var.borrow().name.clone();
     }
     return r;
 }
 
-fn gen_binop(ty: IRType, node: Node) -> i32 {
-    let r1 = gen_expr(*node.lhs.unwrap());
-    let r2 = gen_expr(*node.rhs.unwrap());
+fn gen_binop(ty: IRType, node: Rc<RefCell<Node>>) -> i32 {
+    let r1 = gen_expr(node.borrow().lhs.clone().unwrap());
+    let r2 = gen_expr(node.borrow().rhs.clone().unwrap());
     emit(ty, r1, r2);
     kill(r2);
     return r1;
 }
 
-fn gen_expr(node: Node) -> i32 {
-    match node.op {
+fn gen_expr(node: Rc<RefCell<Node>>) -> i32 {
+    let op = node.borrow().op.clone();
+    match op {
         NodeType::NUM => {
             let r = bump_nreg();
-            emit(IRType::IMM, r, node.val);
+            emit(IRType::IMM, r, node.borrow().val);
             return r;
         }
 
@@ -246,66 +324,79 @@ fn gen_expr(node: Node) -> i32 {
         }
 
         NodeType::LOGAND => {
-            let x = bump_nlabel() as i32;
+            let bb1 = new_bb();
+            let bb2 = new_bb();
+            let last = new_bb();
 
-            let r1 = gen_expr(*node.lhs.unwrap());
-            emit(IRType::UNLESS, r1, x);
-            let r2 = gen_expr(*node.rhs.unwrap());
-            emit(IRType::MOV, r1, r2);
+            let r = gen_expr(node.borrow().lhs.clone().unwrap());
+            br(r, bb1.clone(), last.clone());
+
+            set_out(bb1);
+            let r2 = gen_expr(node.borrow().rhs.clone().unwrap());
+            emit(IRType::MOV, r, r2);
             kill(r2);
-            emit(IRType::UNLESS, r1, x);
-            emit(IRType::IMM, r1, 1);
-            label(x);
-            return r1;
+            br(r, bb2.clone(), last.clone());
+
+            set_out(bb2);
+
+            emit(IRType::IMM, r, 1);
+            jmp(last.clone());
+            
+            set_out(last);
+            return r;
         }
 
         NodeType::LOGOR => {
-            let x = bump_nlabel() as i32;
-            let y = bump_nlabel() as i32;
+            let bb = new_bb();
+            let set0 = new_bb();
+            let set1 = new_bb();
+            let last = new_bb();
 
-            let r1 = gen_expr(*node.lhs.unwrap());
-            emit(IRType::UNLESS, r1, x);
-            emit(IRType::IMM, r1, 1);
-            jmp(y);
-            label(x);
+            let r = gen_expr(node.borrow().lhs.clone().unwrap());
+            br(r, set1.clone(), bb.clone());
 
-            let r2 = gen_expr(*node.rhs.unwrap());
-            emit(IRType::MOV, r1, r2);
+            set_out(set0.clone());
+            emit(IRType::IMM, r, 0);
+            jmp(last.clone());
+
+            set_out(set1.clone());
+            emit(IRType::IMM, r, 1);
+            jmp(last.clone());
+
+            set_out(bb);
+            let r2 = gen_expr(node.borrow().rhs.clone().unwrap());
+            emit(IRType::MOV, r, r2);
             kill(r2);
-            emit(IRType::UNLESS, r1, y);
-            emit(IRType::IMM, r1, 1);
-            label(y);
-            return r1
+            br(r, set1, set0);
+
+            set_out(last);
+            return r;
         }
 
         NodeType::VARREF |
             NodeType::DOT => {
             let r = gen_lval(node.clone());
-            load(&node, r, r);
+            load(node, r, r);
             return r;
         }
 
         NodeType::CALL => {
             let mut args = Vec::new();
-            for a in node.args.iter() {
+            for a in node.borrow().args.iter() {
                 args.push(gen_expr(a.clone()));
             }
 
             let r = bump_nreg();
 
-            let ir_idx = emit(IRType::CALL, r, -1);
+            let ir = emit(IRType::CALL, r, -1);
 
-            let (nargs, args) = CODE.with(|c| {
-                let code = &mut *c.borrow_mut();
-                code[ir_idx].name = node.name.clone();
-                code[ir_idx].nargs = node.args.len();
+            ir.borrow_mut().name = node.borrow().name.clone();
+            ir.borrow_mut().nargs = node.borrow().args.len();
 
-                for i in 0..code[ir_idx].nargs {
-                    code[ir_idx].args[i] = args[i];
-                }
-
-                (code[ir_idx].nargs, code[ir_idx].args)
-            });
+            let nargs = ir.borrow().nargs;
+            for i in 0..nargs {
+                ir.borrow_mut().args[i] = args[i];
+            }
 
             for i in 0..nargs {
                 kill(args[i]);
@@ -314,18 +405,19 @@ fn gen_expr(node: Node) -> i32 {
         }
 
         NodeType::ADDR => {
-            return gen_lval(*node.expr.unwrap());
+            return gen_lval(node.borrow().expr.clone().unwrap());
         }
 
         NodeType::DEREF => {
-            let r = gen_expr(*node.expr.clone().unwrap());
-            load(&node, r, r);
+            let r = gen_expr(node.borrow().expr.clone().unwrap());
+            load(node, r, r);
             return r;
         }
 
         NodeType::CAST => {
-            let r = gen_expr(*node.expr.clone().unwrap());
-            if node.ty.borrow().ty != CType::BOOL {
+            let r = gen_expr(node.borrow().expr.clone().unwrap());
+            let ty = node.borrow().ty.clone();
+            if ty.borrow().ty != CType::BOOL {
                 return r;
             }
             let r2 = bump_nreg();
@@ -336,16 +428,16 @@ fn gen_expr(node: Node) -> i32 {
         }
 
         NodeType::STMT_EXPR => {
-            for n in node.stmts.iter() {
+            for n in node.borrow().stmts.iter() {
                 gen_stmt(n.clone());
             }
-            return gen_expr(*node.expr.unwrap());
+            return gen_expr(node.borrow().expr.clone().unwrap());
         }
 
         NodeType::EQL => {
-            let rhs = gen_expr(*node.clone().rhs.unwrap());
-            let lhs = gen_lval(*node.clone().lhs.unwrap());
-            store(&node, lhs, rhs);
+            let rhs = gen_expr(node.borrow().rhs.clone().unwrap());
+            let lhs = gen_lval(node.borrow().lhs.clone().unwrap());
+            store(node, lhs, rhs);
             kill(lhs);
             return rhs;
         }
@@ -362,34 +454,39 @@ fn gen_expr(node: Node) -> i32 {
         NodeType::SHL => { return gen_binop(IRType::SHL, node); }
         NodeType::SHR => { return gen_binop(IRType::SHR, node); }
         NodeType::NOT => {
-            let r = gen_expr(*node.expr.unwrap());
+            let r = gen_expr(node.borrow().expr.clone().unwrap());
             gen_imm(IRType::XOR, r, -1);
             return r;
         }
         NodeType::COMMA => {
-            kill(gen_expr(*node.lhs.unwrap()));
-            return gen_expr(*node.rhs.unwrap());
+            kill(gen_expr(node.borrow().lhs.clone().unwrap()));
+            return gen_expr(node.borrow().rhs.clone().unwrap());
         }
         NodeType::QUEST => {
-            let x = bump_nlabel() as i32;
-            let y = bump_nlabel() as i32;
-            let r = gen_expr(*node.cond.unwrap());
+            let then = new_bb();
+            let els = new_bb();
+            let last = new_bb();
 
-            emit(IRType::UNLESS, r, x);
-            let r2 = gen_expr(*node.then.unwrap());
+            let r = gen_expr(node.borrow().cond.clone().unwrap());
+            br(r, then.clone(), els.clone());
+
+            set_out(then);
+            let r2 = gen_expr(node.borrow().then.clone().unwrap());
             emit(IRType::MOV, r, r2);
             kill(r2);
-            jmp(y);
+            jmp(last.clone());
 
-            label(x);
-            let r3 = gen_expr(*node.els.unwrap());
+            set_out(els);
+            let r3 = gen_expr(node.borrow().els.clone().unwrap());
             emit(IRType::MOV, r, r3);
             kill(r2);
-            label(y);
+            jmp(last.clone());
+
+            set_out(last);
             return r;
         }
         NodeType::EXCLAM => {
-            let lhs = gen_expr(*node.expr.unwrap());
+            let lhs = gen_expr(node.borrow().expr.clone().unwrap());
             let rhs = bump_nreg();
             emit(IRType::IMM, rhs, 0);
             emit(IRType::EQ, lhs, rhs);
@@ -402,93 +499,139 @@ fn gen_expr(node: Node) -> i32 {
     }
 }
 
-fn gen_stmt(node: Node) {
-    if node.op == NodeType::NULL {
+fn gen_stmt(node: Rc<RefCell<Node>>) {
+    if node.borrow().op == NodeType::NULL {
         return;
     }
 
-    match node.op {
+    let op = node.borrow().op.clone();
+    match op {
         NodeType::IF => {
-            let x = bump_nlabel() as i32;
-            let y = bump_nlabel() as i32;
-            let r = gen_expr(*node.cond.unwrap());
-            emit(IRType::UNLESS, r, x);
+            let then = new_bb();
+            let els = new_bb();
+            let last = new_bb();
+
+            let r = gen_expr(node.borrow().cond.clone().unwrap());
+            br(r, then.clone(), els.clone());
             kill(r);
-            gen_stmt(*node.then.unwrap());
-            jmp(y);
-            label(x);
-            if node.els.is_some() {
-                gen_stmt(*node.els.unwrap());
+
+            set_out(then);
+            gen_stmt(node.borrow().then.clone().unwrap());
+            jmp(last.clone());
+
+            set_out(els);
+            if node.borrow().els.is_some() {
+                gen_stmt(node.borrow().els.clone().unwrap());
             }
-            label(y);
+            jmp(last.clone());
+            
+            set_out(last);
         }
         NodeType::FOR => {
-            let x = bump_nlabel() as i32;
+            let cond = new_bb();
+            let body = new_bb();
+            node.borrow_mut().break_ = new_bb();
+            node.borrow_mut().continue_ = new_bb();
 
-            if node.init.is_some() {
-                gen_stmt(*node.init.unwrap());
+            if node.borrow().init.is_some() {
+                gen_stmt(node.borrow().init.clone().unwrap());
             }
-            label(x);
-            if node.cond.is_some() {
-                let r = gen_expr(*node.cond.unwrap());
-                emit(IRType::UNLESS, r, node.break_label as i32);
+            jmp(cond.clone());
+
+            set_out(cond.clone());
+            if node.borrow().cond.is_some() {
+                let r = gen_expr(node.borrow().cond.clone().unwrap());
+                br(r, body.clone(), node.borrow().break_.clone());
                 kill(r);
+            } else {
+                jmp(body.clone());
             }
-            gen_stmt(*node.body.unwrap());
-            label(node.continue_label as i32);
-            if node.inc.is_some() {
-                kill(gen_expr(*node.inc.unwrap()));
+
+            set_out(body);
+            gen_stmt(node.borrow().body.clone().unwrap());
+            jmp(node.borrow().continue_.clone());
+
+            set_out(node.borrow().continue_.clone());
+            if node.borrow().inc.is_some() {
+                kill(gen_expr(node.borrow().inc.clone().unwrap()));
             }
-            jmp(x);
-            label(node.break_label as i32);
+            jmp(cond);
+
+            set_out(node.borrow().break_.clone());
         }
         NodeType::DO_WHILE => {
-            let x = bump_nlabel() as i32;
-            label(x);
-            gen_stmt(*node.body.unwrap());
-            label(node.continue_label as i32);
-            let r = gen_expr(*node.cond.unwrap());
-            emit(IRType::IF, r, x);
+            let body = new_bb();
+            node.borrow_mut().continue_ = new_bb();
+            node.borrow_mut().break_ = new_bb();
+
+            jmp(body.clone());
+
+            set_out(body.clone());
+            gen_stmt(node.borrow().body.clone().unwrap());
+            jmp(node.borrow().continue_.clone());
+
+            set_out(node.borrow().continue_.clone());
+            let r = gen_expr(node.borrow().cond.clone().unwrap());
+            br(r, body, node.borrow().break_.clone());
             kill(r);
-            label(node.break_label as i32);
+
+            set_out(node.borrow().break_.clone());
         }
         NodeType::SWITCH => {
-            let r = gen_expr(*node.cond.unwrap());
-            for c in node.cases {
+            node.borrow_mut().break_ = new_bb();
+            node.borrow_mut().continue_ = new_bb();
+
+            let r = gen_expr(node.borrow().cond.clone().unwrap());
+            for c in node.borrow().cases.iter() {
+                c.borrow_mut().bb = new_bb();
+
+                let next = new_bb();
                 let r2 = bump_nreg();
-                emit(IRType::IMM, r2, c.val);
+
+                emit(IRType::IMM, r2, c.borrow().val);
                 emit(IRType::EQ, r2, r);
-                emit(IRType::IF, r2, c.case_label as i32);
+                br(r2, c.borrow().bb.clone(), next.clone());
                 kill(r2);
+                set_out(next);
             }
+            jmp(node.borrow().break_.clone());
             kill(r);
-            jmp(node.break_label as i32);
-            gen_stmt(*node.body.unwrap());
-            label(node.break_label as i32);
+
+            gen_stmt(node.borrow().body.clone().unwrap());
+            jmp(node.borrow().break_.clone());
+
+            set_out(node.borrow().break_.clone());
         }
         NodeType::CASE => {
-            label(node.case_label as i32);
-            gen_stmt(*node.body.unwrap());
+            jmp(node.borrow().bb.clone());
+            set_out(node.borrow().bb.clone());
+            gen_stmt(node.borrow().body.clone().unwrap());
         }
         NodeType::BREAK => {
-            jmp(node.target.unwrap().break_label as i32);
+            let target = node.borrow().target.clone().unwrap();
+            jmp(target.borrow().clone().break_);
         }
         NodeType::CONTINUE => {
-            jmp(node.target.unwrap().continue_label as i32);
+            let target = node.borrow().target.clone().unwrap();
+            jmp(target.borrow().clone().continue_);
         }
         NodeType::RETURN => {
-            let r = gen_expr(*node.expr.unwrap());
+            let r = gen_expr(node.borrow().expr.clone().unwrap());
 
             emit(IRType::RETURN, r, -1);
             kill(r);
+
+            let bb = new_bb();
+            jmp(bb.clone());
+            set_out(bb);
         }
         NodeType::EXPR_STMT => {
-            let r = gen_expr(*node.expr.unwrap());
+            let r = gen_expr(node.borrow().expr.clone().unwrap());
             kill(r);
         }
         NodeType::COMP_STMT => {
-            for n in node.stmts {
-                gen_stmt(n);
+            for n in node.borrow().stmts.iter() {
+                gen_stmt(n.clone());
             }
         }
         t => {
@@ -498,42 +641,39 @@ fn gen_stmt(node: Node) {
 }
 
 fn gen_param(var: & Rc<RefCell<Var>>, i: usize) {
-    let ir_idx = emit(IRType::STORE_ARG, var.borrow().offset, i as i32);
-
-    CODE.with(|c| {
-        let code = &mut *c.borrow_mut();
-        let ir = &mut code[ir_idx];
-        ir.size = var.borrow().ty.size;
-    });
+    let ir = emit(IRType::STORE_ARG, var.borrow().offset, i as i32);
+    ir.borrow_mut().size = var.borrow().ty.size;
 }
 
 pub fn gen_ir(prog: &mut Program) {
     for func in prog.funcs.iter_mut() {
-        init_code();
+        set_fn(func.clone());
+        set_out(new_bb());
         
-        assert!(func.node.borrow().op == NodeType::FUNC);
+        let func_node = func.borrow().node.clone();
+        assert!(func_node.borrow().op == NodeType::FUNC);
 
         // Assign an offset from RBP to each local variable.
         let mut off = 0;
-        for v in func.lvars.iter_mut() {
+        for v in func.borrow_mut().lvars.iter_mut() {
             off += v.borrow().ty.size;
             off = roundup(off, v.borrow().ty.align);
             v.borrow_mut().offset = -off;
         }
-        func.stacksize = off;
+        func.borrow_mut().stacksize = off;
 
         // Emit IR.
-        let params = func.node.borrow().clone().params;
+        let params = func_node.borrow().clone().params;
         for i in 0..params.len() {
             gen_param(&params[i], i)
         }
 
-        gen_stmt(*func.node.borrow().body.clone().unwrap());
-        func.ir = CODE.with(|code| code.borrow().clone());
+        let node_body = func_node.borrow().body.clone();
+        gen_stmt(node_body.unwrap());
 
         // Later passes shouldn't need the following members,
         // so make it explicit.
-        func.lvars = Vec::new();
-        func.node = Rc::new(RefCell::new(alloc_node()));
+        func.borrow_mut().lvars = Vec::new();
+        func.borrow_mut().node = Rc::new(RefCell::new(alloc_node()));
     }
 }

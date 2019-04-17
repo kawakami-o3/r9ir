@@ -153,7 +153,7 @@ fn prog_gvars_push(var: Rc<RefCell<Var>>) {
     })
 }
 
-fn prog_funcs_push(func: Function) {
+fn prog_funcs_push(func: Rc<RefCell<Function>>) {
     PROGRAM.with(|p| {
         p.borrow_mut().funcs.push(func);
     })
@@ -186,14 +186,14 @@ pub struct Function {
     pub name: String,
     pub node: Rc<RefCell<Node>>,
     pub lvars: Vec<Rc<RefCell<Var>>>,
-    pub ir: Vec<IR>,
+    pub bbs: Vec<Rc<RefCell<BB>>>,
     pub stacksize: i32,
 }
 
 #[derive(Clone, Debug)]
 pub struct Program {
     pub gvars: Vec<Rc<RefCell<Var>>>,
-    pub funcs: Vec<Function>,
+    pub funcs: Vec<Rc<RefCell<Function>>>,
 }
 
 pub fn new_program() -> Program {
@@ -437,13 +437,13 @@ pub fn alloc_var() -> Var {
 // AST node
 #[derive(Clone, Debug, PartialEq)]
 pub struct Node {
-    pub op: NodeType,            // Node type
-    pub ty: Rc<RefCell<Type>>,   // C type
-    pub lhs: Option<Box<Node>>,  // left-hand side
-    pub rhs: Option<Box<Node>>,  // right-hand side
-    pub val: i32,                // Nubmer literal
-    pub expr: Option<Box<Node>>, // "return" or expression stmt
-    pub stmts: Vec<Node>,        // Compound statemtn
+    pub op: NodeType,                    // Node type
+    pub ty: Rc<RefCell<Type>>,           // C type
+    pub lhs: Option<Rc<RefCell<Node>>>,  // left-hand side
+    pub rhs: Option<Rc<RefCell<Node>>>,  // right-hand side
+    pub val: i32,                        // Nubmer literal
+    pub expr: Option<Rc<RefCell<Node>>>, // "return" or expression stmt
+    pub stmts: Vec<Rc<RefCell<Node>>>,   // Compound statemtn
 
     pub name: String,
 
@@ -456,27 +456,27 @@ pub struct Node {
     // "do" body "while" ( cond )
     // "switch" ( cond ) body
     // "case" val ":" body
-    pub cond: Option<Box<Node>>,
-    pub then: Option<Box<Node>>,
-    pub els: Option<Box<Node>>,
-    pub init: Option<Box<Node>>,
-    pub inc: Option<Box<Node>>,
-    pub body: Option<Box<Node>>,
+    pub cond: Option<Rc<RefCell<Node>>>,
+    pub then: Option<Rc<RefCell<Node>>>,
+    pub els: Option<Rc<RefCell<Node>>>,
+    pub init: Option<Rc<RefCell<Node>>>,
+    pub inc: Option<Rc<RefCell<Node>>>,
+    pub body: Option<Rc<RefCell<Node>>>,
 
     // For switch and case
-    pub cases: Vec<Node>,
-    pub case_label: usize,
+    pub cases: Vec<Rc<RefCell<Node>>>,
+    pub bb: Rc<RefCell<BB>>,
 
     // For case, break and continue
-    pub break_label: usize,
-    pub continue_label: usize,
-    pub target: Option<Box<Node>>,
+    pub target: Option<Rc<RefCell<Node>>>,
+    pub break_: Rc<RefCell<BB>>,
+    pub continue_: Rc<RefCell<BB>>,
 
     // Function definition
     pub params: Vec<Rc<RefCell<Var>>>,
 
     // Function call
-    pub args: Vec<Node>,
+    pub args: Vec<Rc<RefCell<Node>>>,
 
     // For error reporting
     pub token: Option<Box<Token>>,
@@ -504,10 +504,10 @@ pub fn alloc_node() -> Node {
         body: None,
 
         cases: Vec::new(),
-        case_label: 0,
+        bb: Rc::new(RefCell::new(alloc_bb())),
 
-        break_label: 0,
-        continue_label: 0,
+        break_: Rc::new(RefCell::new(alloc_bb())),
+        continue_: Rc::new(RefCell::new(alloc_bb())),
 
         target: None,
 
@@ -518,10 +518,10 @@ pub fn alloc_node() -> Node {
     }
 }
 
-fn null_stmt() -> Node {
+fn null_stmt() -> Rc<RefCell<Node>> {
     let mut node = alloc_node();
     node.op = NodeType::NULL;
-    return node;
+    return Rc::new(RefCell::new(node));
 }
 
 fn find_var(name: & String) -> Option<Rc<RefCell<Var>>> {
@@ -625,9 +625,9 @@ fn decl_specifiers(tokens: &Vec<Token>) -> Type {
         }
         TokenType::TYPEOF => {
             expect(TokenType::BRA, tokens);
-            let mut node = expr(tokens);
+            let node = expr(tokens);
             expect(TokenType::KET, tokens);
-            return get_type(&mut node);
+            return get_type(node);
         }
         TokenType::STRUCT => {
             let t = &tokens[pos()];
@@ -683,42 +683,35 @@ pub fn new_node(op: NodeType, t: Option<Box<Token>>) -> Node {
     return node;
 }
 
-fn new_loop(op: NodeType, t: Option<Box<Token>>) -> Node {
+fn new_binop(op: NodeType, t: Option<Box<Token>>, lhs: Rc<RefCell<Node>>, rhs: Rc<RefCell<Node>>) -> Rc<RefCell<Node>> {
     let mut node = new_node(op, t);
-    node.break_label = bump_nlabel();
-    node.continue_label = bump_nlabel();
-    return node;
+    node.lhs = Some(lhs);
+    node.rhs = Some(rhs);
+    return Rc::new(RefCell::new(node));
 }
 
-fn new_binop(op: NodeType, t: Option<Box<Token>>, lhs: Node, rhs: Node) -> Node {
+fn new_expr(op: NodeType, t: Option<Box<Token>>, expr: Rc<RefCell<Node>>) -> Rc<RefCell<Node>> {
     let mut node = new_node(op, t);
-    node.lhs = Some(Box::new(lhs));
-    node.rhs = Some(Box::new(rhs));
-    return node;
+    node.expr = Some(expr);
+    return Rc::new(RefCell::new(node));
 }
 
-fn new_expr(op: NodeType, t: Option<Box<Token>>, expr: Node) -> Node {
-    let mut node = new_node(op, t);
-    node.expr = Some(Box::new(expr));
-    return node;
-}
-
-fn new_varref(t: Option<Box<Token>>, var: Rc<RefCell<Var>>) -> Node {
+fn new_varref(t: Option<Box<Token>>, var: Rc<RefCell<Var>>) -> Rc<RefCell<Node>> {
     let mut node = new_node(NodeType::VARREF, t);
     node.ty = Rc::new(RefCell::new(var.borrow().ty.clone()));
     node.var = Some(var);
-    return node;
+    return Rc::new(RefCell::new(node));
 }
 
-fn new_deref(t: Option<Box<Token>>, var: Rc<RefCell<Var>>) -> Node {
+fn new_deref(t: Option<Box<Token>>, var: Rc<RefCell<Var>>) -> Rc<RefCell<Node>> {
     return new_expr(NodeType::DEREF, t.clone(), new_varref(t, var));
 }
 
-pub fn new_int_node(val: i32, t: Option<Box<Token>>) -> Node {
+pub fn new_int_node(val: i32, t: Option<Box<Token>>) -> Rc<RefCell<Node>> {
     let mut node = new_node(NodeType::NUM, t);
     node.ty = Rc::new(RefCell::new(int_ty()));
     node.val = val;
-    return node;
+    return Rc::new(RefCell::new(node));
 }
 
 fn ident(tokens: &Vec<Token>) -> String {
@@ -729,17 +722,17 @@ fn ident(tokens: &Vec<Token>) -> String {
     return t.name.clone();
 }
 
-fn string_literal(t: & Token) -> Node {
+fn string_literal(t: & Token) -> Rc<RefCell<Node>> {
     let ty = ary_of(char_ty(), t.str_cnt.len() as i32);
     let name = format!(".L.str{}", bump_nlabel()).to_string();
 
     let mut node = new_node(NodeType::VARREF, Some(Box::new(t.clone())));
     node.ty = Rc::new(RefCell::new(ty.clone()));
     node.var = Some(add_gvar(ty, name, Some(t.str_cnt.clone()), false));
-    return node;
+    return Rc::new(RefCell::new(node));
 }
 
-fn local_variable(t: & Token) -> Node {
+fn local_variable(t: & Token) -> Rc<RefCell<Node>> {
     let var = find_var(&t.name);
     if var.is_none() {
         bad_token(t, "undefined variable".to_string());
@@ -749,10 +742,10 @@ fn local_variable(t: & Token) -> Node {
     node.ty = Rc::new(RefCell::new(v.borrow().ty.clone()));
     node.name = t.name.clone();
     node.var = Some(var.unwrap());
-    return node;
+    return Rc::new(RefCell::new(node));
 }
 
-fn function_call(t: & Token, tokens: &Vec<Token>) -> Node {
+fn function_call(t: & Token, tokens: &Vec<Token>) -> Rc<RefCell<Node>> {
     let var = find_var(&t.name);
 
     let mut node = new_node(NodeType::CALL, Some(Box::new(t.clone())));
@@ -778,10 +771,10 @@ fn function_call(t: & Token, tokens: &Vec<Token>) -> Node {
         }
         node.args.push(assign(tokens));
     }
-    return node;
+    return Rc::new(RefCell::new(node));
 }
 
-fn stmt_expr(tokens: & Vec<Token>) -> Node {
+fn stmt_expr(tokens: & Vec<Token>) -> Rc<RefCell<Node>> {
     let t = &tokens[pos()];
     let mut v = Vec::new();
 
@@ -794,17 +787,19 @@ fn stmt_expr(tokens: & Vec<Token>) -> Node {
     env_pop();
 
     let last = v.pop().unwrap();
-    if last.op != NodeType::EXPR_STMT {
-        bad_token(&*last.token.unwrap(), "statement expression returning void".to_string());
+    let op = last.borrow().op.clone();
+    if op != NodeType::EXPR_STMT {
+        let t = last.borrow().token.clone();
+        bad_token(&*t.unwrap(), "statement expression returning void".to_string());
     }
 
     let mut node = new_node(NodeType::STMT_EXPR, Some(Box::new(t.clone())));
     node.stmts = v;
-    node.expr = last.expr;
-    return node;
+    node.expr = last.borrow().expr.clone();
+    return Rc::new(RefCell::new(node));
 }
 
-fn primary(tokens: & Vec<Token>) -> Node {
+fn primary(tokens: & Vec<Token>) -> Rc<RefCell<Node>> {
     let t = &tokens[bump_pos()];
 
     if t.ty == TokenType::BRA {
@@ -835,7 +830,7 @@ fn primary(tokens: & Vec<Token>) -> Node {
     panic!(); // To avoid compile error.
 }
 
-fn new_stmt_expr(t: Option<Box<Token>>, es: Vec<Node>) -> Node {
+fn new_stmt_expr(t: Option<Box<Token>>, es: Vec<Rc<RefCell<Node>>>) -> Rc<RefCell<Node>> {
     let mut exprs = es;
     let last = exprs.pop();
 
@@ -847,20 +842,21 @@ fn new_stmt_expr(t: Option<Box<Token>>, es: Vec<Node>) -> Node {
     let mut node = new_node(NodeType::STMT_EXPR, t.clone());
     node.stmts = v;
     if let Some(l) = last {
-        node.expr = Some(Box::new(l));
+        node.expr = Some(l);
     } else {
         node.expr = None;
     }
-    return node;
+    return Rc::new(RefCell::new(node));
 }
 
 // `x++` where x is of type T is compiled as
 // `({ T *y = &x; T z = *y; *y = *y + 1; *z; })`.
-fn new_post_inc(t: Option<Box<Token>>, e: Node, imm: i32) -> Node {
+fn new_post_inc(t: Option<Box<Token>>, e: Rc<RefCell<Node>>, imm: i32) -> Rc<RefCell<Node>> {
     let mut v = Vec::new();
 
-    let var1 = add_lvar(ptr_to(e.ty.clone()), "tmp".to_string());
-    let var2 = add_lvar(e.ty.borrow().clone(), "tmp".to_string());
+    let var1 = add_lvar(ptr_to(e.borrow().ty.clone()), "tmp".to_string());
+    let e_ty = e.borrow().ty.clone();
+    let var2 = add_lvar(e_ty.borrow().clone(), "tmp".to_string());
 
     v.push(new_binop(NodeType::EQL, t.clone(), new_varref(t.clone(), var1.clone()), new_expr(NodeType::ADDR, t.clone(), e.clone())));
     v.push(new_binop(NodeType::EQL, t.clone(), new_varref(t.clone(), var2.clone()), new_deref(t.clone(), var1.clone())));
@@ -871,7 +867,7 @@ fn new_post_inc(t: Option<Box<Token>>, e: Node, imm: i32) -> Node {
     return new_stmt_expr(t, v);
 }
 
-fn postfix(tokens: &Vec<Token>) -> Node {
+fn postfix(tokens: &Vec<Token>) -> Rc<RefCell<Node>> {
     let mut lhs = primary(tokens);
 
     loop {
@@ -889,13 +885,13 @@ fn postfix(tokens: &Vec<Token>) -> Node {
 
         if consume(TokenType::DOT, tokens) {
             lhs = new_expr(NodeType::DOT, Some(Box::new(t.clone())), lhs);
-            lhs.name = ident(tokens);
+            lhs.borrow_mut().name = ident(tokens);
             continue;
         }
 
         if consume(TokenType::ARROW, tokens) {
             lhs = new_expr(NodeType::DOT, Some(Box::new(t.clone())), new_expr(NodeType::DEREF, Some(Box::new(t.clone())), lhs));
-            lhs.name = ident(tokens);
+            lhs.borrow_mut().name = ident(tokens);
             continue;
         }
 
@@ -908,7 +904,7 @@ fn postfix(tokens: &Vec<Token>) -> Node {
     }
 }
 
-fn unary(tokens: &Vec<Token>) -> Node {
+fn unary(tokens: &Vec<Token>) -> Rc<RefCell<Node>> {
     let t = &tokens[pos()];
 
     if consume(TokenType::SUB, tokens) {
@@ -927,10 +923,10 @@ fn unary(tokens: &Vec<Token>) -> Node {
         return new_expr(NodeType::NOT, Some(Box::new(t.clone())), unary(tokens));
     }
     if consume(TokenType::SIZEOF, tokens) {
-        return new_int_node(get_type(&mut unary(tokens)).size, Some(Box::new(t.clone())));
+        return new_int_node(get_type(unary(tokens)).size, Some(Box::new(t.clone())));
     }
     if consume(TokenType::ALIGNOF, tokens) {
-        return new_int_node(get_type(&mut unary(tokens)).align, Some(Box::new(t.clone())));
+        return new_int_node(get_type(unary(tokens)).align, Some(Box::new(t.clone())));
     }
 
     if consume(TokenType::INC, tokens) {
@@ -943,7 +939,7 @@ fn unary(tokens: &Vec<Token>) -> Node {
     return postfix(tokens);
 }
 
-fn mul(tokens: &Vec<Token>) -> Node {
+fn mul(tokens: &Vec<Token>) -> Rc<RefCell<Node>> {
     let mut lhs = unary(tokens);
     loop {
         let t = &tokens[pos()];
@@ -959,7 +955,7 @@ fn mul(tokens: &Vec<Token>) -> Node {
     }
 }
 
-fn add(tokens: &Vec<Token>) -> Node {
+fn add(tokens: &Vec<Token>) -> Rc<RefCell<Node>> {
     let mut lhs = mul(tokens);
     loop {
         let t = &tokens[pos()];
@@ -973,7 +969,7 @@ fn add(tokens: &Vec<Token>) -> Node {
     }
 }
 
-fn shift(tokens: &Vec<Token>) -> Node {
+fn shift(tokens: &Vec<Token>) -> Rc<RefCell<Node>> {
     let mut lhs = add(tokens);
     loop {
         let t = &tokens[pos()];
@@ -987,7 +983,7 @@ fn shift(tokens: &Vec<Token>) -> Node {
     }
 }
 
-fn relational(tokens: &Vec<Token>) -> Node {
+fn relational(tokens: &Vec<Token>) -> Rc<RefCell<Node>> {
     let mut lhs = shift(tokens);
     loop {
         let t = &tokens[pos()];
@@ -1005,7 +1001,7 @@ fn relational(tokens: &Vec<Token>) -> Node {
     }
 }
 
-fn equality(tokens: &Vec<Token>) -> Node {
+fn equality(tokens: &Vec<Token>) -> Rc<RefCell<Node>> {
     let mut lhs = relational(tokens);
     loop {
         let t = &tokens[pos()];
@@ -1019,7 +1015,7 @@ fn equality(tokens: &Vec<Token>) -> Node {
     }
 }
 
-fn bit_and(tokens: &Vec<Token>) -> Node {
+fn bit_and(tokens: &Vec<Token>) -> Rc<RefCell<Node>> {
     let mut lhs = equality(tokens);
     while consume(TokenType::AMP, tokens) {
         let t = &tokens[pos()];
@@ -1028,7 +1024,7 @@ fn bit_and(tokens: &Vec<Token>) -> Node {
     return lhs;
 }
 
-fn bit_xor(tokens: &Vec<Token>) -> Node {
+fn bit_xor(tokens: &Vec<Token>) -> Rc<RefCell<Node>> {
     let mut lhs = bit_and(tokens);
     while consume(TokenType::HAT, tokens) {
         let t = &tokens[pos()];
@@ -1037,7 +1033,7 @@ fn bit_xor(tokens: &Vec<Token>) -> Node {
     return lhs;
 }
 
-fn bit_or(tokens: &Vec<Token>) -> Node {
+fn bit_or(tokens: &Vec<Token>) -> Rc<RefCell<Node>> {
     let mut lhs = bit_xor(tokens);
     while consume(TokenType::OR, tokens) {
         let t = &tokens[pos()];
@@ -1046,7 +1042,7 @@ fn bit_or(tokens: &Vec<Token>) -> Node {
     return lhs;
 }
 
-fn logand(tokens: &Vec<Token>) -> Node {
+fn logand(tokens: &Vec<Token>) -> Rc<RefCell<Node>> {
     let mut lhs = bit_or(tokens);
     while consume(TokenType::LOGAND, tokens) {
         let t = &tokens[pos()];
@@ -1055,7 +1051,7 @@ fn logand(tokens: &Vec<Token>) -> Node {
     return lhs;
 }
 
-fn logor(tokens: &Vec<Token>) -> Node {
+fn logor(tokens: &Vec<Token>) -> Rc<RefCell<Node>> {
     let mut lhs = logand(tokens);
     while consume(TokenType::LOGOR, tokens) {
         let t = &tokens[pos()];
@@ -1064,7 +1060,7 @@ fn logor(tokens: &Vec<Token>) -> Node {
     return lhs;
 }
 
-fn conditional(tokens: &Vec<Token>) -> Node {
+fn conditional(tokens: &Vec<Token>) -> Rc<RefCell<Node>> {
     let cond = logor(tokens);
     let t = &tokens[pos()];
     if !consume(TokenType::QUEST, tokens) {
@@ -1072,29 +1068,32 @@ fn conditional(tokens: &Vec<Token>) -> Node {
     }
 
     let mut node = new_node(NodeType::QUEST, Some(Box::new(t.clone())));
-    node.cond = Some(Box::new(cond));
-    node.then = Some(Box::new(expr(tokens)));
+    node.cond = Some(cond);
+    node.then = Some(expr(tokens));
     expect(TokenType::COLON, tokens);
-    node.els = Some(Box::new(expr(tokens)));
-    return node;
+    node.els = Some(expr(tokens));
+    return Rc::new(RefCell::new(node));
 }
 
 // `x op= y` where x is of type T is compiled as
 // `({T *z = &x; *z = *z op y; })`.
-fn new_assign_eq(op: NodeType, lhs: Node, rhs: Node) -> Node {
+fn new_assign_eq(op: NodeType, lhs: Rc<RefCell<Node>>, rhs: Rc<RefCell<Node>>) -> Rc<RefCell<Node>> {
     let mut v = Vec::new();
-    let t = lhs.token.clone();
+    let t = lhs.borrow().token.clone();
 
     // T *z = &x;
-    let var = add_lvar(ptr_to(lhs.ty.clone()), "tmp".to_string());
-    v.push(new_binop(NodeType::EQL, t.clone(), new_varref(t.clone(), var.clone()), new_expr(NodeType::ADDR, t.clone(), lhs)));
+    let var = add_lvar(ptr_to(lhs.borrow().ty.clone()), "tmp".to_string());
+    v.push(new_binop(NodeType::EQL, t.clone(),
+        new_varref(t.clone(), var.clone()), new_expr(NodeType::ADDR, t.clone(), lhs)));
 
     // *z = *z op y
-    v.push(new_binop(NodeType::EQL, t.clone(), new_deref(t.clone(), var.clone()), new_binop(op, t.clone(), new_deref(t.clone(), var), rhs)));
+    v.push(new_binop(NodeType::EQL, t.clone(),
+        new_deref(t.clone(), var.clone()),
+        new_binop(op, t.clone(), new_deref(t.clone(), var), rhs)));
     return new_stmt_expr(t, v);
 }
 
-fn assign(tokens: &Vec<Token>) -> Node {
+fn assign(tokens: &Vec<Token>) -> Rc<RefCell<Node>> {
     let lhs = conditional(tokens);
     let t = &tokens[pos()];
 
@@ -1125,7 +1124,7 @@ fn assign(tokens: &Vec<Token>) -> Node {
     }
 }
 
-fn expr(tokens: &Vec<Token>) -> Node {
+fn expr(tokens: &Vec<Token>) -> Rc<RefCell<Node>> {
     let lhs = assign(tokens);
     let t = &tokens[pos()];
     if !consume(TokenType::COMMA, tokens) {
@@ -1137,10 +1136,10 @@ fn expr(tokens: &Vec<Token>) -> Node {
 fn const_expr(tokens: &Vec<Token>) -> i32 {
     let t = &tokens[pos()];
     let node = expr(tokens);
-    if node.op != NodeType::NUM {
+    if node.borrow().op != NodeType::NUM {
         bad_token(t, "constant expression expected".to_string());
     }
-    return node.val;
+    return node.borrow().val;
 }
 
 fn read_array<'a>(ty: &'a mut Type, tokens: &Vec<Token>) -> &'a mut Type {
@@ -1183,7 +1182,7 @@ fn direct_decl(ty: Rc<RefCell<Type>>, tokens: &Vec<Token>) -> Node {
 
     // Read an initializer.
     if consume(TokenType::EQL, tokens) {
-        node.init = Some(Box::new(assign(tokens)));
+        node.init = Some(assign(tokens));
     }
     return node;
 }
@@ -1203,7 +1202,7 @@ fn declaration_type(tokens: &Vec<Token>) -> Node {
     return node;
 }
 
-fn declaration(tokens: &Vec<Token>) -> Node {
+fn declaration(tokens: &Vec<Token>) -> Rc<RefCell<Node>> {
     let ty = decl_specifiers(tokens);
     let mut node = declarator(Rc::new(RefCell::new(ty)), tokens);
     expect(TokenType::SEMI_COLON, tokens);
@@ -1216,7 +1215,7 @@ fn declaration(tokens: &Vec<Token>) -> Node {
     // Convert `T var = init` to `T var; var = init`.
     let t = node.token;
     let lhs = new_varref(t.clone(), var);
-    let rhs = *node.init.clone().unwrap();
+    let rhs = node.init.clone().unwrap();
     node.init = None;
 
     let expr = new_binop(NodeType::EQL, t.clone(), lhs, rhs);
@@ -1234,14 +1233,14 @@ fn param_declaration(tokens: &Vec<Token>) -> Rc<RefCell<Var>> {
     return add_lvar(ty, node.name);
 }
 
-fn expr_stmt(tokens: &Vec<Token>) -> Node {
+fn expr_stmt(tokens: &Vec<Token>) -> Rc<RefCell<Node>> {
     let t = &tokens[pos()];
     let node = new_expr(NodeType::EXPR_STMT, Some(Box::new(t.clone())), expr(tokens));
     expect(TokenType::SEMI_COLON, tokens);
     return node;
 }
 
-pub fn stmt(tokens: &Vec<Token>) -> Node {
+pub fn stmt(tokens: &Vec<Token>) -> Rc<RefCell<Node>> {
     let t = &tokens[bump_pos()];
 
     match t.ty {
@@ -1254,101 +1253,100 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
         TokenType::IF => {
             let mut node = new_node(NodeType::IF, Some(Box::new(t.clone())));
             expect(TokenType::BRA, tokens);
-            node.cond = Some(Box::new(expr(tokens)));
+            node.cond = Some(expr(tokens));
             expect(TokenType::KET, tokens);
-            node.then = Some(Box::new(stmt(tokens)));
+            node.then = Some(stmt(tokens));
             if consume(TokenType::ELSE, tokens) {
-                node.els = Some(Box::new(stmt(tokens)));
+                node.els = Some(stmt(tokens));
             }
-            return node;
+            return Rc::new(RefCell::new(node));
         }
         TokenType::FOR => {
-            let mut node = Rc::new(RefCell::new(new_loop(NodeType::FOR, Some(Box::new(t.clone())))));
+            let mut node = Rc::new(RefCell::new(new_node(NodeType::FOR, Some(Box::new(t.clone())))));
             expect(TokenType::BRA, tokens);
             env_push();
             breaks_push(node.clone());
             continues_push(node.clone());
 
             if is_typename(tokens) {
-                node.borrow_mut().init = Some(Box::new(declaration(tokens)));
+                node.borrow_mut().init = Some(declaration(tokens));
             } else if !consume(TokenType::SEMI_COLON, tokens) {
-                node.borrow_mut().init = Some(Box::new(expr_stmt(tokens)));
+                node.borrow_mut().init = Some(expr_stmt(tokens));
             }
 
             if !consume(TokenType::SEMI_COLON, tokens) {
-                node.borrow_mut().cond = Some(Box::new(expr(tokens)));
+                node.borrow_mut().cond = Some(expr(tokens));
                 expect(TokenType::SEMI_COLON, tokens);
             }
 
             if !consume(TokenType::KET, tokens) {
-                node.borrow_mut().inc = Some(Box::new(expr(tokens)));
+                node.borrow_mut().inc = Some(expr(tokens));
                 expect(TokenType::KET, tokens);
             }
 
-            node.borrow_mut().body = Some(Box::new(stmt(tokens)));
+            node.borrow_mut().body = Some(stmt(tokens));
             breaks_pop();
             continues_pop();
             env_pop();
-            return node.borrow().clone();
+            return node;
         }
         TokenType::WHILE => {
-            let mut node = Rc::new(RefCell::new(new_loop(NodeType::FOR, Some(Box::new(t.clone())))));
+            let mut node = Rc::new(RefCell::new(new_node(NodeType::FOR, Some(Box::new(t.clone())))));
             breaks_push(node.clone());
             continues_push(node.clone());
 
             expect(TokenType::BRA, tokens);
-            node.borrow_mut().cond = Some(Box::new(expr(tokens)));
+            node.borrow_mut().cond = Some(expr(tokens));
             expect(TokenType::KET, tokens);
-            node.borrow_mut().body = Some(Box::new(stmt(tokens)));
+            node.borrow_mut().body = Some(stmt(tokens));
             
             breaks_pop();
             continues_pop();
-            return node.borrow().clone();
+            return node;
         }
         TokenType::DO => {
-            let mut node = Rc::new(RefCell::new(new_loop(NodeType::DO_WHILE, Some(Box::new(t.clone())))));
+            let mut node = Rc::new(RefCell::new(new_node(NodeType::DO_WHILE, Some(Box::new(t.clone())))));
             breaks_push(node.clone());
             continues_push(node.clone());
 
-            node.borrow_mut().body = Some(Box::new(stmt(tokens)));
+            node.borrow_mut().body = Some(stmt(tokens));
             expect(TokenType::WHILE, tokens);
             expect(TokenType::BRA, tokens);
-            node.borrow_mut().cond = Some(Box::new(expr(tokens)));
+            node.borrow_mut().cond = Some(expr(tokens));
             expect(TokenType::KET, tokens);
             expect(TokenType::SEMI_COLON, tokens);
             
             breaks_pop();
             continues_pop();
-            return node.borrow().clone();
+            return node;
         }
         TokenType::SWITCH => {
             let mut node = Rc::new(RefCell::new(new_node(NodeType::SWITCH, Some(Box::new(t.clone())))));
-            node.borrow_mut().break_label = bump_nlabel();
 
             expect(TokenType::BRA, tokens);
-            node.borrow_mut().cond = Some(Box::new(expr(tokens)));
+            node.borrow_mut().cond = Some(expr(tokens));
             expect(TokenType::KET, tokens);
 
             breaks_push(node.clone());
             switches_push(node.clone());
-            node.borrow_mut().body = Some(Box::new(stmt(tokens)));
+            node.borrow_mut().body = Some(stmt(tokens));
             breaks_pop();
             switches_pop();
-            return node.borrow().clone();
+            return node;
         }
         TokenType::CASE => {
             if switches_len() == 0 {
                 bad_token(t, "stray case".to_string());
             }
             let mut node = new_node(NodeType::CASE, Some(Box::new(t.clone())));
-            node.case_label = bump_nlabel();
             node.val = const_expr(tokens);
             expect(TokenType::COLON, tokens);
-            node.body = Some(Box::new(stmt(tokens)));
+            node.body = Some(stmt(tokens));
 
+            let n = Rc::new(RefCell::new(node));
             let s = switches_last();
-            s.borrow_mut().cases.push(node.clone());
-            return node;
+            s.borrow_mut().cases.push(n.clone());
+            return n;
         }
         TokenType::BREAK => {
             if breaks_len() == 0 {
@@ -1356,8 +1354,8 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
             }
             let mut node =  new_node(NodeType::BREAK, Some(Box::new(t.clone())));
             let b = breaks_last();
-            node.target = Some(Box::new(b.borrow().clone()));
-            return node;
+            node.target = Some(b);
+            return Rc::new(RefCell::new(node));
         }
         TokenType::CONTINUE => {
             if continues_len() == 0 {
@@ -1367,15 +1365,15 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
 
             // 9cc use the last node in 'breaks', not 'continues'.
             let c = continues_last();
-            node.target = Some(Box::new(c.borrow().clone()));
+            node.target = Some(c);
 
-            return node;
+            return Rc::new(RefCell::new(node));
         }
         TokenType::RETURN => {
             let mut node = new_node(NodeType::RETURN, Some(Box::new(t.clone())));
-            node.expr = Some(Box::new(expr(tokens)));
+            node.expr = Some(expr(tokens));
             expect(TokenType::SEMI_COLON, tokens);
-            return node;
+            return Rc::new(RefCell::new(node));
         }
         TokenType::C_BRA => {
             return compound_stmt(tokens);
@@ -1393,7 +1391,7 @@ pub fn stmt(tokens: &Vec<Token>) -> Node {
     }
 }
 
-pub fn compound_stmt(tokens: &Vec<Token>) -> Node {
+pub fn compound_stmt(tokens: &Vec<Token>) -> Rc<RefCell<Node>> {
     let t = &tokens[pos()];
     let mut node = new_node(NodeType::COMP_STMT, Some(Box::new(t.clone())));
 
@@ -1403,7 +1401,7 @@ pub fn compound_stmt(tokens: &Vec<Token>) -> Node {
     }
     env_pop();
 
-    return node;
+    return Rc::new(RefCell::new(node));
 }
 
 fn toplevel(tokens: &Vec<Token>) {
@@ -1458,15 +1456,15 @@ fn toplevel(tokens: &Vec<Token>) {
         if is_typedef {
             bad_token(t, format!("typedef has function definition"));
         }
-        node.borrow_mut().body = Some(Box::new(compound_stmt(tokens)));
+        node.borrow_mut().body = Some(compound_stmt(tokens));
 
-        prog_funcs_push(Function {
+        prog_funcs_push(Rc::new(RefCell::new(Function {
             name: name,
             node: node,
             lvars: lvars(),
-            ir: Vec::new(),
+            bbs: Vec::new(),
             stacksize: 0,
-        });
+        })));
         return;
     }
 
