@@ -101,7 +101,6 @@ pub enum IRType {
     MOV,
     RETURN,
     CALL,
-    LABEL,
     LABEL_ADDR,
     EQ,
     NE,

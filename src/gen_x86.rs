@@ -152,9 +152,6 @@ fn emit_ir(ir: & IR, ret: & String) {
 
             emit!("mov {}, rax", regs[lhs as usize]);
         }
-        IRType::LABEL => {
-            p!(".L{}:", lhs);
-        }
         IRType::LABEL_ADDR => {
             emit!("lea {}, {}", regs[lhs as usize], ir.name);
         }

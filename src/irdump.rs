@@ -48,7 +48,6 @@ fn init_irinfo() {
         irinfo.insert(IRType::DIV, IRInfo { name: "DIV", ty: IRInfoType::REG_REG });
         irinfo.insert(IRType::IMM, IRInfo { name: "IMM", ty: IRInfoType::REG_IMM });
         irinfo.insert(IRType::JMP, IRInfo { name: "JMP", ty: IRInfoType::JMP });
-        irinfo.insert(IRType::LABEL, IRInfo { name: "", ty: IRInfoType::LABEL });
         irinfo.insert(IRType::LABEL_ADDR, IRInfo { name: "LABEL_ADDR", ty: IRInfoType::LABEL_ADDR });
         irinfo.insert(IRType::EQ, IRInfo { name: "EQ", ty: IRInfoType::REG_REG });
         irinfo.insert(IRType::NE, IRInfo { name: "NE", ty: IRInfoType::REG_REG });
