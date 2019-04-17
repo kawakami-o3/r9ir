@@ -456,6 +456,9 @@ pub fn get_line_number(t: &Token) -> i32 {
 // Returns true if Token t followed a space or a comment
 // in an original source file.
 fn need_space(t: & Token) -> bool {
+    if t.start < 1 {
+        return false;
+    }
     let c = char::from(t.buf.as_bytes()[t.start-1]);
     if c.is_whitespace() {
         return true;
