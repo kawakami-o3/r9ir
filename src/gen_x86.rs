@@ -73,26 +73,6 @@ fn escaped(c: char) -> Option<char> {
     })
 }
 
-fn backslash_escape(s: & String) -> String {
-    init_escaped();
-
-    let mut buf = String::new();
-    let mut chars = s.chars();
-    while let Some(c) = chars.next() {
-        if let Some(esc) = escaped(c) {
-            buf.push('\\');
-            buf.push(esc);
-        } else if c.is_ascii_graphic() || c == ' ' {
-            buf.push(c);
-        } else {
-            buf.push_str(&format!("\\{:03o}", u32::from(c)));
-        }
-    }
-
-    //buf.push(char::from(0));
-    return buf;
-}
-
 fn emit_cmp(insn: &str, ir: &IR) {
     let lhs = ir.lhs as usize;
     let rhs = ir.rhs as usize;
@@ -263,6 +243,26 @@ fn emit_code(fun: &Function) {
     emit!("mov rsp, rbp");
     emit!("pop rbp");
     emit!("ret");
+}
+
+fn backslash_escape(s: & String) -> String {
+    init_escaped();
+
+    let mut buf = String::new();
+    let mut chars = s.chars();
+    while let Some(c) = chars.next() {
+        if let Some(esc) = escaped(c) {
+            buf.push('\\');
+            buf.push(esc);
+        } else if c.is_ascii_graphic() || c == ' ' {
+            buf.push(c);
+        } else {
+            buf.push_str(&format!("\\{:03o}", u32::from(c)));
+        }
+    }
+
+    //buf.push(char::from(0));
+    return buf;
 }
 
 fn emit_data(var: & Var) {
