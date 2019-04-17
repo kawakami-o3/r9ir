@@ -106,10 +106,10 @@ fn emit_ir(ir: & IR, ret: & String) {
 
     match ir.op {
         IRType::IMM => {
-            emit!("mov {}, {}", regs[lhs as usize], rhs);
+            emit!("mov {}, {}", regs[lhs as usize], ir.imm);
         }
         IRType::BPREL => {
-            emit!("lea {}, [rbp{}]", regs[lhs as usize], rhs);
+            emit!("lea {}, [rbp{}]", regs[lhs as usize], ir.imm);
         }
         IRType::MOV => {
             emit!("mov {}, {}", regs[lhs as usize], regs[rhs as usize]);
@@ -182,7 +182,7 @@ fn emit_ir(ir: & IR, ret: & String) {
             emit!("mov [{}], {}", regs[lhs as usize], reg(rhs as usize, ir.size));
         }
         IRType::STORE_ARG => {
-            emit!("mov [rbp{}], {}", lhs, argreg(rhs as usize, ir.size));
+            emit!("mov [rbp{}], {}", ir.imm, argreg(ir.imm2 as usize, ir.size));
         }
         IRType::ADD => {
             emit!("add {}, {}", regs[lhs as usize], regs[rhs as usize]);
@@ -209,9 +209,6 @@ fn emit_ir(ir: & IR, ret: & String) {
             emit!("mov {}, rdx", regs[lhs as usize]);
         }
         IRType::NOP => {}
-        ref i => {
-            panic!("unknown operator {:?}", i);
-        }
     }
 }
 

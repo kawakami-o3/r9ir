@@ -13,7 +13,6 @@
 #![allow(non_upper_case_globals)]
 
 use crate::gen_ir::*;
-use crate::irdump::*;
 use crate::*;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -23,7 +22,7 @@ thread_local! {
     static REG_MAP: RefCell<Vec<i32>> = RefCell::new(Vec::new());
 }
 
-const reg_map_size: usize = 8192;
+const reg_map_size: i32 = 8192;
 
 fn init_used() {
     USED.with(|u| {
@@ -70,7 +69,7 @@ fn reg_map_set(i: i32, v: i32) {
 }
 
 fn alloc(ir_reg: i32) -> i32 {
-    if reg_map_size <= ir_reg as usize {
+    if reg_map_size <= ir_reg {
         panic!("program too big");
     }
 
@@ -100,39 +99,23 @@ fn kill(ri: i32) {
 }
 
 fn visit(ir: Rc<RefCell<IR>>) {
+    let lhs = ir.borrow().lhs;
+    if lhs != 0 {
+        ir.borrow_mut().lhs = alloc(lhs);
+    }
+
+    let rhs = ir.borrow().rhs;
+    if rhs > 0 {
+        ir.borrow_mut().rhs = alloc(rhs);
+    }
+
     let op = ir.borrow().op.clone();
-    match irinfo_get(&op).unwrap().ty {
-        IRInfoType::BINARY => {
-            let lhs = ir.borrow().lhs;
-            let rhs = ir.borrow().rhs;
-            ir.borrow_mut().lhs = alloc(lhs);
-            ir.borrow_mut().rhs = alloc(rhs);
+    if op == IRType::CALL {
+        let nargs = ir.borrow().nargs;
+        for i in 0..nargs {
+            let arg = ir.borrow().args[i];
+            ir.borrow_mut().args[i] = alloc(arg);
         }
-        IRInfoType::REG |
-            IRInfoType::REG_IMM |
-            IRInfoType::REG_LABEL |
-            IRInfoType::LABEL_ADDR |
-            IRInfoType::BR => {
-                let lhs = ir.borrow().lhs;
-                ir.borrow_mut().lhs = alloc(lhs);
-            }
-        IRInfoType::MEM |
-            IRInfoType::REG_REG => {
-                let lhs = ir.borrow().lhs;
-                let rhs = ir.borrow().rhs;
-                ir.borrow_mut().lhs = alloc(lhs);
-                ir.borrow_mut().rhs = alloc(rhs);
-            }
-        IRInfoType::CALL => {
-            let lhs = ir.borrow().lhs;
-            ir.borrow_mut().lhs = alloc(lhs);
-            let nargs = ir.borrow().nargs;
-            for i in 0..nargs {
-                let arg = ir.borrow().args[i];
-                ir.borrow_mut().args[i] = alloc(arg);
-            }
-        }
-        _ => {}
     }
 
     for r in ir.borrow().kill.iter() {

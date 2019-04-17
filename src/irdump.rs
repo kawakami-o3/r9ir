@@ -3,127 +3,58 @@
 use crate::gen_ir::*;
 use crate::parse::*;
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::Rc;
 
-thread_local! {
-    pub static IRINFO: RefCell<HashMap<IRType, IRInfo>> = RefCell::new(HashMap::new());
-}
-
-#[derive(Clone, Debug)]
-pub enum IRInfoType {
-    NOARG,
-    BINARY,
-    REG,
-    IMM,
-    MEM,
-    JMP,
-    LABEL,
-    LABEL_ADDR,
-    REG_REG,
-    REG_IMM,
-    STORE_ARG,
-    REG_LABEL,
-    BR,
-    CALL,
-    NULL,
-}
-
-#[derive(Clone, Debug)]
-pub struct IRInfo {
-    pub name: &'static str,
-    pub ty: IRInfoType,
-}
-
-fn init_irinfo() {
-    IRINFO.with(|i| {
-        let mut irinfo = i.borrow_mut();
-
-        if irinfo.len() > 0 {
-            return;
+fn tostr_call(ir: & IR) -> String {
+    let mut s = String::new();
+    s.push_str(&format!("r{} = {}(", ir.lhs, ir.name));
+    for i in 0..ir.nargs {
+        if i != 0 {
+            s.push_str(", ");
         }
-
-        irinfo.insert(IRType::ADD, IRInfo { name: "ADD", ty: IRInfoType::BINARY });
-        irinfo.insert(IRType::CALL, IRInfo { name: "CALL", ty: IRInfoType::CALL });
-        irinfo.insert(IRType::DIV, IRInfo { name: "DIV", ty: IRInfoType::REG_REG });
-        irinfo.insert(IRType::IMM, IRInfo { name: "IMM", ty: IRInfoType::REG_IMM });
-        irinfo.insert(IRType::JMP, IRInfo { name: "JMP", ty: IRInfoType::JMP });
-        irinfo.insert(IRType::LABEL_ADDR, IRInfo { name: "LABEL_ADDR", ty: IRInfoType::LABEL_ADDR });
-        irinfo.insert(IRType::EQ, IRInfo { name: "EQ", ty: IRInfoType::REG_REG });
-        irinfo.insert(IRType::NE, IRInfo { name: "NE", ty: IRInfoType::REG_REG });
-        irinfo.insert(IRType::LE, IRInfo { name: "LE", ty: IRInfoType::REG_REG });
-        irinfo.insert(IRType::LT, IRInfo { name: "LT", ty: IRInfoType::REG_REG });
-        irinfo.insert(IRType::AND, IRInfo { name: "AND", ty: IRInfoType::REG_REG });
-        irinfo.insert(IRType::OR, IRInfo { name: "OR", ty: IRInfoType::REG_REG });
-        irinfo.insert(IRType::XOR, IRInfo { name: "XOR", ty: IRInfoType::BINARY });
-        irinfo.insert(IRType::SHL, IRInfo { name: "SHL", ty: IRInfoType::REG_REG });
-        irinfo.insert(IRType::SHR, IRInfo { name: "SHR", ty: IRInfoType::REG_REG });
-        irinfo.insert(IRType::LOAD, IRInfo { name: "LOAD", ty: IRInfoType::MEM });
-        irinfo.insert(IRType::MOD, IRInfo { name: "MOD", ty: IRInfoType::REG_REG });
-        irinfo.insert(IRType::MOV, IRInfo { name: "MOV", ty: IRInfoType::REG_REG });
-        irinfo.insert(IRType::MUL, IRInfo { name: "MUL", ty: IRInfoType::BINARY });
-        irinfo.insert(IRType::NOP, IRInfo { name: "NOP", ty: IRInfoType::NOARG });
-        irinfo.insert(IRType::RETURN, IRInfo { name: "RET", ty: IRInfoType::REG });
-        irinfo.insert(IRType::STORE, IRInfo { name: "STORE", ty: IRInfoType::MEM });
-        irinfo.insert(IRType::STORE_ARG, IRInfo { name: "STORE_ARG", ty: IRInfoType::STORE_ARG });
-        irinfo.insert(IRType::SUB, IRInfo { name: "SUB", ty: IRInfoType::BINARY });
-        irinfo.insert(IRType::BPREL, IRInfo { name: "BPREL", ty: IRInfoType::REG_IMM });
-        irinfo.insert(IRType::BR, IRInfo { name: "BR", ty: IRInfoType::BR });
-        irinfo.insert(IRType::NULL, IRInfo { name: "", ty: IRInfoType::NULL });
-    })
+        s.push_str(&format!("r{}", ir.args[i]));
+    }
+    s.push_str(")");
+    return s;
 }
 
-pub fn irinfo_get(ty: & IRType) -> Option<IRInfo> {
-    init_irinfo();
+pub fn tostr(ir: & IR) -> String {
+    let lhs = ir.lhs;
+    let rhs = ir.rhs;
 
-    IRINFO.with(|irinfo| {
-        match irinfo.borrow().get(ty) {
-            Some(info) => Some(info.clone()),
-            None => None,
+    match ir.op {
+        IRType::ADD => format!("ADD r{}, r{}", lhs, rhs),
+        IRType::CALL => tostr_call(ir),
+        IRType::DIV => format!("DIV r{}, r{}", lhs, rhs),
+        IRType::IMM => format!("r{} = r{}", lhs, ir.imm),
+        IRType::JMP => format!("JMP .L{}", ir.bb1.borrow().label),
+        IRType::LABEL_ADDR => format!("r{} = .L{}", lhs, ir.label),
+        IRType::EQ => format!("EQ r{}, r{}", lhs, rhs),
+        IRType::NE => format!("NE r{}, r{}", lhs, rhs),
+        IRType::LE => format!("LE r{}, r{}", lhs, rhs),
+        IRType::LT => format!("LT r{}, r{}", lhs, rhs),
+        IRType::AND => format!("AND r{}, r{}", lhs, rhs),
+        IRType::OR => format!("OR r{}, r{}", lhs, rhs),
+        IRType::XOR => format!("XOR r{}, r{}", lhs, rhs),
+        IRType::SHL => format!("SHL r{}, r{}", lhs, rhs),
+        IRType::SHR => format!("SHR r{}, r{}", lhs, rhs),
+        IRType::LOAD => format!("LOAD{} r{}, r{}", ir.size, lhs, rhs),
+        IRType::MOD => format!("MOD r{}, r{}", lhs, rhs),
+        IRType::MUL => format!("MUL r{}, r{}", lhs, rhs),
+        IRType::NOP => "NOP".to_string(),
+        IRType::RETURN => format!("RET r{}", lhs),
+        IRType::STORE => format!("STORE{} r{}, r{}", ir.size, lhs, rhs),
+        IRType::STORE_ARG => format!("STORE_ARG{} {}, {}", ir.size, ir.imm, ir.imm2),
+        IRType::SUB => format!("SUB r{}, r{}", lhs, rhs),
+        IRType::BPREL => format!("BPREL r{}, {}", lhs, ir.imm),
+        IRType::BR => format!("BR r{}, .L{}, .L{}", lhs, ir.bb1.borrow().label, ir.bb2.borrow().label),
+        _ => {
+            panic!("unknown op");
         }
-    })
-}
-
-pub fn tostr(ir: IR) -> String {
-    IRINFO.with(|i| {
-        let irinfo = i.borrow();
-
-        let info = irinfo.get(&ir.op).unwrap();
-
-        match info.ty {
-            IRInfoType::BINARY => format!("  {} r{}, r{}", info.name, ir.lhs, ir.rhs),
-            IRInfoType::LABEL => format!(".L{}:", ir.lhs),
-            IRInfoType::LABEL_ADDR => format!("  {} r{}, {}", info.name, ir.lhs, ir.name),
-            IRInfoType::IMM => format!("  {} {}", ir.name, ir.lhs),
-            IRInfoType::REG => format!("  {} r{}", info.name, ir.lhs),
-            IRInfoType::JMP => format!("  {} .L{}", info.name, ir.bb1.borrow().label),
-            IRInfoType::REG_REG => format!("  {} r{}, r{}", info.name, ir.lhs, ir.rhs),
-            IRInfoType::MEM => format!("  {}{} r{}, r{}", info.name, ir.size, ir.lhs, ir.rhs),
-            IRInfoType::REG_IMM => format!("  {} r{}, {}", info.name, ir.lhs, ir.rhs),
-            IRInfoType::STORE_ARG => format!("  {}{} {}, {}", info.name, ir.size, ir.lhs, ir.rhs),
-            IRInfoType::REG_LABEL => format!("  {} r{}, .L{}", info.name, ir.lhs, ir.rhs),
-            IRInfoType::BR => {
-                format!("  {} r{}, .L{} .L{}", info.name, ir.lhs, ir.bb1.borrow().label, ir.bb2.borrow().label)
-            }
-            IRInfoType::CALL => {
-                let mut s = String::new();
-                s.push_str(&format!("  r{} = {}(", ir.lhs, ir.name));
-                let args = ir.args.iter().map(|a| format!("r{}", a).to_string()).collect::<Vec<String>>();
-                s.push_str(&args.join(", "));
-                s.push_str(")");
-                s
-            }
-            IRInfoType::NOARG => format!("  {}", info.name),
-            _ => {
-                panic!("unknown ir {:?}", info.ty);
-            }
-        }
-    })
+    }
 }
 
 pub fn dump_ir(irv: Vec<Rc<RefCell<Function>>>) {
-    init_irinfo();
-
     for fun in irv.iter() {
         eprintln!("{}:", fun.borrow().name);
 
@@ -131,7 +62,7 @@ pub fn dump_ir(irv: Vec<Rc<RefCell<Function>>>) {
             eprintln!(".L{}:", bb.borrow().label);
 
             for i in bb.borrow().ir.iter() {
-                eprintln!("{}", tostr(i.borrow().clone()));
+                eprintln!("\t{}", tostr(&i.borrow()).to_string());
             }
         }
     }
