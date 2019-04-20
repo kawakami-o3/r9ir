@@ -109,6 +109,10 @@ fn emit_ir(ir: & IR, ret: & String) {
         Some(r) => r.borrow().rn,
         None => 0,
     };
+    let r1 = match ir.clone().r1 {
+        Some(r) => r.borrow().rn,
+        None => 0,
+    };
     let r2 = match ir.clone().r2 {
         Some(r) => r.borrow().rn,
         None => 0,
@@ -175,6 +179,11 @@ fn emit_ir(ir: & IR, ret: & String) {
             emit!("shr {}, cl", regs[r0 as usize]);
         }
         IRType::JMP => {
+            if ir.bbarg.is_some() {
+                let param = ir.bb1.borrow().param.clone().unwrap();
+                let bbarg = ir.bbarg.clone().unwrap();
+                emit!("mov {}, {}", regs[param.borrow().rn as usize], regs[bbarg.borrow().rn as usize]);
+            }
             emit!("jmp .L{}", ir.bb1.borrow().label);
         }
         IRType::BR => {
@@ -189,7 +198,7 @@ fn emit_ir(ir: & IR, ret: & String) {
             }
         }
         IRType::STORE => {
-            emit!("mov [{}], {}", regs[r0 as usize], reg(r2 as usize, ir.size));
+            emit!("mov [{}], {}", regs[r1 as usize], reg(r2 as usize, ir.size));
         }
         IRType::STORE_ARG => {
             emit!("mov [rbp{}], {}", ir.imm, argreg(ir.imm2 as usize, ir.size));

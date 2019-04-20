@@ -40,7 +40,13 @@ pub fn tostr(ir: & IR) -> String {
         IRType::CALL => tostr_call(ir),
         IRType::DIV => format!("r{} = r{} / r{}", r0, r1, r2),
         IRType::IMM => format!("r{} = r{}", r0, ir.imm),
-        IRType::JMP => format!("JMP .L{}", ir.bb1.borrow().label),
+        IRType::JMP => {
+            let bbarg = ir.bbarg.clone();
+            if bbarg.is_some() {
+                return format!("JMP .L{} (r{})", ir.bb1.borrow().label, regno(bbarg))
+            }
+            format!("JMP .L{}", ir.bb1.borrow().label)
+        }
         IRType::LABEL_ADDR => format!("r{} = .L{}", r0, ir.label),
         IRType::EQ => format!("r{} = r{} == r{}", r0, r1, r2),
         IRType::NE => format!("r{} = r{} != r{}", r0, r1, r2),
@@ -56,7 +62,7 @@ pub fn tostr(ir: & IR) -> String {
         IRType::MUL => format!("r{} = r{} * r{}", r0, r1, r2),
         IRType::NOP => "NOP".to_string(),
         IRType::RETURN => format!("RET r{}", r0),
-        IRType::STORE => format!("STORE{} r{}, r{}", ir.size, r0, r2),
+        IRType::STORE => format!("STORE{} r{}, r{}", ir.size, r1, r2),
         IRType::STORE_ARG => format!("STORE_ARG{} {}, {}", ir.size, ir.imm, ir.imm2),
         IRType::SUB => format!("r{} = r{} - r{}", r0, r1, r2),
         IRType::BPREL => format!("BPREL r{}, {}", r0, ir.imm),
@@ -72,7 +78,12 @@ pub fn dump_ir(irv: Vec<Rc<RefCell<Function>>>) {
         eprintln!("{}:", fun.borrow().name);
 
         for bb in fun.borrow().bbs.iter() {
-            eprintln!(".L{}:", bb.borrow().label);
+            let param = bb.borrow().param.clone();
+            if param.is_some() {
+                eprintln!(".L{}(r{}):", bb.borrow().label, regno(param));
+            } else {
+                eprintln!(".L{}:", bb.borrow().label);
+            }
 
             for i in bb.borrow().ir.iter() {
                 eprintln!("\t{}", tostr(&i.borrow()).to_string());

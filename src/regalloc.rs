@@ -51,10 +51,12 @@ fn three_to_two(bb: Rc<RefCell<BB>>) {
     for ir in irs.iter() {
         let r0 = ir.borrow().r0.clone();
         let r1 = ir.borrow().r1.clone();
-        if r0.is_none() || r1.is_none() || r0.clone().unwrap() == r1.clone().unwrap() {
+        if r0.is_none() || r1.is_none() {
             v.push(ir.clone());
             continue;
         }
+ 
+        assert!(r0.clone().unwrap() != r1.clone().unwrap());
 
         let mut ir2 = alloc_ir();
         ir2.op = IRType::MOV;
@@ -93,6 +95,7 @@ fn visit(ir: Rc<RefCell<IR>>) {
     alloc(ir.borrow().r0.clone());
     alloc(ir.borrow().r1.clone());
     alloc(ir.borrow().r2.clone());
+    alloc(ir.borrow().bbarg.clone());
 
     let op = ir.borrow().op.clone();
     if op == IRType::CALL {
@@ -113,8 +116,10 @@ pub fn alloc_regs(prog: &mut Program) -> &mut Program {
     init_used();
     for i in 0..prog.funcs.len() {
         let fun = &prog.funcs[i];
+
         for bb in fun.borrow().bbs.iter() {
             three_to_two(bb.clone());
+            alloc(bb.borrow().param.clone());
             for ir in bb.borrow().ir.iter() {
                 visit(ir.clone());
             }
