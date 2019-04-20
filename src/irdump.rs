@@ -5,22 +5,34 @@ use crate::parse::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+fn regno(r: Option<Rc<RefCell<Reg>>>) -> i32 {
+    if r.is_none() {
+        return 0;
+    }
+    let rr = r.unwrap().clone();
+    let rn = rr.borrow().rn;
+    if rn != -1 {
+        return rr.borrow().rn;
+    }
+    return rr.borrow().rn; // ???
+}
+
 fn tostr_call(ir: & IR) -> String {
     let mut s = String::new();
-    s.push_str(&format!("r{} = {}(", ir.r0, ir.name));
+    s.push_str(&format!("r{} = {}(", regno(ir.r0.clone()), ir.name));
     for i in 0..ir.nargs {
         if i != 0 {
             s.push_str(", ");
         }
-        s.push_str(&format!("r{}", ir.args[i]));
+        s.push_str(&format!("r{}", regno(Some(ir.args[i].clone()))));
     }
     s.push_str(")");
     return s;
 }
 
 pub fn tostr(ir: & IR) -> String {
-    let r0 = ir.r0;
-    let r2 = ir.r2;
+    let r0 = regno(ir.r0.clone());
+    let r2 = regno(ir.r2.clone());
 
     match ir.op {
         IRType::ADD => format!("ADD r{}, r{}", r0, r2),

@@ -19,10 +19,7 @@ use std::rc::Rc;
 
 thread_local! {
     static USED: RefCell<Vec<bool>> = RefCell::new(Vec::new());
-    static REG_MAP: RefCell<Vec<i32>> = RefCell::new(Vec::new());
 }
-
-const reg_map_size: i32 = 8192;
 
 fn init_used() {
     USED.with(|u| {
@@ -30,16 +27,6 @@ fn init_used() {
         *used = Vec::new();
         for _i in 0..num_regs() {
             used.push(false);
-        }
-    })
-}
-
-fn init_reg_map() {
-    REG_MAP.with(|r| {
-        let mut reg_map = r.borrow_mut();
-        *reg_map = Vec::new();
-        for _i in 0..reg_map_size {
-            reg_map.push(-1);
         }
     })
 }
@@ -56,75 +43,46 @@ fn used_set(i: i32, v: bool) {
     })
 }
 
-fn reg_map_get(i: i32) -> i32 {
-    REG_MAP.with(|r| {
-        return r.borrow()[i as usize];
-    })
-}
-
-fn reg_map_set(i: i32, v: i32) {
-    REG_MAP.with(|r| {
-        r.borrow_mut()[i as usize] = v;
-    })
-}
-
-fn alloc(ir_reg: i32) -> i32 {
-    if reg_map_size <= ir_reg {
-        panic!("program too big");
+fn alloc(r: Option<Rc<RefCell<Reg>>>) {
+    if r.is_none() {
+        return;
     }
-
-    if reg_map_get(ir_reg) != -1 {
-        let r = reg_map_get(ir_reg);
-        assert!(used_get(r));
-        return r;
+    let rr = r.clone().unwrap();
+    if rr.borrow().rn != -1 {
+        return;
     }
 
     for i in 0..num_regs() {
         if used_get(i as i32) {
             continue;
         }
-        reg_map_set(ir_reg, i as i32);
         used_set(i as i32, true);
-        return i as i32;
+        rr.borrow_mut().rn = i as i32;
+        return;
     }
     panic!("register exhausted");
 }
 
-fn kill(ri: i32) {
-    USED.with(|u| {
-        let r = ri as usize;
-        assert!(u.borrow()[r]);
-        u.borrow_mut()[r] = false;
-    })
-}
-
 fn visit(ir: Rc<RefCell<IR>>) {
-    let r0 = ir.borrow().r0;
-    if r0 > 0 {
-        ir.borrow_mut().r0 = alloc(r0);
-    }
-
-    let r2 = ir.borrow().r2;
-    if r2 > 0 {
-        ir.borrow_mut().r2 = alloc(r2);
-    }
+    alloc(ir.borrow().r0.clone());
+    alloc(ir.borrow().r2.clone());
 
     let op = ir.borrow().op.clone();
     if op == IRType::CALL {
         let nargs = ir.borrow().nargs;
         for i in 0..nargs {
-            let arg = ir.borrow().args[i];
-            ir.borrow_mut().args[i] = alloc(arg);
+            let arg = ir.borrow().args[i].clone();
+            alloc(Some(arg));
         }
     }
 
     for r in ir.borrow().kill.iter() {
-        kill(reg_map_get(*r));
+        assert!(r.borrow().rn != -1);
+        used_set(r.borrow().rn, false);
     }
 }
 
 pub fn alloc_regs(prog: &mut Program) -> &mut Program {
-    init_reg_map();
     init_used();
     for i in 0..prog.funcs.len() {
         let fun = &prog.funcs[i];

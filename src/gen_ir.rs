@@ -138,11 +138,24 @@ pub fn alloc_bb() -> BB {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct Reg {
+    pub vn: i32, // virtual register number
+    pub rn: i32, // real register number
+}
+
+fn alloc_reg() -> Rc<RefCell<Reg>> {
+    Rc::new(RefCell::new(Reg {
+        vn: -1,
+        rn: -1,
+    }))
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct IR {
     pub op: IRType,
 
-    pub r0: i32,
-    pub r2: i32,
+    pub r0: Option<Rc<RefCell<Reg>>>,
+    pub r2: Option<Rc<RefCell<Reg>>>,
 
     pub imm: i32,
     pub imm2: i32,
@@ -157,7 +170,7 @@ pub struct IR {
     // Function call
     pub name: String,
     pub nargs: usize,
-    pub args: [i32; 6],
+    pub args: Vec<Rc<RefCell<Reg>>>,
 
     // Function struct fields in 9cc
     pub stacksize: i32,
@@ -165,15 +178,15 @@ pub struct IR {
     pub globals: Vec<Var>,
 
     // For liveness tracking
-    pub kill: Vec<i32>,
+    pub kill: Vec<Rc<RefCell<Reg>>>,
 }
 
 fn alloc_ir() -> IR {
     IR {
         op: IRType::NOP,
 
-        r0: 0,
-        r2: 0,
+        r0: None,
+        r2: None,
 
         imm: 0,
         imm2: 0,
@@ -186,7 +199,7 @@ fn alloc_ir() -> IR {
 
         name: String::new(),
         nargs: 0,
-        args: [0; 6],
+        args: Vec::new(),
 
         stacksize: 0,
         ir: Vec::new(),
@@ -213,22 +226,29 @@ fn new_ir(op: IRType) -> Rc<RefCell<IR>> {
     return i;
 }
 
-fn emit(op: IRType, r0: i32, r2: i32) -> Rc<RefCell<IR>> {
+fn new_reg() -> Rc<RefCell<Reg>> {
+    let r = alloc_reg();
+    r.borrow_mut().vn = bump_nreg();
+    r.borrow_mut().rn = -1;
+    return r;
+}
+
+fn emit(op: IRType, r0: Option<Rc<RefCell<Reg>>>, r2: Option<Rc<RefCell<Reg>>>) -> Rc<RefCell<IR>> {
     let ir = new_ir(op);
     ir.borrow_mut().r0 = r0;
     ir.borrow_mut().r2 = r2;
     return ir;
 }
 
-fn br(r: i32, then: Rc<RefCell<BB>>, els: Rc<RefCell<BB>>) -> Rc<RefCell<IR>> {
+fn br(r: Rc<RefCell<Reg>>, then: Rc<RefCell<BB>>, els: Rc<RefCell<BB>>) -> Rc<RefCell<IR>> {
     let ir = new_ir(IRType::BR);
-    ir.borrow_mut().r0 = r;
+    ir.borrow_mut().r0 = Some(r);
     ir.borrow_mut().bb1 = then;
     ir.borrow_mut().bb2 = els;
     return ir;
 }
 
-fn kill(r: i32) {
+fn kill(r: Rc<RefCell<Reg>>) {
     let ir = out_ir_last();
     ir.borrow_mut().kill.push(r);
 }
@@ -238,20 +258,20 @@ fn jmp(bb: Rc<RefCell<BB>>) {
     ir.borrow_mut().bb1 = bb;
 }
 
-fn imm(r: i32, imm: i32) {
+fn imm(r: Rc<RefCell<Reg>>, imm: i32) {
     let ir = new_ir(IRType::IMM);
-    ir.borrow_mut().r0 = r;
+    ir.borrow_mut().r0 = Some(r);
     ir.borrow_mut().imm = imm;
 }
 
-fn load(node: Rc<RefCell<Node>>, dst: i32, src: i32) {
-    let ir = emit(IRType::LOAD, dst, src);
+fn load(node: Rc<RefCell<Node>>, dst: Rc<RefCell<Reg>>, src: Rc<RefCell<Reg>>) {
+    let ir = emit(IRType::LOAD, Some(dst), Some(src));
     let ty = node.borrow().ty.clone();
     ir.borrow_mut().size = ty.borrow().size;
 }
 
-fn store(node: Rc<RefCell<Node>>, dst: i32, src: i32) {
-    let ir = emit(IRType::STORE, dst, src);
+fn store(node: Rc<RefCell<Node>>, dst: Rc<RefCell<Reg>>, src: Rc<RefCell<Reg>>) {
+    let ir = emit(IRType::STORE, Some(dst), Some(src));
     let ty = node.borrow().ty.clone();
     ir.borrow_mut().size = ty.borrow().size;
 }
@@ -273,7 +293,7 @@ fn store(node: Rc<RefCell<Node>>, dst: i32, src: i32) {
 // conversion.
 //
 // This function evaluates a given node as an lvalue.
-fn gen_lval(node: Rc<RefCell<Node>>) -> i32 {
+fn gen_lval(node: Rc<RefCell<Node>>) -> Rc<RefCell<Reg>> {
     let node_op = node.borrow().op.clone();
     if node_op == NodeType::DEREF {
         return gen_expr(node.borrow().expr.clone().unwrap());
@@ -282,9 +302,9 @@ fn gen_lval(node: Rc<RefCell<Node>>) -> i32 {
     if node_op == NodeType::DOT {
         let r = gen_lval(node.borrow().expr.clone().unwrap());
         let ty = node.borrow().ty.clone();
-        let r2 = bump_nreg();
-        imm(r2, ty.borrow().offset);
-        emit(IRType::ADD, r, r2);
+        let r2 = new_reg();
+        imm(r2.clone(), ty.borrow().offset);
+        emit(IRType::ADD, Some(r.clone()), Some(r2.clone()));
         kill(r2);
         return r;
     }
@@ -292,32 +312,32 @@ fn gen_lval(node: Rc<RefCell<Node>>) -> i32 {
     assert!(node_op == NodeType::VARREF);
     let var = node.borrow().var.clone().unwrap();
 
-    let r = bump_nreg();
+    let r = new_reg();
     if var.borrow().is_local {
         let ir = new_ir(IRType::BPREL);
-        ir.borrow_mut().r0 = r;
+        ir.borrow_mut().r0 = Some(r.clone());
         ir.borrow_mut().imm = var.borrow().offset;
     } else {
-        let ir = emit(IRType::LABEL_ADDR, r, -1);
+        let ir = emit(IRType::LABEL_ADDR, Some(r.clone()), None);
         ir.borrow_mut().name = var.borrow().name.clone();
     }
     return r;
 }
 
-fn gen_binop(ty: IRType, node: Rc<RefCell<Node>>) -> i32 {
+fn gen_binop(ty: IRType, node: Rc<RefCell<Node>>) -> Rc<RefCell<Reg>> {
     let lhs = gen_expr(node.borrow().lhs.clone().unwrap());
     let rhs = gen_expr(node.borrow().rhs.clone().unwrap());
-    emit(ty, lhs, rhs);
-    kill(rhs);
+    emit(ty, Some(lhs.clone()), Some(rhs.clone()));
+    kill(rhs.clone());
     return lhs;
 }
 
-fn gen_expr(node: Rc<RefCell<Node>>) -> i32 {
+fn gen_expr(node: Rc<RefCell<Node>>) -> Rc<RefCell<Reg>> {
     let op = node.borrow().op.clone();
     match op {
         NodeType::NUM => {
-            let r = bump_nreg();
-            imm(r, node.borrow().val);
+            let r = new_reg();
+            imm(r.clone(), node.borrow().val);
             return r;
         }
 
@@ -335,17 +355,17 @@ fn gen_expr(node: Rc<RefCell<Node>>) -> i32 {
             let last = new_bb();
 
             let r = gen_expr(node.borrow().lhs.clone().unwrap());
-            br(r, bb1.clone(), last.clone());
+            br(r.clone(), bb1.clone(), last.clone());
 
             set_out(bb1);
             let r2 = gen_expr(node.borrow().rhs.clone().unwrap());
-            emit(IRType::MOV, r, r2);
+            emit(IRType::MOV, Some(r.clone()), Some(r2.clone()));
             kill(r2);
-            br(r, bb2.clone(), last.clone());
+            br(r.clone(), bb2.clone(), last.clone());
 
             set_out(bb2);
 
-            imm(r, 1);
+            imm(r.clone(), 1);
             jmp(last.clone());
             
             set_out(last);
@@ -359,21 +379,21 @@ fn gen_expr(node: Rc<RefCell<Node>>) -> i32 {
             let last = new_bb();
 
             let r = gen_expr(node.borrow().lhs.clone().unwrap());
-            br(r, set1.clone(), bb.clone());
+            br(r.clone(), set1.clone(), bb.clone());
 
             set_out(set0.clone());
-            imm(r, 0);
+            imm(r.clone(), 0);
             jmp(last.clone());
 
             set_out(set1.clone());
-            imm(r, 1);
+            imm(r.clone(), 1);
             jmp(last.clone());
 
             set_out(bb);
             let r2 = gen_expr(node.borrow().rhs.clone().unwrap());
-            emit(IRType::MOV, r, r2);
+            emit(IRType::MOV, Some(r.clone()), Some(r2.clone()));
             kill(r2);
-            br(r, set1, set0);
+            br(r.clone(), set1, set0);
 
             set_out(last);
             return r;
@@ -382,7 +402,7 @@ fn gen_expr(node: Rc<RefCell<Node>>) -> i32 {
         NodeType::VARREF |
             NodeType::DOT => {
             let r = gen_lval(node.clone());
-            load(node, r, r);
+            load(node, r.clone(), r.clone());
             return r;
         }
 
@@ -392,20 +412,20 @@ fn gen_expr(node: Rc<RefCell<Node>>) -> i32 {
                 args.push(gen_expr(a.clone()));
             }
 
-            let r = bump_nreg();
+            let r = new_reg();
 
-            let ir = emit(IRType::CALL, r, -1);
+            let ir = emit(IRType::CALL, Some(r.clone()), None);
 
             ir.borrow_mut().name = node.borrow().name.clone();
             ir.borrow_mut().nargs = node.borrow().args.len();
 
             let nargs = ir.borrow().nargs;
             for i in 0..nargs {
-                ir.borrow_mut().args[i] = args[i];
+                ir.borrow_mut().args.push(args[i].clone());
             }
 
             for i in 0..nargs {
-                kill(args[i]);
+                kill(args[i].clone());
             }
             return r;
         }
@@ -416,7 +436,7 @@ fn gen_expr(node: Rc<RefCell<Node>>) -> i32 {
 
         NodeType::DEREF => {
             let r = gen_expr(node.borrow().expr.clone().unwrap());
-            load(node, r, r);
+            load(node, r.clone(), r.clone());
             return r;
         }
 
@@ -426,9 +446,9 @@ fn gen_expr(node: Rc<RefCell<Node>>) -> i32 {
             if ty.borrow().ty != CType::BOOL {
                 return r;
             }
-            let r2 = bump_nreg();
-            imm(r2, 0);
-            emit(IRType::NE, r, r2);
+            let r2 = new_reg();
+            imm(r2.clone(), 0);
+            emit(IRType::NE, Some(r.clone()), Some(r2.clone()));
             kill(r2);
             return r;
         }
@@ -443,8 +463,8 @@ fn gen_expr(node: Rc<RefCell<Node>>) -> i32 {
         NodeType::EQL => {
             let rhs = gen_expr(node.borrow().rhs.clone().unwrap());
             let lhs = gen_lval(node.borrow().lhs.clone().unwrap());
-            store(node, lhs, rhs);
-            kill(lhs);
+            store(node, lhs.clone(), rhs.clone());
+            kill(lhs.clone());
             return rhs;
         }
         NodeType::ADD => { return gen_binop(IRType::ADD, node); }
@@ -461,9 +481,9 @@ fn gen_expr(node: Rc<RefCell<Node>>) -> i32 {
         NodeType::SHR => { return gen_binop(IRType::SHR, node); }
         NodeType::NOT => {
             let r = gen_expr(node.borrow().expr.clone().unwrap());
-            let r2 = bump_nreg();
-            imm(r2, -1);
-            emit(IRType::XOR, r, r2);
+            let r2 = new_reg();
+            imm(r2.clone(), -1);
+            emit(IRType::XOR, Some(r.clone()), Some(r2.clone()));
             kill(r2);
             return r;
         }
@@ -477,17 +497,17 @@ fn gen_expr(node: Rc<RefCell<Node>>) -> i32 {
             let last = new_bb();
 
             let r = gen_expr(node.borrow().cond.clone().unwrap());
-            br(r, then.clone(), els.clone());
+            br(r.clone(), then.clone(), els.clone());
 
             set_out(then);
             let r2 = gen_expr(node.borrow().then.clone().unwrap());
-            emit(IRType::MOV, r, r2);
-            kill(r2);
+            emit(IRType::MOV, Some(r.clone()), Some(r2.clone()));
+            kill(r2.clone());
             jmp(last.clone());
 
             set_out(els);
             let r3 = gen_expr(node.borrow().els.clone().unwrap());
-            emit(IRType::MOV, r, r3);
+            emit(IRType::MOV, Some(r.clone()), Some(r3));
             kill(r2);
             jmp(last.clone());
 
@@ -496,9 +516,9 @@ fn gen_expr(node: Rc<RefCell<Node>>) -> i32 {
         }
         NodeType::EXCLAM => {
             let r0 = gen_expr(node.borrow().expr.clone().unwrap());
-            let r2 = bump_nreg();
-            imm(r2, 0);
-            emit(IRType::EQ, r0, r2);
+            let r2 = new_reg();
+            imm(r2.clone(), 0);
+            emit(IRType::EQ, Some(r0.clone()), Some(r2.clone()));
             kill(r2);
             return r0;
         }
@@ -521,7 +541,7 @@ fn gen_stmt(node: Rc<RefCell<Node>>) {
             let last = new_bb();
 
             let r = gen_expr(node.borrow().cond.clone().unwrap());
-            br(r, then.clone(), els.clone());
+            br(r.clone(), then.clone(), els.clone());
             kill(r);
 
             set_out(then);
@@ -550,7 +570,7 @@ fn gen_stmt(node: Rc<RefCell<Node>>) {
             set_out(cond.clone());
             if node.borrow().cond.is_some() {
                 let r = gen_expr(node.borrow().cond.clone().unwrap());
-                br(r, body.clone(), node.borrow().break_.clone());
+                br(r.clone(), body.clone(), node.borrow().break_.clone());
                 kill(r);
             } else {
                 jmp(body.clone());
@@ -581,7 +601,7 @@ fn gen_stmt(node: Rc<RefCell<Node>>) {
 
             set_out(node.borrow().continue_.clone());
             let r = gen_expr(node.borrow().cond.clone().unwrap());
-            br(r, body, node.borrow().break_.clone());
+            br(r.clone(), body, node.borrow().break_.clone());
             kill(r);
 
             set_out(node.borrow().break_.clone());
@@ -595,11 +615,11 @@ fn gen_stmt(node: Rc<RefCell<Node>>) {
                 c.borrow_mut().bb = new_bb();
 
                 let next = new_bb();
-                let r2 = bump_nreg();
+                let r2 = new_reg();
 
-                imm(r2, c.borrow().val);
-                emit(IRType::EQ, r2, r);
-                br(r2, c.borrow().bb.clone(), next.clone());
+                imm(r2.clone(), c.borrow().val);
+                emit(IRType::EQ, Some(r2.clone()), Some(r.clone()));
+                br(r2.clone(), c.borrow().bb.clone(), next.clone());
                 kill(r2);
                 set_out(next);
             }
@@ -627,7 +647,7 @@ fn gen_stmt(node: Rc<RefCell<Node>>) {
         NodeType::RETURN => {
             let r = gen_expr(node.borrow().expr.clone().unwrap());
 
-            emit(IRType::RETURN, r, -1);
+            emit(IRType::RETURN, Some(r.clone()), None);
             kill(r);
 
             let bb = new_bb();

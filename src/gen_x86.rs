@@ -73,9 +73,11 @@ fn escaped(c: char) -> Option<char> {
     })
 }
 
-fn emit_cmp(insn: &str, ir: &IR) {
-    let r0 = ir.r0 as usize;
-    let r2 = ir.r2 as usize;
+fn emit_cmp(insn: &str, ir: & IR) {
+    let rr0 = ir.r0.clone().unwrap();
+    let rr2 = ir.r2.clone().unwrap();
+    let r0 = rr0.borrow().rn as usize;
+    let r2 = rr2.borrow().rn as usize;
 
     emit!("cmp {}, {}", regs[r0], regs[r2]);
     emit!("{} {}", insn, regs8[r0]);
@@ -101,8 +103,14 @@ fn argreg(r: usize, size: i32) -> &'static str {
 }
 
 fn emit_ir(ir: & IR, ret: & String) {
-    let r0 = ir.r0;
-    let r2 = ir.r2;
+    let r0 = match ir.clone().r0 {
+        Some(r) => r.borrow().rn,
+        None => 0,
+    };
+    let r2 = match ir.clone().r2 {
+        Some(r) => r.borrow().rn,
+        None => 0,
+    };
 
     match ir.op {
         IRType::IMM => {
@@ -120,7 +128,7 @@ fn emit_ir(ir: & IR, ret: & String) {
         }
         IRType::CALL => {
             for i in 0..ir.nargs {
-                emit!("mov {}, {}", argregs[i], regs[ir.args[i] as usize]);
+                emit!("mov {}, {}", argregs[i], regs[ir.args[i].borrow().rn as usize]);
             }
 
             emit!("push r10");
@@ -136,16 +144,16 @@ fn emit_ir(ir: & IR, ret: & String) {
             emit!("lea {}, {}", regs[r0 as usize], ir.name);
         }
         IRType::EQ => {
-            emit_cmp("sete", ir)
+            emit_cmp("sete", ir);
         }
         IRType::NE => {
-            emit_cmp("setne", ir)
+            emit_cmp("setne", ir);
         }
         IRType::LT => {
-            emit_cmp("setl", ir)
+            emit_cmp("setl", ir);
         }
         IRType::LE => {
-            emit_cmp("setle", ir)
+            emit_cmp("setle", ir);
         }
         IRType::AND => {
             emit!("and {}, {}", regs[r0 as usize], regs[r2 as usize]);
