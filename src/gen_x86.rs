@@ -75,11 +75,13 @@ fn escaped(c: char) -> Option<char> {
 
 fn emit_cmp(insn: &str, ir: & IR) {
     let rr0 = ir.r0.clone().unwrap();
+    let rr1 = ir.r1.clone().unwrap();
     let rr2 = ir.r2.clone().unwrap();
     let r0 = rr0.borrow().rn as usize;
+    let r1 = rr1.borrow().rn as usize;
     let r2 = rr2.borrow().rn as usize;
 
-    emit!("cmp {}, {}", regs[r0], regs[r2]);
+    emit!("cmp {}, {}", regs[r1], regs[r2]);
     emit!("{} {}", insn, regs8[r0]);
     emit!("movzb {}, {}", regs[r0], regs8[r0]);
 }
@@ -176,7 +178,7 @@ fn emit_ir(ir: & IR, ret: & String) {
             emit!("jmp .L{}", ir.bb1.borrow().label);
         }
         IRType::BR => {
-            emit!("cmp {}, 0", regs[r0 as usize]);
+            emit!("cmp {}, 0", regs[r2 as usize]);
             emit!("jne .L{}", ir.bb1.borrow().label);
             emit!("jmp .L{}", ir.bb2.borrow().label);
         }

@@ -43,6 +43,32 @@ fn used_set(i: i32, v: bool) {
     })
 }
 
+// Rewrite `A = B op C` to `A = B; A = A op C`.
+fn three_to_two(bb: Rc<RefCell<BB>>) {
+    let mut v = Vec::new();
+
+    let irs = bb.borrow().ir.clone();
+    for ir in irs.iter() {
+        let r0 = ir.borrow().r0.clone();
+        let r1 = ir.borrow().r1.clone();
+        if r0.is_none() || r1.is_none() || r0.clone().unwrap() == r1.clone().unwrap() {
+            v.push(ir.clone());
+            continue;
+        }
+
+        let mut ir2 = alloc_ir();
+        ir2.op = IRType::MOV;
+        ir2.kill = Vec::new();
+        ir2.r0 = r0.clone();
+        ir2.r2 = r1;
+        v.push(Rc::new(RefCell::new(ir2)));
+
+        ir.borrow_mut().r1 = r0;
+        v.push(ir.clone());
+    }
+    bb.borrow_mut().ir = v;
+}
+
 fn alloc(r: Option<Rc<RefCell<Reg>>>) {
     if r.is_none() {
         return;
@@ -65,6 +91,7 @@ fn alloc(r: Option<Rc<RefCell<Reg>>>) {
 
 fn visit(ir: Rc<RefCell<IR>>) {
     alloc(ir.borrow().r0.clone());
+    alloc(ir.borrow().r1.clone());
     alloc(ir.borrow().r2.clone());
 
     let op = ir.borrow().op.clone();
@@ -87,6 +114,7 @@ pub fn alloc_regs(prog: &mut Program) -> &mut Program {
     for i in 0..prog.funcs.len() {
         let fun = &prog.funcs[i];
         for bb in fun.borrow().bbs.iter() {
+            three_to_two(bb.clone());
             for ir in bb.borrow().ir.iter() {
                 visit(ir.clone());
             }
