@@ -14,7 +14,7 @@ fn regno(r: Option<Rc<RefCell<Reg>>>) -> i32 {
     if rn != -1 {
         return rr.borrow().rn;
     }
-    return rr.borrow().rn; // ???
+    return rr.borrow().vn;
 }
 
 fn tostr_call(ir: & IR) -> String {

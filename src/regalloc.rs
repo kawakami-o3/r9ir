@@ -31,6 +31,12 @@ fn init_used() {
     })
 }
 
+//fn used() -> Vec<bool> {
+//    USED.with(|u| {
+//        return u.borrow().clone();
+//    })
+//}
+
 fn used_get(i: i32) -> bool {
     USED.with(|u| {
         return u.borrow()[i as usize];
@@ -60,7 +66,6 @@ fn three_to_two(bb: Rc<RefCell<BB>>) {
 
         let mut ir2 = alloc_ir();
         ir2.op = IRType::MOV;
-        ir2.kill = Vec::new();
         ir2.r0 = r0.clone();
         ir2.r2 = r1;
         v.push(Rc::new(RefCell::new(ir2)));
@@ -69,6 +74,38 @@ fn three_to_two(bb: Rc<RefCell<BB>>) {
         v.push(ir.clone());
     }
     bb.borrow_mut().ir = v;
+}
+
+fn mark(ir: Rc<RefCell<IR>>, r: Option<Rc<RefCell<Reg>>>) {
+    if r.is_none() {
+        return;
+    }
+    let rr = r.clone().unwrap();
+    if rr.borrow().marked {
+        return;
+    }
+    rr.borrow_mut().marked = true;
+    ir.borrow_mut().kill.push(r.clone().unwrap());
+}
+
+fn mark_last_use(ir: Rc<RefCell<IR>>) {
+    let r0 = ir.borrow().r0.clone();
+    let r1 = ir.borrow().r1.clone();
+    let r2 = ir.borrow().r2.clone();
+    let bbarg = ir.borrow().bbarg.clone();
+    mark(ir.clone(), r0);
+    mark(ir.clone(), r1);
+    mark(ir.clone(), r2);
+    mark(ir.clone(), bbarg);
+
+    let op = ir.borrow().op.clone();
+    if op == IRType::CALL {
+        let nargs = ir.borrow().nargs;
+        for i in 0..nargs {
+            let arg = ir.borrow().args[i].clone();
+            mark(ir.clone(), Some(arg));
+        }
+    }
 }
 
 fn alloc(r: Option<Rc<RefCell<Reg>>>) {
@@ -91,7 +128,7 @@ fn alloc(r: Option<Rc<RefCell<Reg>>>) {
     panic!("register exhausted");
 }
 
-fn visit(ir: Rc<RefCell<IR>>) {
+fn regalloc(ir: Rc<RefCell<IR>>) {
     alloc(ir.borrow().r0.clone());
     alloc(ir.borrow().r1.clone());
     alloc(ir.borrow().r2.clone());
@@ -106,6 +143,10 @@ fn visit(ir: Rc<RefCell<IR>>) {
         }
     }
 
+    if ir.borrow().kill.len() == 0 {
+        return;
+    }
+
     for r in ir.borrow().kill.iter() {
         assert!(r.borrow().rn != -1);
         used_set(r.borrow().rn, false);
@@ -114,14 +155,26 @@ fn visit(ir: Rc<RefCell<IR>>) {
 
 pub fn alloc_regs(prog: &mut Program) -> &mut Program {
     init_used();
-    for i in 0..prog.funcs.len() {
-        let fun = &prog.funcs[i];
-
+    for fun in prog.funcs.iter() {
         for bb in fun.borrow().bbs.iter() {
             three_to_two(bb.clone());
+        }
+    }
+
+    for fun in prog.funcs.iter().rev() {
+        for bb in fun.borrow().bbs.iter().rev() {
+            for ir in bb.borrow().ir.iter().rev() {
+                mark_last_use(ir.clone());
+            }
+        }
+    }
+
+    for fun in prog.funcs.iter() {
+        for bb in fun.borrow().bbs.iter() {
             alloc(bb.borrow().param.clone());
+
             for ir in bb.borrow().ir.iter() {
-                visit(ir.clone());
+                regalloc(ir.clone());
             }
         }
     }
