@@ -159,17 +159,13 @@ pub fn alloc_regs(prog: &mut Program) -> &mut Program {
         for bb in fun.borrow().bbs.iter() {
             three_to_two(bb.clone());
         }
-    }
 
-    for fun in prog.funcs.iter().rev() {
         for bb in fun.borrow().bbs.iter().rev() {
             for ir in bb.borrow().ir.iter().rev() {
                 mark_last_use(ir.clone());
             }
         }
-    }
 
-    for fun in prog.funcs.iter() {
         for bb in fun.borrow().bbs.iter() {
             alloc(bb.borrow().param.clone());
 
