@@ -129,7 +129,7 @@ fn emit_ir(ir: & IR, ret: & String) {
             emit!("mov {}, {}", regs[r0 as usize], regs[r2 as usize]);
         }
         IRType::RETURN => {
-            emit!("mov rax, {}", regs[r0 as usize]);
+            emit!("mov rax, {}", regs[r2 as usize]);
             emit!("jmp {}", ret);
         }
         IRType::CALL => {

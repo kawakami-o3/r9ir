@@ -265,12 +265,6 @@ fn emit(op: IRType, r0: Option<Rc<RefCell<Reg>>>, r1: Option<Rc<RefCell<Reg>>>, 
     return ir;
 }
 
-fn emit1(op: IRType, r: Option<Rc<RefCell<Reg>>>) -> Rc<RefCell<IR>> {
-    let ir = new_ir(op);
-    ir.borrow_mut().r0 = r;
-    return ir;
-}
-
 fn br(r: Rc<RefCell<Reg>>, then: Rc<RefCell<BB>>, els: Rc<RefCell<BB>>) -> Rc<RefCell<IR>> {
     let ir = new_ir(IRType::BR);
     ir.borrow_mut().r2 = Some(r);
@@ -341,16 +335,17 @@ fn gen_lval(node: Rc<RefCell<Node>>) -> Rc<RefCell<Reg>> {
     assert!(node_op == NodeType::VARREF);
     let var = node.borrow().var.clone().unwrap();
 
-    let r = new_reg();
+    let ir: Rc<RefCell<IR>>;
     if var.borrow().is_local {
-        let ir = new_ir(IRType::BPREL);
-        ir.borrow_mut().r0 = Some(r.clone());
+        ir = new_ir(IRType::BPREL);
+        ir.borrow_mut().r0 = Some(new_reg());
         ir.borrow_mut().imm = var.borrow().offset;
     } else {
-        let ir = emit1(IRType::LABEL_ADDR, Some(r.clone()));
+        ir = new_ir(IRType::LABEL_ADDR);
+        ir.borrow_mut().r0 = Some(new_reg());
         ir.borrow_mut().name = var.borrow().name.clone();
     }
-    return r;
+    return ir.borrow().r0.clone().unwrap();
 }
 
 fn gen_binop(ty: IRType, node: Rc<RefCell<Node>>) -> Rc<RefCell<Reg>> {
@@ -434,15 +429,15 @@ fn gen_expr(node: Rc<RefCell<Node>>) -> Rc<RefCell<Reg>> {
                 args.push(gen_expr(a.clone()));
             }
 
-            let r = new_reg();
-            let ir = emit1(IRType::CALL, Some(r.clone()));
+            let ir = new_ir(IRType::CALL);
+            ir.borrow_mut().r0 = Some(new_reg());
             ir.borrow_mut().name = node.borrow().name.clone();
             ir.borrow_mut().nargs = node.borrow().args.len();
             let nargs = ir.borrow().nargs;
             for i in 0..nargs {
                 ir.borrow_mut().args.push(args[i].clone());
             }
-            return r;
+            return ir.borrow().r0.clone().unwrap();
         }
 
         NodeType::ADDR => {
@@ -644,7 +639,9 @@ fn gen_stmt(node: Rc<RefCell<Node>>) {
             set_out(new_bb());
         }
         NodeType::RETURN => {
-            emit1(IRType::RETURN, Some(gen_expr(node.borrow().expr.clone().unwrap()))); 
+            let r = gen_expr(node.borrow().expr.clone().unwrap()); 
+            let ir = new_ir(IRType::RETURN);
+            ir.borrow_mut().r2 = Some(r);
             set_out(new_bb());
         }
         NodeType::EXPR_STMT => {
