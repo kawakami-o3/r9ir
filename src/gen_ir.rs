@@ -636,17 +636,16 @@ fn gen_stmt(node: Rc<RefCell<Node>>) {
         NodeType::BREAK => {
             let target = node.borrow().target.clone().unwrap();
             jmp(target.borrow().clone().break_);
+            set_out(new_bb());
         }
         NodeType::CONTINUE => {
             let target = node.borrow().target.clone().unwrap();
             jmp(target.borrow().clone().continue_);
+            set_out(new_bb());
         }
         NodeType::RETURN => {
             emit1(IRType::RETURN, Some(gen_expr(node.borrow().expr.clone().unwrap()))); 
-
-            let bb = new_bb();
-            jmp(bb.clone());
-            set_out(bb);
+            set_out(new_bb());
         }
         NodeType::EXPR_STMT => {
             gen_expr(node.borrow().expr.clone().unwrap());
