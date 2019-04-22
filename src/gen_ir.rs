@@ -128,8 +128,10 @@ pub enum IRType {
     JMP,
     BR,
     LOAD,
+    LOAD_SPILL,
     STORE,
     STORE_ARG,
+    STORE_SPILL,
     ADD,
     SUB,
     MUL,
@@ -141,14 +143,23 @@ pub enum IRType {
 pub struct Reg {
     pub vn: i32, // virtual register number
     pub rn: i32, // real register number
-    pub marked: bool,
+
+    // For regalloc
+    pub def: i32,
+    pub last_use: i32,
+    pub spill: bool,
+    pub var: Option<Rc<RefCell<Var>>>,
 }
 
 fn alloc_reg() -> Rc<RefCell<Reg>> {
     Rc::new(RefCell::new(Reg {
         vn: -1,
         rn: -1,
-        marked: false,
+
+        def: -1,
+        last_use: -1,
+        spill: false,
+        var: None,
     }))
 }
 

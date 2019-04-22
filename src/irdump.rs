@@ -58,7 +58,9 @@ pub fn tostr(ir: & IR) -> String {
         IRType::SHL => format!("r{} = r{} << r{}", r0, r1, r2),
         IRType::SHR => format!("r{} = r{} >> r{}", r0, r1, r2),
         IRType::LOAD => format!("LOAD{} r{}, r{}", ir.size, r0, r2),
+        IRType::LOAD_SPILL => format!("LOAD_SPILL r{}, {}", r0, ir.imm),
         IRType::MOD => format!("r{} = r{} % r{}", r0, r1, r2),
+        IRType::MOV => format!("r{} = r{}", r0, r2),
         IRType::MUL => format!("r{} = r{} * r{}", r0, r1, r2),
         IRType::NOP => "NOP".to_string(),
         IRType::RETURN => format!("RET r{}", r0),
@@ -69,6 +71,7 @@ pub fn tostr(ir: & IR) -> String {
             let offset = var.borrow().offset;
             format!("STORE_ARG{} {} {} ({})", ir.size, ir.imm, name, offset)
         }
+        IRType::STORE_SPILL => format!("STORE_SPILL r{}, {}", r1, ir.imm),
         IRType::SUB => format!("r{} = r{} - r{}", r0, r1, r2),
         IRType::BPREL => {
             let var = ir.var.clone().unwrap();
@@ -78,7 +81,7 @@ pub fn tostr(ir: & IR) -> String {
         }
         IRType::BR => format!("BR r{} .L{} .L{}", r0, ir.bb1.borrow().label, ir.bb2.borrow().label),
         _ => {
-            panic!("unknown op");
+            panic!("unknown op: {:?}", ir.op);
         }
     }
 }

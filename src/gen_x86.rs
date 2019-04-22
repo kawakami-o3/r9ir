@@ -32,9 +32,9 @@ thread_local! {
     static ESCAPED: RefCell<HashMap<char,char>> = RefCell::new(HashMap::new());
 }
 
-pub const regs: [&'static str; 7] = ["r10", "r11", "rbx", "r12", "r13", "r14", "r15"];
-pub const regs8: [&'static str; 7] = ["r10b", "r11b", "bl", "r12b", "r13b", "r14b", "r15b"];
-pub const regs32: [&'static str; 7] = ["r10d", "r11d", "ebx", "r12d", "r13d", "r14d", "r15d"];
+const regs: [&'static str; 7] = ["r10", "r11", "rbx", "r12", "r13", "r14", "r15"];
+const regs8: [&'static str; 7] = ["r10b", "r11b", "bl", "r12b", "r13b", "r14b", "r15b"];
+const regs32: [&'static str; 7] = ["r10d", "r11d", "ebx", "r12d", "r13d", "r14d", "r15d"];
 
 pub fn num_regs() -> usize {
     return regs.len();
@@ -199,6 +199,11 @@ fn emit_ir(ir: & IR, ret: & String) {
                 emit!("movzb {}, {}", regs[r0 as usize], regs8[r0 as usize]);
             }
         }
+        IRType::LOAD_SPILL => {
+            let var = ir.var.clone().unwrap();
+            let offset = var.borrow().offset;
+            emit!("mov {}, [rbp{}]", regs[r0 as usize], offset);
+        }
         IRType::STORE => {
             emit!("mov [{}], {}", regs[r1 as usize], reg(r2 as usize, ir.size));
         }
@@ -206,6 +211,11 @@ fn emit_ir(ir: & IR, ret: & String) {
             let var = ir.var.clone().unwrap();
             let offset = var.borrow().offset;
             emit!("mov [rbp{}], {}", offset, argreg(ir.imm as usize, ir.size));
+        }
+        IRType::STORE_SPILL => {
+            let var = ir.var.clone().unwrap();
+            let offset = var.borrow().offset;
+            emit!("mov [rbp{}], {}", offset, regs[r1 as usize]);
         }
         IRType::ADD => {
             emit!("add {}, {}", regs[r0 as usize], regs[r2 as usize]);
