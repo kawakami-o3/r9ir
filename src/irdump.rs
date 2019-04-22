@@ -63,9 +63,19 @@ pub fn tostr(ir: & IR) -> String {
         IRType::NOP => "NOP".to_string(),
         IRType::RETURN => format!("RET r{}", r0),
         IRType::STORE => format!("STORE{} r{}, r{}", ir.size, r1, r2),
-        IRType::STORE_ARG => format!("STORE_ARG{} {}, {}", ir.size, ir.imm, ir.imm2),
+        IRType::STORE_ARG => {
+            let var = ir.var.clone().unwrap();
+            let name = var.borrow().name.clone();
+            let offset = var.borrow().offset;
+            format!("STORE_ARG{} {} {} ({})", ir.size, ir.imm, name, offset)
+        }
         IRType::SUB => format!("r{} = r{} - r{}", r0, r1, r2),
-        IRType::BPREL => format!("BPREL r{}, {}", r0, ir.imm),
+        IRType::BPREL => {
+            let var = ir.var.clone().unwrap();
+            let name = var.borrow().name.clone();
+            let offset = var.borrow().offset;
+            format!("BPREL r{} {} {}", r0, name, offset)
+        }
         IRType::BR => format!("BR r{} .L{} .L{}", r0, ir.bb1.borrow().label, ir.bb2.borrow().label),
         _ => {
             panic!("unknown op");

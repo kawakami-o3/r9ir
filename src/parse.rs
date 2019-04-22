@@ -187,7 +187,6 @@ pub struct Function {
     pub node: Rc<RefCell<Node>>,
     pub lvars: Vec<Rc<RefCell<Var>>>,
     pub bbs: Vec<Rc<RefCell<BB>>>,
-    pub stacksize: i32,
 }
 
 #[derive(Clone, Debug)]
@@ -546,6 +545,7 @@ fn add_lvar(ty: Type, name: String) -> Rc<RefCell<Var>> {
     let mut var = alloc_var();
     var.ty = ty;
     var.is_local = true;
+    var.name = name.clone();
     let v = Rc::new(RefCell::new(var));
     env_vars_put(name, v.clone());
     lvars_push(v.clone());
@@ -1463,7 +1463,6 @@ fn toplevel(tokens: &Vec<Token>) {
             node: node,
             lvars: lvars(),
             bbs: Vec::new(),
-            stacksize: 0,
         })));
         return;
     }

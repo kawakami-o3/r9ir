@@ -176,8 +176,8 @@ pub struct IR {
     pub r2: Option<Rc<RefCell<Reg>>>,
 
     pub imm: i32,
-    pub imm2: i32,
     pub label: i32,
+    pub var: Option<Rc<RefCell<Var>>>,
 
     pub bb1: Rc<RefCell<BB>>,
     pub bb2: Rc<RefCell<BB>>,
@@ -211,8 +211,8 @@ pub fn alloc_ir() -> IR {
         r2: None,
 
         imm: 0,
-        imm2: 0,
         label: 0,
+        var: None,
 
         bb1: Rc::new(RefCell::new(alloc_bb())),
         bb2: Rc::new(RefCell::new(alloc_bb())),
@@ -339,7 +339,7 @@ fn gen_lval(node: Rc<RefCell<Node>>) -> Rc<RefCell<Reg>> {
     if var.borrow().is_local {
         ir = new_ir(IRType::BPREL);
         ir.borrow_mut().r0 = Some(new_reg());
-        ir.borrow_mut().imm = var.borrow().offset;
+        ir.borrow_mut().var = Some(var);
     } else {
         ir = new_ir(IRType::LABEL_ADDR);
         ir.borrow_mut().r0 = Some(new_reg());
@@ -660,8 +660,8 @@ fn gen_stmt(node: Rc<RefCell<Node>>) {
 
 fn gen_param(var: & Rc<RefCell<Var>>, i: usize) {
     let ir = new_ir(IRType::STORE_ARG);
-    ir.borrow_mut().imm = var.borrow().offset;
-    ir.borrow_mut().imm2 = i as i32;
+    ir.borrow_mut().var = Some(var.clone());
+    ir.borrow_mut().imm = i as i32;
     ir.borrow_mut().size = var.borrow().ty.size;
 }
 
@@ -673,15 +673,6 @@ pub fn gen_ir(prog: &mut Program) {
         let func_node = func.borrow().node.clone();
         assert!(func_node.borrow().op == NodeType::FUNC);
 
-        // Assign an offset from RBP to each local variable.
-        let mut off = 0;
-        for v in func.borrow_mut().lvars.iter_mut() {
-            off += v.borrow().ty.size;
-            off = roundup(off, v.borrow().ty.align);
-            v.borrow_mut().offset = -off;
-        }
-        func.borrow_mut().stacksize = off;
-
         // Emit IR.
         let params = func_node.borrow().clone().params;
         for i in 0..params.len() {
@@ -691,9 +682,7 @@ pub fn gen_ir(prog: &mut Program) {
         let node_body = func_node.borrow().body.clone();
         gen_stmt(node_body.unwrap());
 
-        // Later passes shouldn't need the following members,
-        // so make it explicit.
-        func.borrow_mut().lvars = Vec::new();
+        // Later passes shouldn't need the AST, so make it explicit.
         func.borrow_mut().node = Rc::new(RefCell::new(alloc_node()));
     }
 }

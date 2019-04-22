@@ -123,7 +123,9 @@ fn emit_ir(ir: & IR, ret: & String) {
             emit!("mov {}, {}", regs[r0 as usize], ir.imm);
         }
         IRType::BPREL => {
-            emit!("lea {}, [rbp{}]", regs[r0 as usize], ir.imm);
+            let var = ir.var.clone().unwrap();
+            let offset = var.borrow().offset;
+            emit!("lea {}, [rbp{}]", regs[r0 as usize], offset);
         }
         IRType::MOV => {
             emit!("mov {}, {}", regs[r0 as usize], regs[r2 as usize]);
@@ -201,7 +203,9 @@ fn emit_ir(ir: & IR, ret: & String) {
             emit!("mov [{}], {}", regs[r1 as usize], reg(r2 as usize, ir.size));
         }
         IRType::STORE_ARG => {
-            emit!("mov [rbp{}], {}", ir.imm, argreg(ir.imm2 as usize, ir.size));
+            let var = ir.var.clone().unwrap();
+            let offset = var.borrow().offset;
+            emit!("mov [rbp{}], {}", offset, argreg(ir.imm as usize, ir.size));
         }
         IRType::ADD => {
             emit!("add {}, {}", regs[r0 as usize], regs[r2 as usize]);
@@ -232,6 +236,15 @@ fn emit_ir(ir: & IR, ret: & String) {
 }
 
 fn emit_code(fun: &Function) {
+    // Assign an offset from RBP to each local variable.
+    let mut off = 0;
+    for v in fun.lvars.clone().iter_mut() {
+        off += v.borrow().ty.size;
+        off = roundup(off, v.borrow().ty.align);
+        v.borrow_mut().offset = -off;
+    }
+
+    // Emit assembly
     let ret = format!(".Lend{}", bump_nlabel());
 
     p!(".text");
@@ -239,7 +252,7 @@ fn emit_code(fun: &Function) {
     p!("{}:", fun.name);
     emit!("push rbp");
     emit!("mov rbp, rsp");
-    emit!("sub rsp, {}", roundup(fun.stacksize, 16));
+    emit!("sub rsp, {}", roundup(off, 16));
     emit!("push r12");
     emit!("push r13");
     emit!("push r14");
