@@ -41,11 +41,12 @@ pub fn tostr(ir: & IR) -> String {
         IRType::DIV => format!("r{} = r{} / r{}", r0, r1, r2),
         IRType::IMM => format!("r{} = r{}", r0, ir.imm),
         IRType::JMP => {
+            let bb1 = ir.bb1.clone().unwrap();
             let bbarg = ir.bbarg.clone();
             if bbarg.is_some() {
-                return format!("JMP .L{} (r{})", ir.bb1.borrow().label, regno(bbarg))
+                return format!("JMP .L{} (r{})", bb1.borrow().label, regno(bbarg))
             }
-            format!("JMP .L{}", ir.bb1.borrow().label)
+            return format!("JMP .L{}", bb1.borrow().label);
         }
         IRType::LABEL_ADDR => format!("r{} = .L{}", r0, ir.label),
         IRType::EQ => format!("r{} = r{} == r{}", r0, r1, r2),
@@ -79,11 +80,57 @@ pub fn tostr(ir: & IR) -> String {
             let offset = var.borrow().offset;
             format!("BPREL r{} {} {}", r0, name, offset)
         }
-        IRType::BR => format!("BR r{} .L{} .L{}", r0, ir.bb1.borrow().label, ir.bb2.borrow().label),
-        _ => {
-            panic!("unknown op: {:?}", ir.op);
+        IRType::BR => {
+            let bb1 = ir.bb1.clone().unwrap();
+            let bb2 = ir.bb2.clone().unwrap();
+            return format!("BR r{} .L{} .L{}", r0, bb1.borrow().label, bb2.borrow().label);
         }
     }
+}
+
+fn print_rel(name: & str, v: Vec<Rc<RefCell<BB>>>) {
+    if v.len() == 0 {
+        return;
+    }
+    eprint!(" {}=", name);
+    for i in 0..v.len() {
+        let bb = &v[i];
+        if i > 0 {
+            eprint!(",");
+        }
+        eprint!(".L{}", bb.borrow().label);
+    }
+}
+
+fn print_regs(name: & str, v: Vec<Rc<RefCell<Reg>>>) {
+    if v.len() == 0 {
+        return;
+    }
+    eprint!(" {}=", name);
+    for i in 0..v.len() {
+        let r = &v[i];
+        if i > 0 {
+            eprint!(",");
+        }
+        eprint!("r{}", regno(Some(r.clone())));
+    }
+}
+
+fn print_bb(bb: Rc<RefCell<BB>>) {
+    let label = bb.borrow().label.clone();
+    let param = bb.borrow().param.clone();
+    if param.is_some() {
+        eprint!(".L{}({})", label, regno(param));
+    } else {
+        eprint!(".L{}", label);
+    }
+
+    print_rel("pred", bb.borrow().pred.clone());
+    print_rel("succ", bb.borrow().succ.clone());
+    print_regs("defs", bb.borrow().def_regs.clone());
+    print_regs("in", bb.borrow().in_regs.clone());
+    print_regs("out", bb.borrow().out_regs.clone());
+    eprintln!();
 }
 
 pub fn dump_ir(irv: Vec<Rc<RefCell<Function>>>) {
@@ -91,12 +138,7 @@ pub fn dump_ir(irv: Vec<Rc<RefCell<Function>>>) {
         eprintln!("{}:", fun.borrow().name);
 
         for bb in fun.borrow().bbs.iter() {
-            let param = bb.borrow().param.clone();
-            if param.is_some() {
-                eprintln!(".L{}(r{}):", bb.borrow().label, regno(param));
-            } else {
-                eprintln!(".L{}:", bb.borrow().label);
-            }
+            print_bb(bb.clone());
 
             for i in bb.borrow().ir.iter() {
                 eprintln!("\t{}", tostr(&i.borrow()).to_string());

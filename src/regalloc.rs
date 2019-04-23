@@ -25,38 +25,6 @@ use crate::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-thread_local! {
-    static USED: RefCell<Vec<bool>> = RefCell::new(Vec::new());
-}
-
-fn init_used() {
-    USED.with(|u| {
-        let mut used = u.borrow_mut();
-        *used = Vec::new();
-        for _i in 0..num_regs() {
-            used.push(false);
-        }
-    })
-}
-
-//fn used() -> Vec<bool> {
-//    USED.with(|u| {
-//        return u.borrow().clone();
-//    })
-//}
-
-fn used_get(i: i32) -> bool {
-    USED.with(|u| {
-        return u.borrow()[i as usize];
-    })
-}
-
-fn used_set(i: i32, v: bool) {
-    USED.with(|u| {
-        u.borrow_mut()[i as usize] = v;
-    })
-}
-
 // Rewrite `A = B op C` to `A = B; A = A op C`.
 fn three_to_two(bb: Rc<RefCell<BB>>) {
     let mut v = Vec::new();
@@ -135,6 +103,10 @@ fn collect_regs(fun: & Rc<RefCell<Function>>) -> Vec<Rc<RefCell<Reg>>> {
             }
 
             ic += 1;
+        }
+
+        for r in bb.borrow().out_regs.iter() {
+            set_last_use(Some(r.clone()), ic);
         }
     }
 

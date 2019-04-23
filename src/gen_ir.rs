@@ -168,6 +168,12 @@ pub struct BB {
     pub label: usize,
     pub ir: Vec<Rc<RefCell<IR>>>,
     pub param: Option<Rc<RefCell<Reg>>>,
+
+    pub succ: Vec<Rc<RefCell<BB>>>,
+    pub pred: Vec<Rc<RefCell<BB>>>,
+    pub def_regs: Vec<Rc<RefCell<Reg>>>,
+    pub in_regs: Vec<Rc<RefCell<Reg>>>,
+    pub out_regs: Vec<Rc<RefCell<Reg>>>,
 }
 
 pub fn alloc_bb() -> BB {
@@ -175,6 +181,12 @@ pub fn alloc_bb() -> BB {
         label: 0,
         ir: Vec::new(),
         param: None,
+
+        succ: Vec::new(),
+        pred: Vec::new(),
+        def_regs: Vec::new(),
+        in_regs: Vec::new(),
+        out_regs: Vec::new(),
     }
 }
 
@@ -190,8 +202,8 @@ pub struct IR {
     pub label: i32,
     pub var: Option<Rc<RefCell<Var>>>,
 
-    pub bb1: Rc<RefCell<BB>>,
-    pub bb2: Rc<RefCell<BB>>,
+    pub bb1: Option<Rc<RefCell<BB>>>,
+    pub bb2: Option<Rc<RefCell<BB>>>,
 
     // Load/store size in bytes
     pub size: i32,
@@ -225,8 +237,8 @@ pub fn alloc_ir() -> IR {
         label: 0,
         var: None,
 
-        bb1: Rc::new(RefCell::new(alloc_bb())),
-        bb2: Rc::new(RefCell::new(alloc_bb())),
+        bb1: None,
+        bb2: None,
 
         size: 0,
 
@@ -248,6 +260,11 @@ fn new_bb() -> Rc<RefCell<BB>> {
     let mut bb = alloc_bb();
     bb.label = bump_nlabel();
     bb.ir = Vec::new();
+    bb.succ = Vec::new();
+    bb.pred = Vec::new();
+    bb.def_regs = Vec::new();
+    bb.in_regs = Vec::new();
+    bb.out_regs = Vec::new();
     let b = Rc::new(RefCell::new(bb));
     fn_bbs_push(b.clone());
     return b;
@@ -279,20 +296,20 @@ fn emit(op: IRType, r0: Option<Rc<RefCell<Reg>>>, r1: Option<Rc<RefCell<Reg>>>, 
 fn br(r: Rc<RefCell<Reg>>, then: Rc<RefCell<BB>>, els: Rc<RefCell<BB>>) -> Rc<RefCell<IR>> {
     let ir = new_ir(IRType::BR);
     ir.borrow_mut().r2 = Some(r);
-    ir.borrow_mut().bb1 = then;
-    ir.borrow_mut().bb2 = els;
+    ir.borrow_mut().bb1 = Some(then);
+    ir.borrow_mut().bb2 = Some(els);
     return ir;
 }
 
 fn jmp(bb: Rc<RefCell<BB>>) -> Rc<RefCell<IR>> {
     let ir = new_ir(IRType::JMP);
-    ir.borrow_mut().bb1 = bb;
+    ir.borrow_mut().bb1 = Some(bb);
     return ir;
 }
 
 fn jmp_arg(bb: Rc<RefCell<BB>>, r: Rc<RefCell<Reg>>) -> Rc<RefCell<IR>> {
     let ir = new_ir(IRType::JMP);
-    ir.borrow_mut().bb1 = bb;
+    ir.borrow_mut().bb1 = Some(bb);
     ir.borrow_mut().bbarg = Some(r);
     return ir;
 }
@@ -679,10 +696,15 @@ fn gen_param(var: & Rc<RefCell<Var>>, i: usize) {
 pub fn gen_ir(prog: &mut Program) {
     for func in prog.funcs.iter_mut() {
         set_fn(func.clone());
-        set_out(new_bb());
         
         let func_node = func.borrow().node.clone();
         assert!(func_node.borrow().op == NodeType::FUNC);
+
+        // Add an empty entry BB to make later analysis easy.
+        set_out(new_bb());
+        let bb = new_bb();
+        jmp(bb.clone());
+        set_out(bb);
 
         // Emit IR.
         let params = func_node.borrow().clone().params;
@@ -692,6 +714,11 @@ pub fn gen_ir(prog: &mut Program) {
 
         let node_body = func_node.borrow().body.clone();
         gen_stmt(node_body.unwrap());
+
+        // Make it always ends with a return to make later analysis easy.
+
+        let ret_ir = new_ir(IRType::RETURN);
+        ret_ir.borrow_mut().r2 = Some(imm(0));
 
         // Later passes shouldn't need the AST, so make it explicit.
         func.borrow_mut().node = Rc::new(RefCell::new(alloc_node()));

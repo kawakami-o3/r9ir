@@ -181,17 +181,20 @@ fn emit_ir(ir: & IR, ret: & String) {
             emit!("shr {}, cl", regs[r0 as usize]);
         }
         IRType::JMP => {
+            let bb1 = ir.bb1.clone().unwrap();
             if ir.bbarg.is_some() {
-                let param = ir.bb1.borrow().param.clone().unwrap();
+                let param = bb1.borrow().param.clone().unwrap();
                 let bbarg = ir.bbarg.clone().unwrap();
                 emit!("mov {}, {}", regs[param.borrow().rn as usize], regs[bbarg.borrow().rn as usize]);
             }
-            emit!("jmp .L{}", ir.bb1.borrow().label);
+            emit!("jmp .L{}", bb1.borrow().label);
         }
         IRType::BR => {
+            let bb1 = ir.bb1.clone().unwrap();
+            let bb2 = ir.bb2.clone().unwrap();
             emit!("cmp {}, 0", regs[r2 as usize]);
-            emit!("jne .L{}", ir.bb1.borrow().label);
-            emit!("jmp .L{}", ir.bb2.borrow().label);
+            emit!("jne .L{}", bb1.borrow().label);
+            emit!("jmp .L{}", bb2.borrow().label);
         }
         IRType::LOAD => {
             emit!("mov {}, [{}]", reg(r0 as usize, ir.size), regs[r2 as usize]);
