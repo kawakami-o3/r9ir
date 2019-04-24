@@ -144,6 +144,9 @@ pub struct Reg {
     pub vn: i32, // virtual register number
     pub rn: i32, // real register number
 
+    // For optimizer
+    pub promoted: Option<Rc<RefCell<Reg>>>,
+
     // For regalloc
     pub def: i32,
     pub last_use: i32,
@@ -155,6 +158,8 @@ fn alloc_reg() -> Rc<RefCell<Reg>> {
     Rc::new(RefCell::new(Reg {
         vn: -1,
         rn: -1,
+
+        promoted: None,
 
         def: -1,
         last_use: -1,
@@ -278,7 +283,7 @@ fn new_ir(op: IRType) -> Rc<RefCell<IR>> {
     return i;
 }
 
-fn new_reg() -> Rc<RefCell<Reg>> {
+pub fn new_reg() -> Rc<RefCell<Reg>> {
     let r = alloc_reg();
     r.borrow_mut().vn = bump_nreg();
     r.borrow_mut().rn = -1;
@@ -614,8 +619,8 @@ fn gen_stmt(node: Rc<RefCell<Node>>) {
             set_out(node.borrow().break_.clone());
         }
         NodeType::DO_WHILE => {
-            let body = new_bb();
             node.borrow_mut().continue_ = new_bb();
+            let body = new_bb();
             node.borrow_mut().break_ = new_bb();
 
             jmp(body.clone());
@@ -691,6 +696,7 @@ fn gen_param(var: & Rc<RefCell<Var>>, i: usize) {
     ir.borrow_mut().var = Some(var.clone());
     ir.borrow_mut().imm = i as i32;
     ir.borrow_mut().size = var.borrow().ty.size;
+    var.borrow_mut().address_taken = true;
 }
 
 pub fn gen_ir(prog: &mut Program) {

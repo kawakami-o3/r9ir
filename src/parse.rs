@@ -419,6 +419,10 @@ pub struct Var {
     // Global variables are compiled to labels with optional
     // initialized data.
     pub data: Option<String>,
+
+    // For optimizatin passes.
+    pub address_taken: bool,
+    pub promoted: Option<Rc<RefCell<Reg>>>,
 }
 
 pub fn alloc_var() -> Var {
@@ -430,6 +434,9 @@ pub fn alloc_var() -> Var {
 
         name: String::new(),
         data: None,
+
+        address_taken: false,
+        promoted: None,
     }
 }
 

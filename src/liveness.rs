@@ -76,6 +76,7 @@ fn propagate(bb: & Rc<RefCell<BB>>, r: Option<Rc<RefCell<Reg>>>) {
         if pred.borrow().out_regs.contains(&r.clone().unwrap()) {
             continue;
         } else {
+            pred.borrow_mut().out_regs.push(r.clone().unwrap());
             propagate(pred, r.clone());
         }
     }
@@ -95,7 +96,7 @@ fn visit(bb: & Rc<RefCell<BB>>, ir: & Rc<RefCell<IR>>) {
     }
 }
 
-pub fn liveness(prog: &mut Program) -> &mut Program {
+pub fn liveness(prog: &mut Program) {
     for fun in prog.funcs.iter() {
         let bbs = fun.borrow().bbs.clone();
         add_edges(bbs[0].clone());
@@ -108,6 +109,20 @@ pub fn liveness(prog: &mut Program) -> &mut Program {
                 visit(bb, ir);
             }
         }
+
+        // Incoming registers of the entry BB correspond to
+        // uninitialized variables in a program.
+        // Add dummy definitions to make later analysis easy.
+        let mut ent = bbs[0].clone();
+        let in_regs = ent.borrow().in_regs.clone();
+        for r in in_regs.iter() {
+            let mut ir = alloc_ir();
+            ir.op = IRType::MOV;
+            ir.r0 = Some(r.clone());
+            ir.imm = 0;
+            ent.borrow_mut().ir.push(Rc::new(RefCell::new(ir)));
+            ent.borrow_mut().def_regs.push(r.clone());
+        }
+        ent.borrow_mut().in_regs = Vec::new();
     }
-    return prog;
 }

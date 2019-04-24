@@ -9,6 +9,7 @@ mod sema;
 mod gen_ir;
 mod irdump;
 mod liveness;
+mod opt;
 mod regalloc;
 mod gen_x86;
 
@@ -17,6 +18,7 @@ use crate::gen_ir::*;
 use crate::irdump::*;
 use crate::parse::*;
 use crate::liveness::*;
+use crate::opt::*;
 use crate::regalloc::*;
 use crate::sema::*;
 use crate::token::*;
@@ -105,6 +107,7 @@ fn main() {
         }
         return;
     }
+
     sema(prog);
     gen_ir(prog);
 
@@ -113,14 +116,15 @@ fn main() {
         return;
     }
 
+    optimize(prog);
     liveness(prog);
+    alloc_regs(prog);
 
     if dump_ir2 {
         dump_ir(prog.funcs.clone());
         return;
     }
     
-    alloc_regs(prog);
 
     gen_x86(prog);
     return;

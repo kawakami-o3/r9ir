@@ -211,7 +211,7 @@ fn emit_spill_code(bb: & Rc<RefCell<BB>>) {
     bb.borrow_mut().ir = v;
 }
 
-pub fn alloc_regs(prog: &mut Program) -> &mut Program {
+pub fn alloc_regs(prog: &mut Program) {
     for fun in prog.funcs.iter() {
         // Convert SSA to x86-ish two-address form.
         for bb in fun.borrow().bbs.iter() {
@@ -243,5 +243,4 @@ pub fn alloc_regs(prog: &mut Program) -> &mut Program {
             emit_spill_code(bb);
         }
     }
-    return prog;
 }

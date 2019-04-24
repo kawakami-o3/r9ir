@@ -39,7 +39,7 @@ pub fn tostr(ir: & IR) -> String {
         IRType::ADD => format!("r{} = r{} + r{}", r0, r1, r2),
         IRType::CALL => tostr_call(ir),
         IRType::DIV => format!("r{} = r{} / r{}", r0, r1, r2),
-        IRType::IMM => format!("r{} = r{}", r0, ir.imm),
+        IRType::IMM => format!("r{} = {}", r0, ir.imm),
         IRType::JMP => {
             let bb1 = ir.bb1.clone().unwrap();
             let bbarg = ir.bbarg.clone();
@@ -64,7 +64,7 @@ pub fn tostr(ir: & IR) -> String {
         IRType::MOV => format!("r{} = r{}", r0, r2),
         IRType::MUL => format!("r{} = r{} * r{}", r0, r1, r2),
         IRType::NOP => "NOP".to_string(),
-        IRType::RETURN => format!("RET r{}", r0),
+        IRType::RETURN => format!("RET r{}", r2),
         IRType::STORE => format!("STORE{} r{}, r{}", ir.size, r1, r2),
         IRType::STORE_ARG => {
             let var = ir.var.clone().unwrap();
@@ -78,12 +78,12 @@ pub fn tostr(ir: & IR) -> String {
             let var = ir.var.clone().unwrap();
             let name = var.borrow().name.clone();
             let offset = var.borrow().offset;
-            format!("BPREL r{} {} {}", r0, name, offset)
+            format!("BPREL r{} {} ({})", r0, name, offset)
         }
         IRType::BR => {
             let bb1 = ir.bb1.clone().unwrap();
             let bb2 = ir.bb2.clone().unwrap();
-            return format!("BR r{} .L{} .L{}", r0, bb1.borrow().label, bb2.borrow().label);
+            return format!("BR r{} .L{} .L{}", r2, bb1.borrow().label, bb2.borrow().label);
         }
     }
 }

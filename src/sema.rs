@@ -331,6 +331,12 @@ fn do_walk(node: Rc<RefCell<Node>>, decay: bool, prog: &mut Program) -> Rc<RefCe
             check_lval(node.borrow().expr.clone().unwrap());
             let expr = node.borrow().expr.clone().unwrap();
             node.borrow_mut().ty = Rc::new(RefCell::new(ptr_to(expr.borrow().ty.clone())));
+
+            let op = expr.borrow().op.clone();
+            if op == NodeType::VARREF {
+                let var = expr.borrow().var.clone().unwrap();
+                var.borrow_mut().address_taken = true;
+            }
             return node;
         }
         NodeType::DEREF => {
