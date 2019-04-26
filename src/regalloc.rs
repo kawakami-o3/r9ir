@@ -105,7 +105,8 @@ fn collect_regs(fun: & Rc<RefCell<Function>>) -> Vec<Rc<RefCell<Reg>>> {
             ic += 1;
         }
 
-        for r in bb.borrow().out_regs.iter() {
+        let out_regs = bb.borrow().out_regs.clone();
+        for r in out_regs.borrow().iter() {
             set_last_use(Some(r.clone()), ic);
         }
     }

@@ -127,9 +127,12 @@ fn print_bb(bb: Rc<RefCell<BB>>) {
 
     print_rel("pred", bb.borrow().pred.clone());
     print_rel("succ", bb.borrow().succ.clone());
-    print_regs("defs", bb.borrow().def_regs.clone());
-    print_regs("in", bb.borrow().in_regs.clone());
-    print_regs("out", bb.borrow().out_regs.clone());
+    let def_regs = bb.borrow().def_regs.clone();
+    let in_regs = bb.borrow().in_regs.clone();
+    let out_regs = bb.borrow().out_regs.clone();
+    print_regs("defs", def_regs.borrow().clone());
+    print_regs("in", in_regs.borrow().clone());
+    print_regs("out", out_regs.borrow().clone());
     eprintln!();
 }
 

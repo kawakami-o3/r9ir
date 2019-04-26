@@ -176,9 +176,9 @@ pub struct BB {
 
     pub succ: Vec<Rc<RefCell<BB>>>,
     pub pred: Vec<Rc<RefCell<BB>>>,
-    pub def_regs: Vec<Rc<RefCell<Reg>>>,
-    pub in_regs: Vec<Rc<RefCell<Reg>>>,
-    pub out_regs: Vec<Rc<RefCell<Reg>>>,
+    pub def_regs: Rc<RefCell<Vec<Rc<RefCell<Reg>>>>>,
+    pub in_regs: Rc<RefCell<Vec<Rc<RefCell<Reg>>>>>,
+    pub out_regs: Rc<RefCell<Vec<Rc<RefCell<Reg>>>>>,
 }
 
 pub fn alloc_bb() -> BB {
@@ -189,9 +189,9 @@ pub fn alloc_bb() -> BB {
 
         succ: Vec::new(),
         pred: Vec::new(),
-        def_regs: Vec::new(),
-        in_regs: Vec::new(),
-        out_regs: Vec::new(),
+        def_regs: Rc::new(RefCell::new(Vec::new())),
+        in_regs: Rc::new(RefCell::new(Vec::new())),
+        out_regs: Rc::new(RefCell::new(Vec::new())),
     }
 }
 
@@ -267,9 +267,9 @@ fn new_bb() -> Rc<RefCell<BB>> {
     bb.ir = Vec::new();
     bb.succ = Vec::new();
     bb.pred = Vec::new();
-    bb.def_regs = Vec::new();
-    bb.in_regs = Vec::new();
-    bb.out_regs = Vec::new();
+    bb.def_regs = Rc::new(RefCell::new(Vec::new()));
+    bb.in_regs = Rc::new(RefCell::new(Vec::new()));
+    bb.out_regs = Rc::new(RefCell::new(Vec::new()));
     let b = Rc::new(RefCell::new(bb));
     fn_bbs_push(b.clone());
     return b;

@@ -17,6 +17,14 @@ pub fn bump_nlabel() -> usize {
     })
 }
 
+pub fn vec_union<'a, T: Clone + PartialEq>(v: Rc<RefCell<Vec<T>>>, elem: &T) -> bool {
+    if v.borrow().contains(elem) {
+        return false;
+    }
+    v.borrow_mut().push(elem.clone());
+    return true;
+}
+
 pub fn first_char(s: &str) -> char {
     if s.len() == 0 {
         return '\0';

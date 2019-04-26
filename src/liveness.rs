@@ -1,6 +1,7 @@
 
 use crate::gen_ir::*;
 use crate::parse::*;
+use crate::util::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -33,24 +34,14 @@ fn add_edges(bb: Rc<RefCell<BB>>) {
 fn set_def_regs(bb: & Rc<RefCell<BB>>) {
     let param = bb.borrow().param.clone();
     if param.is_some() {
-        let def_regs = bb.borrow().def_regs.clone();
-        if def_regs.contains(&param.clone().unwrap()) {
-            // do nothing
-        } else {
-            bb.borrow_mut().def_regs.push(param.clone().unwrap());
-        }
+        vec_union(bb.borrow().def_regs.clone(), &param.clone().unwrap());
     }
 
     let irs = bb.borrow().ir.clone();
     for ir in irs.iter() {
         let r0 = ir.borrow().r0.clone();
         if r0.is_some() {
-            let def_regs = bb.borrow().def_regs.clone();
-            if def_regs.contains(&r0.clone().unwrap()) {
-                continue;
-            } else {
-                bb.borrow_mut().def_regs.push(r0.clone().unwrap());
-            }
+            vec_union(bb.borrow().def_regs.clone(), &r0.clone().unwrap());
         }
     }
 }
@@ -60,23 +51,17 @@ fn propagate(bb: & Rc<RefCell<BB>>, r: Option<Rc<RefCell<Reg>>>) {
         return;
     }
     let def_regs = bb.borrow().def_regs.clone();
-    if def_regs.contains(&r.clone().unwrap()) {
+    if def_regs.borrow().contains(&r.clone().unwrap()) {
         return;
     }
-    
-    let in_regs = bb.borrow().in_regs.clone();
-    if in_regs.contains(&r.clone().unwrap()) {
+   
+    if !vec_union(bb.borrow().in_regs.clone(), &r.clone().unwrap()) {
         return;
-    } else {
-        bb.borrow_mut().in_regs.push(r.clone().unwrap());
     }
 
     let preds = bb.borrow().pred.clone();
     for pred  in preds.iter() {
-        if pred.borrow().out_regs.contains(&r.clone().unwrap()) {
-            continue;
-        } else {
-            pred.borrow_mut().out_regs.push(r.clone().unwrap());
+        if vec_union(pred.borrow().out_regs.clone(), &r.clone().unwrap()) {
             propagate(pred, r.clone());
         }
     }
@@ -115,14 +100,15 @@ pub fn liveness(prog: &mut Program) {
         // Add dummy definitions to make later analysis easy.
         let mut ent = bbs[0].clone();
         let in_regs = ent.borrow().in_regs.clone();
-        for r in in_regs.iter() {
+        for r in in_regs.borrow().iter() {
             let mut ir = alloc_ir();
             ir.op = IRType::MOV;
             ir.r0 = Some(r.clone());
             ir.imm = 0;
             ent.borrow_mut().ir.push(Rc::new(RefCell::new(ir)));
-            ent.borrow_mut().def_regs.push(r.clone());
+            let def_regs = ent.borrow_mut().def_regs.clone();
+            def_regs.borrow_mut().push(r.clone());
         }
-        ent.borrow_mut().in_regs = Vec::new();
+        ent.borrow_mut().in_regs = Rc::new(RefCell::new(Vec::new()));
     }
 }
