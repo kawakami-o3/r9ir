@@ -1,7 +1,10 @@
 [package]
-
 name = "rcc"
 version = "0.1.1"
+authors = ["kawakami <kawakami.ozone@gmail.com>"]
+description = "Rewrite 9cc in Rust"
+license = "MIT"
+documentation = "https://docs.rs/rcc"
 
 [dependencies]
 
