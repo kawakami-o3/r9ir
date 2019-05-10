@@ -1,10 +1,10 @@
 [package]
-name = "9cc.rs"
+name = "r9ir"
 version = "0.1.1"
 authors = ["kawakami <kawakami.ozone@gmail.com>"]
 description = "Rewrite 9cc in Rust"
 license = "MIT"
-documentation = "https://docs.rs/rcc"
+documentation = "https://docs.rs/r9ir"
 
 [dependencies]
 
