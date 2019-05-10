@@ -3,7 +3,7 @@
 // The tokenizer splits an input string into tokens.
 // Spaces and comments are removed by the tokenizer.
 
-#![allow(dead_code, non_camel_case_types)]
+#![allow(non_camel_case_types)]
 
 use crate::*;
 use crate::preprocess::*;
@@ -33,33 +33,15 @@ fn buf() -> String {
     })
 }
 
-fn set_buf(s: String) {
-    ENV.with(|c| {
-        c.borrow_mut().buf = s;
-    })
-}
-
 fn path() -> String {
     ENV.with(|c| {
         c.borrow().path.clone()
     })
 }
 
-fn set_path(s: String) {
-    ENV.with(|c| {
-        c.borrow_mut().path = s;
-    })
-}
-
 fn tokens() -> Vec<Token> {
     ENV.with(|c| {
         c.borrow().tokens.clone()
-    })
-}
-
-fn set_tokens(ts: Vec<Token>) {
-    ENV.with(|c| {
-        c.borrow_mut().tokens = ts;
     })
 }
 
@@ -539,10 +521,10 @@ fn isoctal(c: char) -> bool {
     '0' <= c && c <= '7'
 }
 
-fn hex(c: char) -> i32 {
+fn hex(c: char) -> Option<i32> {
     match c.to_digit(16) {
-        Some(i) => i as i32,
-        None => panic!(),
+        Some(i) => Some(i as i32),
+        None => None,
     }
 }
 
@@ -718,7 +700,7 @@ fn hexadecimal(p: &String, idx: usize) -> TokenInfo {
         bad_token(&t, "bad hexadecimal number".to_string());
     }
 
-    while let Some(i) = char::from((&p[ret..ret+1].as_bytes())[0]).to_digit(16) {
+    while let Some(i) = hex(char::from((&p[ret..ret+1].as_bytes())[0])) {
         t.val = t.val * 16 + i as i32;
         ret += 1;
     }
