@@ -1,4 +1,4 @@
-#![allow(dead_code, non_camel_case_types)]
+#![allow(non_camel_case_types)]
 
 use crate::gen_ir::*;
 use crate::parse::*;
