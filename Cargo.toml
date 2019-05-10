@@ -1,6 +1,6 @@
 [package]
 name = "r9ir"
-version = "0.1.1"
+version = "1.0.0"
 authors = ["kawakami <kawakami.ozone@gmail.com>"]
 description = "Rewrite 9cc in Rust"
 license = "MIT"
