@@ -1,5 +1,5 @@
 [package]
-name = "rcc"
+name = "9cc.rs"
 version = "0.1.1"
 authors = ["kawakami <kawakami.ozone@gmail.com>"]
 description = "Rewrite 9cc in Rust"
