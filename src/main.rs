@@ -126,6 +126,8 @@ fn main() {
     }
     
 
-    gen_x86(prog);
+    let asm = gen_x86(prog);
+
+    print!("{}", asm);
     return;
 }

@@ -8,23 +8,43 @@ use crate::*;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
+thread_local! {
+    static ASM: RefCell<String> = RefCell::new(String::new());
+}
+
+fn print_asm(a: &str) {
+    ASM.with(|asm| {
+        asm.borrow_mut().push_str(a);
+    })
+}
+
+fn get_asm() -> String {
+    ASM.with(|asm| {
+        return asm.borrow().clone();
+    })
+}
+
 macro_rules! p {
     ($fmt:expr) => {
-        println!($fmt);
+        print_asm($fmt);
+        print_asm("\n");
     };
     ($fmt:expr,$($x:tt)*) => {
-        println!($fmt, $( $x )*);
+        print_asm(format!($fmt, $( $x )*).as_str());
+        print_asm("\n");
     };
 }
 
 macro_rules! emit {
     ($fmt:expr) => {
-        print!("\t");
-        println!($fmt);
+        print_asm("\t");
+        print_asm($fmt);
+        print_asm("\n");
     };
     ($fmt:expr,$($x:tt)*) => {
-        print!("\t");
-        println!($fmt, $( $x )*);
+        print_asm("\t");
+        print_asm(format!($fmt, $( $x )*).as_str());
+        print_asm("\n");
     };
 }
 
@@ -320,7 +340,7 @@ fn emit_data(var: & Var) {
     emit!(".zero {}", var.ty.size);
 }
 
-pub fn gen_x86(prog: &mut Program) {
+pub fn gen_x86(prog: &mut Program) -> String {
     p!(".intel_syntax noprefix");
 
     for v in prog.gvars.iter() {
@@ -330,4 +350,6 @@ pub fn gen_x86(prog: &mut Program) {
     for f in prog.funcs.iter() {
         emit_code(&*f.borrow());
     }
+
+    return get_asm();
 }
