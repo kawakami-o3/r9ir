@@ -98,7 +98,7 @@ pub fn liveness(prog: &mut Program) {
         // Incoming registers of the entry BB correspond to
         // uninitialized variables in a program.
         // Add dummy definitions to make later analysis easy.
-        let mut ent = bbs[0].clone();
+        let ent = bbs[0].clone();
         let in_regs = ent.borrow().in_regs.clone();
         for r in in_regs.borrow().iter() {
             let mut ir = alloc_ir();

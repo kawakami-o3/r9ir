@@ -419,7 +419,7 @@ pub fn sema(prog: &mut Program) {
 
         assert!(node.borrow().op == NodeType::FUNC);
 
-        let mut body = node.borrow_mut().body.clone().unwrap();
+        let body = node.borrow_mut().body.clone().unwrap();
         node.borrow_mut().body = Some(walk(body, prog));
     }
 

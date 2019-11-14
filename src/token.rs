@@ -285,7 +285,7 @@ pub fn new_token(ty: TokenType, start: usize) -> Token {
     }
 }
 
-fn open_file(f: String) -> Box<Read> {
+fn open_file(f: String) -> Box<dyn Read> {
     let mut path = f;
     if path == "-" {
         return Box::new(io::stdin());

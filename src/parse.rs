@@ -1269,7 +1269,7 @@ pub fn stmt(tokens: &Vec<Token>) -> Rc<RefCell<Node>> {
             return Rc::new(RefCell::new(node));
         }
         TokenType::FOR => {
-            let mut node = Rc::new(RefCell::new(new_node(NodeType::FOR, Some(Box::new(t.clone())))));
+            let node = Rc::new(RefCell::new(new_node(NodeType::FOR, Some(Box::new(t.clone())))));
             expect(TokenType::BRA, tokens);
             env_push();
             breaks_push(node.clone());
@@ -1298,7 +1298,7 @@ pub fn stmt(tokens: &Vec<Token>) -> Rc<RefCell<Node>> {
             return node;
         }
         TokenType::WHILE => {
-            let mut node = Rc::new(RefCell::new(new_node(NodeType::FOR, Some(Box::new(t.clone())))));
+            let node = Rc::new(RefCell::new(new_node(NodeType::FOR, Some(Box::new(t.clone())))));
             breaks_push(node.clone());
             continues_push(node.clone());
 
@@ -1312,7 +1312,7 @@ pub fn stmt(tokens: &Vec<Token>) -> Rc<RefCell<Node>> {
             return node;
         }
         TokenType::DO => {
-            let mut node = Rc::new(RefCell::new(new_node(NodeType::DO_WHILE, Some(Box::new(t.clone())))));
+            let node = Rc::new(RefCell::new(new_node(NodeType::DO_WHILE, Some(Box::new(t.clone())))));
             breaks_push(node.clone());
             continues_push(node.clone());
 
@@ -1328,7 +1328,7 @@ pub fn stmt(tokens: &Vec<Token>) -> Rc<RefCell<Node>> {
             return node;
         }
         TokenType::SWITCH => {
-            let mut node = Rc::new(RefCell::new(new_node(NodeType::SWITCH, Some(Box::new(t.clone())))));
+            let node = Rc::new(RefCell::new(new_node(NodeType::SWITCH, Some(Box::new(t.clone())))));
 
             expect(TokenType::BRA, tokens);
             node.borrow_mut().cond = Some(expr(tokens));
