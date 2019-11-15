@@ -62,7 +62,7 @@ fn print_node(n: Rc<RefCell<Node>>, offset: usize) {
 }
 
 fn usage() {
-    panic!("Usage: rcc [-test] [-dump-ir1] [-dump-ir2] <file>");
+    println!("Usage: r9ir [-test] [-dump-ir1] [-dump-ir2] <file>");
 }
 
 
@@ -70,6 +70,7 @@ fn main() {
     let argv: Vec<String> = env::args().collect();
     if argv.len() == 1 {
         usage();
+        return;
     }
 
     let path: String;
@@ -89,6 +90,7 @@ fn main() {
     } else {
         if argv.len() != 2 {
             usage();
+            return;
         }
         path = argv[1].clone();
     }
