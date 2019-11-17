@@ -4,7 +4,8 @@ CC := RUST_BACKTRACE=1 cargo run -q
 all: build
 
 build:
-	cargo build
+	cargo build --bin r9ir
+	cargo build --bin vm
 
 test-unit:
 	@$(CC) test/test.c > tmp-test1.s
