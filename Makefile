@@ -1,4 +1,4 @@
-CC := RUST_BACKTRACE=1 cargo run -q
+CC := RUST_BACKTRACE=1 cargo run --bin r9ir -q
 #CC := cargo run -q
 
 all: build
