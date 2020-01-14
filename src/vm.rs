@@ -82,6 +82,21 @@ impl Emulator {
     }
 }
 
+fn init_instructions() -> Vec<Box<Fn(&Emulator)>> {
+    let mut v: Vec<Box<Fn(&Emulator)>> = Vec::new();
+
+    for _ in 0..256 {
+        v.push(Box::new(|_| {}));
+    }
+
+    for i in 0..8 {
+        v[0xB8 + i ] = Box::new(Emulator::mov_r32_imm32);
+    }
+    v[0xEB] = Box::new(Emulator::short_jump);
+
+    return v;
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() != 2 {
@@ -100,19 +115,7 @@ fn main() {
         emu.memory.push(byte.unwrap());
     }
 
-    /*
-    match File::open(filename) {
-        Ok(mut file) => match file.read_to_string(&mut buffer) {
-            Ok(_) => {}
-            Err(e) => {
-                panic!(e);
-            }
-        },
-        Err(e) => {
-            panic!(e);
-        }
-    };
+    let instructions = init_instructions();
 
-    println!("hello {:?}", buffer);
-    */
+
 }
