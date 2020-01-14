@@ -1,3 +1,6 @@
+use std::env;
+use std::fs::File;
+use std::io::Read;
 
 const MEMORY_SIZE: usize = 1024 * 1024;
 
@@ -80,5 +83,27 @@ impl Emulator {
 }
 
 fn main() {
-    println!("hello");
+
+    let args: Vec<String> = env::args().collect();
+    let mut buffer = String::new();
+
+    if args.len() != 2 {
+        println!("usage: vm filename");
+        return;
+    }
+
+    let filename: & String = & args[1];
+
+    match File::open(filename) {
+        Ok(mut file) => match file.read_to_string(&mut buffer) {
+            Ok(_) => {}
+            Err(e) => {
+                panic!(e);
+            }
+        },
+        Err(e) => {
+            panic!(e);
+        }
+    };
+    println!("hello {:?}", buffer);
 }
