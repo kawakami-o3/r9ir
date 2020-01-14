@@ -83,17 +83,24 @@ impl Emulator {
 }
 
 fn main() {
-
     let args: Vec<String> = env::args().collect();
-    let mut buffer = String::new();
-
     if args.len() != 2 {
         println!("usage: vm filename");
         return;
     }
 
-    let filename: & String = & args[1];
+    let mut emu = Emulator::create(MEMORY_SIZE, 0x0000, 0x7c00);
 
+    let filename: & String = & args[1];
+    let mut buffer = String::new();
+
+    let mut f = File::open(filename).unwrap();
+
+    for byte in f.bytes() {
+        emu.memory.push(byte.unwrap());
+    }
+
+    /*
     match File::open(filename) {
         Ok(mut file) => match file.read_to_string(&mut buffer) {
             Ok(_) => {}
@@ -105,5 +112,7 @@ fn main() {
             panic!(e);
         }
     };
+
     println!("hello {:?}", buffer);
+    */
 }
