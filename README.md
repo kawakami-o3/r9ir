@@ -69,6 +69,3 @@ main:
 	ret
 ```
 
-
-# Features
-
