@@ -31,7 +31,6 @@ const ESI: Register = (6, "ESI");
 const EDI: Register = (7, "EDI");
 const REGISTERS: [Register; 8] = [EAX, ECX, EDX, EBX, ESP, EBP, ESI, EDI];
 
-
 struct Emulator {
     registers: [u32; REGISTERS.len()],
     eflags: u32,
@@ -45,7 +44,7 @@ impl Emulator {
         regs[ESP.addr()] = esp;
         Emulator {
             registers: regs,
-            memory: vec![0; MEMORY_SIZE],//Vec::with_capacity(size),
+            memory: vec![0; MEMORY_SIZE], //Vec::with_capacity(size),
             eflags: 0,
             eip: eip,
         }
@@ -99,7 +98,7 @@ fn init_instructions() -> Vec<Option<Box<dyn Fn(&mut Emulator)>>> {
 
     for i in 0..8 {
         //v[0xB8 + i ] = Box::new(Emulator::mov_r32_imm32);
-        v[0xB8 + i ] = Some(Box::new(Emulator::mov_r32_imm32));
+        v[0xB8 + i] = Some(Box::new(Emulator::mov_r32_imm32));
     }
     //v[0xEB] = Box::new(Emulator::short_jump);
     v[0xEB] = Some(Box::new(Emulator::short_jump));
@@ -116,7 +115,7 @@ fn main() {
 
     let mut emu = Emulator::create(MEMORY_SIZE, 0x0000, 0x7c00);
 
-    let filename: & String = & args[1];
+    let filename: &String = &args[1];
 
     match File::open(filename) {
         Ok(f) => {
@@ -124,7 +123,7 @@ fn main() {
             for byte in f.bytes() {
                 //emu.memory.push(byte.unwrap());
                 emu.memory[i] = byte.unwrap();
-                i+=1;
+                i += 1;
             }
         }
         _ => {
@@ -157,5 +156,4 @@ fn main() {
     }
 
     emu.dump_registers();
-
 }

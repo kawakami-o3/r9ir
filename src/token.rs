@@ -5,8 +5,8 @@
 
 #![allow(non_camel_case_types)]
 
-use crate::*;
 use crate::preprocess::*;
+use crate::*;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs::File;
@@ -28,21 +28,15 @@ fn set_env(env: Env) {
 }
 
 fn buf() -> String {
-    ENV.with(|c| {
-        c.borrow().buf.clone()
-    })
+    ENV.with(|c| c.borrow().buf.clone())
 }
 
 fn path() -> String {
-    ENV.with(|c| {
-        c.borrow().path.clone()
-    })
+    ENV.with(|c| c.borrow().path.clone())
 }
 
 fn tokens() -> Vec<Token> {
-    ENV.with(|c| {
-        c.borrow().tokens.clone()
-    })
+    ENV.with(|c| c.borrow().tokens.clone())
 }
 
 fn env_pop() {
@@ -60,17 +54,13 @@ fn add(t: Token) {
 }
 
 fn keywords_is_none() -> bool {
-    KEYWORDS.with(|keywords| {
-        keywords.borrow().len() == 0
-    })
+    KEYWORDS.with(|keywords| keywords.borrow().len() == 0)
 }
 
 fn keywords_get(name: &String) -> Option<TokenType> {
-    KEYWORDS.with(|keywords| {
-        match (*keywords.borrow()).get(name) {
-            Some(ty) => Some(ty.clone()),
-            None => None,
-        }
+    KEYWORDS.with(|keywords| match (*keywords.borrow()).get(name) {
+        Some(ty) => Some(ty.clone()),
+        None => None,
     })
 }
 
@@ -81,36 +71,97 @@ fn set_keywords(m: HashMap<String, TokenType>) {
 }
 
 fn symbols() -> Vec<Symbol> {
-    SYMBOLS.with(|s| {
-        s.clone().into_inner()
-    })
+    SYMBOLS.with(|s| s.clone().into_inner())
 }
 
 fn init_symbols() {
     SYMBOLS.with(|s| {
-        let symbols =&mut *s.borrow_mut();
+        let symbols = &mut *s.borrow_mut();
 
-        symbols.push(Symbol { name: "<<=", ty: TokenType::SHL_EQ });
-        symbols.push(Symbol { name: ">>=", ty: TokenType::SHR_EQ });
-        symbols.push(Symbol { name: "!=", ty: TokenType::NE });
-        symbols.push(Symbol { name: "&&", ty: TokenType::LOGAND });
-        symbols.push(Symbol { name: "++", ty: TokenType::INC });
-        symbols.push(Symbol { name: "--", ty: TokenType::DEC });
-        symbols.push(Symbol { name: "->", ty: TokenType::ARROW });
-        symbols.push(Symbol { name: "<<", ty: TokenType::SHL });
-        symbols.push(Symbol { name: "<=", ty: TokenType::LE });
-        symbols.push(Symbol { name: "==", ty: TokenType::EQ });
-        symbols.push(Symbol { name: ">=", ty: TokenType::GE });
-        symbols.push(Symbol { name: ">>", ty: TokenType::SHR });
-        symbols.push(Symbol { name: "||", ty: TokenType::LOGOR });
-        symbols.push(Symbol { name: "*=", ty: TokenType::MUL_EQ });
-        symbols.push(Symbol { name: "/=", ty: TokenType::DIV_EQ });
-        symbols.push(Symbol { name: "%=", ty: TokenType::MOD_EQ });
-        symbols.push(Symbol { name: "+=", ty: TokenType::ADD_EQ });
-        symbols.push(Symbol { name: "-=", ty: TokenType::SUB_EQ });
-        symbols.push(Symbol { name: "&=", ty: TokenType::AND_EQ });
-        symbols.push(Symbol { name: "^=", ty: TokenType::XOR_EQ });
-        symbols.push(Symbol { name: "|=", ty: TokenType::OR_EQ });
+        symbols.push(Symbol {
+            name: "<<=",
+            ty: TokenType::SHL_EQ,
+        });
+        symbols.push(Symbol {
+            name: ">>=",
+            ty: TokenType::SHR_EQ,
+        });
+        symbols.push(Symbol {
+            name: "!=",
+            ty: TokenType::NE,
+        });
+        symbols.push(Symbol {
+            name: "&&",
+            ty: TokenType::LOGAND,
+        });
+        symbols.push(Symbol {
+            name: "++",
+            ty: TokenType::INC,
+        });
+        symbols.push(Symbol {
+            name: "--",
+            ty: TokenType::DEC,
+        });
+        symbols.push(Symbol {
+            name: "->",
+            ty: TokenType::ARROW,
+        });
+        symbols.push(Symbol {
+            name: "<<",
+            ty: TokenType::SHL,
+        });
+        symbols.push(Symbol {
+            name: "<=",
+            ty: TokenType::LE,
+        });
+        symbols.push(Symbol {
+            name: "==",
+            ty: TokenType::EQ,
+        });
+        symbols.push(Symbol {
+            name: ">=",
+            ty: TokenType::GE,
+        });
+        symbols.push(Symbol {
+            name: ">>",
+            ty: TokenType::SHR,
+        });
+        symbols.push(Symbol {
+            name: "||",
+            ty: TokenType::LOGOR,
+        });
+        symbols.push(Symbol {
+            name: "*=",
+            ty: TokenType::MUL_EQ,
+        });
+        symbols.push(Symbol {
+            name: "/=",
+            ty: TokenType::DIV_EQ,
+        });
+        symbols.push(Symbol {
+            name: "%=",
+            ty: TokenType::MOD_EQ,
+        });
+        symbols.push(Symbol {
+            name: "+=",
+            ty: TokenType::ADD_EQ,
+        });
+        symbols.push(Symbol {
+            name: "-=",
+            ty: TokenType::SUB_EQ,
+        });
+        symbols.push(Symbol {
+            name: "&=",
+            ty: TokenType::AND_EQ,
+        });
+        symbols.push(Symbol {
+            name: "^=",
+            ty: TokenType::XOR_EQ,
+        });
+        symbols.push(Symbol {
+            name: "|=",
+            ty: TokenType::OR_EQ,
+        });
     })
 }
 
@@ -118,12 +169,12 @@ fn init_escaped() {
     ESCAPED.with(|e| {
         let escaped = &mut *e.borrow_mut();
 
-        escaped.insert('a', char::from(7));  // \a
-        escaped.insert('b', char::from(8));  // \b
+        escaped.insert('a', char::from(7)); // \a
+        escaped.insert('b', char::from(8)); // \b
         escaped.insert('f', char::from(12)); // \f
         escaped.insert('n', char::from(10)); // \n
         escaped.insert('r', char::from(13)); // \r
-        escaped.insert('t', char::from(9));  // \t
+        escaped.insert('t', char::from(9)); // \t
         escaped.insert('v', char::from(11)); // \v
         escaped.insert('e', char::from(27)); // \033
         escaped.insert('E', char::from(27)); // \033
@@ -131,11 +182,9 @@ fn init_escaped() {
 }
 
 fn escaped(c: char) -> Option<char> {
-    ESCAPED.with(|escaped| {
-        match (*escaped.borrow()).get(&c) {
-            Some(c) => Some(*c),
-            None => None,
-        }
+    ESCAPED.with(|escaped| match (*escaped.borrow()).get(&c) {
+        Some(c) => Some(*c),
+        None => None,
     })
 }
 
@@ -229,9 +278,9 @@ pub enum TokenType {
     SUB_EQ,     // -=
     SHL_EQ,     // <<=
     SHR_EQ,     // >>=
-    AND_EQ,  // &=
+    AND_EQ,     // &=
     XOR_EQ,     // ^=
-    OR_EQ,   // |=
+    OR_EQ,      // |=
     RETURN,     // "return"
     SIZEOF,     // "sizeof"
     ALIGNOF,    // "_Alignof"
@@ -261,14 +310,14 @@ pub struct Token {
 }
 
 impl Token {
-    fn append(&mut self, t: & Token) {
+    fn append(&mut self, t: &Token) {
         self.str_cnt.pop(); // pop '\0'
         self.str_cnt.push_str(&t.str_cnt);
     }
 }
 
 pub fn new_token(ty: TokenType, start: usize) -> Token {
-    Token{
+    Token {
         ty: ty,
         val: 0,
         name: String::new(),
@@ -292,8 +341,8 @@ fn open_file(f: String) -> Box<dyn Read> {
     }
 
     // remove EOS, '\0'.
-    if &path[path.len()-1..] == "\0" {
-        path = path[..path.len()-1].to_string();
+    if &path[path.len() - 1..] == "\0" {
+        path = path[..path.len() - 1].to_string();
     }
     match File::open(path) {
         Ok(file) => {
@@ -342,14 +391,14 @@ fn startswith(s1: &String, pos: usize, s2: &str) -> bool {
     if s1.len() < pos + len {
         false;
     }
-    return &s1[pos..pos+len] == s2;
+    return &s1[pos..pos + len] == s2;
 }
 
 // Error reporting
 
 // Finds a line pointed by a given pointer from the input file
 // to print it out.
-pub fn print_line(start: & String, path: & String, pos: usize) {
+pub fn print_line(start: &String, path: &String, pos: usize) {
     let mut line = 0;
     let mut col = 0;
 
@@ -374,7 +423,7 @@ pub fn print_line(start: & String, path: & String, pos: usize) {
             continue;
         }
 
-        eprintln!("error at {}:{}:{}", path, line+1, col+1);
+        eprintln!("error at {}:{}:{}", path, line + 1, col + 1);
         eprintln!();
 
         // Print out the line containing the error location.
@@ -399,7 +448,6 @@ pub fn print_line(start: & String, path: & String, pos: usize) {
     }
 }
 
-
 #[macro_export]
 macro_rules! warn_token {
     ($t:expr, $msg:expr) => {
@@ -410,12 +458,11 @@ macro_rules! warn_token {
     };
 }
 
-
 // 'msg' is String instead of &'static str.
 // The 'msg' argument is "..." (&str) or format!() (String),
 // If msg is &'static str, format! create a temporary variable
 // and it can't live long enough.
-pub fn bad_token(t: & Token, msg: String) {
+pub fn bad_token(t: &Token, msg: String) {
     warn_token!(t, msg);
     panic!();
 }
@@ -428,7 +475,7 @@ pub fn bad_position(idx: usize, msg: String) {
 pub fn get_line_number(t: &Token) -> i32 {
     let mut n = 0;
     for i in 0..t.end {
-        if &t.buf[i..i+1] == "\n" {
+        if &t.buf[i..i + 1] == "\n" {
             n += 1;
         }
     }
@@ -437,11 +484,11 @@ pub fn get_line_number(t: &Token) -> i32 {
 
 // Returns true if Token t followed a space or a comment
 // in an original source file.
-fn need_space(t: & Token) -> bool {
+fn need_space(t: &Token) -> bool {
     if t.start < 1 {
         return false;
     }
-    let c = char::from(t.buf.as_bytes()[t.start-1]);
+    let c = char::from(t.buf.as_bytes()[t.start - 1]);
     if c.is_whitespace() {
         return true;
     }
@@ -503,7 +550,7 @@ fn keyword_map() -> HashMap<String, TokenType> {
     keywords.insert("void".to_string(), TokenType::VOID);
     keywords.insert("while".to_string(), TokenType::WHILE);
     return keywords;
-} 
+}
 
 #[derive(Debug)]
 struct TokenInfo {
@@ -544,7 +591,7 @@ fn c_char(t: &mut Token, p: &String, idx: usize) -> TokenInfo {
     }
 
     len += 1;
-    c = char::from(char_bytes[idx+len]);
+    c = char::from(char_bytes[idx + len]);
 
     // Simple (e.g. `\n` or `\a`)
     match escaped(c) {
@@ -557,7 +604,7 @@ fn c_char(t: &mut Token, p: &String, idx: usize) -> TokenInfo {
                 len: len + 1,
             };
         }
-        None => { }
+        None => {}
     }
 
     // Hexadecimal
@@ -565,7 +612,7 @@ fn c_char(t: &mut Token, p: &String, idx: usize) -> TokenInfo {
         let mut res = 0;
         len += 1;
         loop {
-            c = char::from(char_bytes[idx+len]);
+            c = char::from(char_bytes[idx + len]);
             if let Some(i) = c.to_digit(16) {
                 res = res * 16 + i as i32;
                 len += 1;
@@ -585,11 +632,11 @@ fn c_char(t: &mut Token, p: &String, idx: usize) -> TokenInfo {
     if isoctal(c) {
         let mut i = c.to_digit(8).unwrap();
         len += 1;
-        c = char::from(char_bytes[idx+len]);
+        c = char::from(char_bytes[idx + len]);
         if isoctal(c) {
             i = i * 8 + c.to_digit(8).unwrap();
             len += 1;
-            c = char::from(char_bytes[idx+len]);
+            c = char::from(char_bytes[idx + len]);
         }
         if isoctal(c) {
             i = i * 8 + c.to_digit(8).unwrap();
@@ -617,7 +664,7 @@ fn char_literal(p: &String, idx: usize) -> TokenInfo {
     let mut info = c_char(&mut t, p, idx + len);
     len += info.len;
 
-    if &p[idx+len..idx+len+1] != "\'" {
+    if &p[idx + len..idx + len + 1] != "\'" {
         error_char!(&t);
     }
     len += 1;
@@ -639,14 +686,14 @@ fn string_literal(p: &String, idx: usize) -> TokenInfo {
     let mut ret = String::new();
 
     let char_bytes = p.as_bytes();
-    while (idx+len) < p.len() && char::from(char_bytes[idx+len]) != '"' {
+    while (idx + len) < p.len() && char::from(char_bytes[idx + len]) != '"' {
         let mut t = new_token(TokenType::NUM, idx);
         let info = c_char(&mut t, p, idx + len);
         let c = char::from(info.token.val as u8);
         ret.push(c);
         len += info.len;
     }
-    if (idx+len) >= p.len() {
+    if (idx + len) >= p.len() {
         error_str!(&t);
     }
     //ret.push(&format!("\\{:03o}", u32::from(c)));
@@ -654,20 +701,17 @@ fn string_literal(p: &String, idx: usize) -> TokenInfo {
     t.str_cnt = ret;
     t.len = len;
     t.end = idx + len + 1;
-    return TokenInfo{
-        token: t,
-        len: len,
-    };
+    return TokenInfo { token: t, len: len };
 }
 
 fn ident(p: &String, idx: usize) -> TokenInfo {
     let mut ret = idx;
 
     let mut name = String::new();
-    name.push_str(&p[ret..ret+1]);
+    name.push_str(&p[ret..ret + 1]);
     ret += 1;
     while ret < p.len() {
-        let b = &p[ret..ret+1].as_bytes();
+        let b = &p[ret..ret + 1].as_bytes();
         let d = char::from(b[0]);
         if d.is_alphabetic() || d.is_digit(10) || d == '_' {
             name.push(d);
@@ -686,7 +730,7 @@ fn ident(p: &String, idx: usize) -> TokenInfo {
     t.name = name.clone();
     t.end = ret;
 
-    return TokenInfo{
+    return TokenInfo {
         token: t,
         len: ret - idx,
     };
@@ -696,11 +740,11 @@ fn hexadecimal(p: &String, idx: usize) -> TokenInfo {
     let mut t = new_token(TokenType::NUM, idx);
     let mut ret = idx + 2;
 
-    if !char::from((&p[ret..ret+1].as_bytes())[0]).is_ascii_hexdigit() {
+    if !char::from((&p[ret..ret + 1].as_bytes())[0]).is_ascii_hexdigit() {
         bad_token(&t, "bad hexadecimal number".to_string());
     }
 
-    while let Some(i) = hex(char::from((&p[ret..ret+1].as_bytes())[0])) {
+    while let Some(i) = hex(char::from((&p[ret..ret + 1].as_bytes())[0])) {
         t.val = t.val * 16 + i as i32;
         ret += 1;
     }
@@ -716,7 +760,7 @@ fn octal(p: &String, idx: usize) -> TokenInfo {
     let mut t = new_token(TokenType::NUM, idx);
     let mut ret = idx + 1;
 
-    while let Some(i) = util::first_char(&p[ret..ret+1]).to_digit(8) {
+    while let Some(i) = util::first_char(&p[ret..ret + 1]).to_digit(8) {
         t.val = t.val * 8 + i as i32;
         ret += 1;
     }
@@ -732,7 +776,7 @@ fn decimal(p: &String, idx: usize) -> TokenInfo {
     let mut t = new_token(TokenType::NUM, idx);
     let mut ret = idx;
 
-    while let Some(i) = util::first_char(&p[ret..ret+1]).to_digit(10) {
+    while let Some(i) = util::first_char(&p[ret..ret + 1]).to_digit(10) {
         t.val = t.val * 10 + i as i32;
         ret += 1;
     }
@@ -748,7 +792,7 @@ fn number(p: &String, idx: usize) -> TokenInfo {
     if startswith(p, idx, "0x") || startswith(p, idx, "0X") {
         return hexadecimal(p, idx);
     }
-    if &p[idx..idx+1] == "0" {
+    if &p[idx..idx + 1] == "0" {
         return octal(p, idx);
     }
     return decimal(p, idx);
@@ -885,10 +929,10 @@ fn replace_crlf(p: String) -> String {
     let mut i = 0;
     while i < p.len() {
         // TODO fix
-        if i+1 < p.len() && startswith(&p, i, "\r\n") {
+        if i + 1 < p.len() && startswith(&p, i, "\r\n") {
             i += 1;
         }
-        cnt.push_str(&p[i..i+1]);
+        cnt.push_str(&p[i..i + 1]);
         i += 1;
     }
     return cnt;
@@ -901,14 +945,14 @@ fn remove_backslash_newline(p: String) -> String {
     let mut ret = String::new();
     let mut i = 0;
     while i < p.len() {
-        if i+1 < p.len() && startswith(&p, i, "\\\n") {
+        if i + 1 < p.len() && startswith(&p, i, "\\\n") {
             cnt += 1;
             i += 2;
             continue;
         }
 
-        if &p[i..i+1] == "\n" {
-            for _i in 0..cnt+1 {
+        if &p[i..i + 1] == "\n" {
+            for _i in 0..cnt + 1 {
                 ret.push('\n');
             }
             i += 1;
@@ -916,7 +960,7 @@ fn remove_backslash_newline(p: String) -> String {
             continue;
         }
 
-        ret.push_str(&p[i..i+1]);
+        ret.push_str(&p[i..i + 1]);
         i += 1;
     }
     return ret;
@@ -925,10 +969,10 @@ fn remove_backslash_newline(p: String) -> String {
 fn strip_newlines(tokens: Vec<Token>) -> Vec<Token> {
     let mut v = Vec::new();
 
-//    let ts: Vec<Token> = tokens().iter()
-//        .filter(|t| t.ty != TokenType::NEW_LINE)
-//        .cloned()
-//        .collect();
+    //    let ts: Vec<Token> = tokens().iter()
+    //        .filter(|t| t.ty != TokenType::NEW_LINE)
+    //        .cloned()
+    //        .collect();
 
     for t in tokens.iter() {
         if t.ty != TokenType::NEW_LINE {

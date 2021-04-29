@@ -17,9 +17,7 @@ fn set_env(env: Env) {
 }
 
 fn get_env() -> Option<Env> {
-    ENV.with(|c| {
-        Some(c.borrow().clone())
-    })
+    ENV.with(|c| Some(c.borrow().clone()))
 }
 
 fn env_pop() {
@@ -38,11 +36,9 @@ fn env_output() -> Vec<Token> {
 }
 
 fn macros_get(key: &String) -> Option<Macro> {
-    MACROS.with(|m| {
-        match m.borrow().get(key) {
-            Some(v) => Some(v.clone()),
-            None => None,
-        }
+    MACROS.with(|m| match m.borrow().get(key) {
+        Some(v) => Some(v.clone()),
+        None => None,
     })
 }
 
@@ -174,14 +170,14 @@ fn read_until_eol() -> Vec<Token> {
     return v;
 }
 
-fn new_int(tmpl: & Token, val: i32) -> Token {
+fn new_int(tmpl: &Token, val: i32) -> Token {
     let mut t = tmpl.clone();
     t.ty = TokenType::NUM;
     t.val = val;
     return t;
 }
 
-fn new_string(tmpl: & Token, str_cnt: String, len: usize) -> Token {
+fn new_string(tmpl: &Token, str_cnt: String, len: usize) -> Token {
     let mut t = tmpl.clone();
     t.ty = TokenType::STR;
     t.str_cnt = str_cnt;
@@ -189,7 +185,7 @@ fn new_string(tmpl: & Token, str_cnt: String, len: usize) -> Token {
     return t;
 }
 
-fn new_param(tmpl: & Token, val: i32) -> Token {
+fn new_param(tmpl: &Token, val: i32) -> Token {
     let mut t = tmpl.clone();
     t.ty = TokenType::PARAM;
     t.val = val;
@@ -233,9 +229,9 @@ fn replace_hash_ident(m: &mut Macro) {
     let tokens = m.tokens.clone();
     let mut v = Vec::new();
     let mut i = 0;
-    while i < tokens.len()-1 {
+    while i < tokens.len() - 1 {
         let t1 = tokens[i].clone();
-        let mut t2 = tokens[i+1].clone();
+        let mut t2 = tokens[i + 1].clone();
 
         if t1.ty == TokenType::SHARP && t2.ty == TokenType::PARAM {
             t2.stringize = true;
@@ -293,7 +289,7 @@ fn read_args() -> HashMap<usize, Vec<Token>> {
     return v;
 }
 
-fn emit_special_macro(t: & Token) -> bool {
+fn emit_special_macro(t: &Token) -> bool {
     if is_ident(t, "__LINE__") {
         emit(new_int(t, get_line_number(t)));
         return true;
@@ -301,7 +297,7 @@ fn emit_special_macro(t: & Token) -> bool {
     return false;
 }
 
-fn apply_objlike(m: &mut Macro, _start: & Token) {
+fn apply_objlike(m: &mut Macro, _start: &Token) {
     for t in m.tokens.iter() {
         if emit_special_macro(t) {
             continue;
@@ -310,11 +306,19 @@ fn apply_objlike(m: &mut Macro, _start: & Token) {
     }
 }
 
-fn apply_functionlike(m: &mut Macro, start: & Token) {
+fn apply_functionlike(m: &mut Macro, start: &Token) {
     get(TokenType::BRA, "comma expected".to_string());
     let args = read_args();
     if m.params.len() != args.len() {
-        bad_token(&start, format!("number of parameter does not match ({} != {})", m.params.len(), args.len()).to_string());
+        bad_token(
+            &start,
+            format!(
+                "number of parameter does not match ({} != {})",
+                m.params.len(),
+                args.len()
+            )
+            .to_string(),
+        );
         panic!();
     }
 
@@ -339,14 +343,13 @@ fn apply_functionlike(m: &mut Macro, start: & Token) {
     }
 }
 
-fn apply(m: &mut Macro, start: & Token) {
+fn apply(m: &mut Macro, start: &Token) {
     if m.ty == MacroType::OBJLIKE {
         apply_objlike(m, start);
     } else {
         apply_functionlike(m, start);
     }
 }
-
 
 fn define_funclike(name: String) {
     new_macro(MacroType::FUNCLIKE, name.clone());

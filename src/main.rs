@@ -3,27 +3,27 @@
 mod util;
 #[macro_use]
 mod token;
-mod preprocess;
-mod parse;
-mod sema;
 mod gen_ir;
+mod gen_x86;
 mod irdump;
 mod liveness;
 mod opt;
+mod parse;
+mod preprocess;
 mod regalloc;
-mod gen_x86;
+mod sema;
 
-use crate::gen_x86::*;
 use crate::gen_ir::*;
+use crate::gen_x86::*;
 use crate::irdump::*;
-use crate::parse::*;
 use crate::liveness::*;
 use crate::opt::*;
+use crate::parse::*;
 use crate::regalloc::*;
 use crate::sema::*;
 use crate::token::*;
-use std::env;
 use std::cell::RefCell;
+use std::env;
 use std::rc::Rc;
 
 fn print_node(n: Rc<RefCell<Node>>, offset: usize) {
@@ -32,39 +32,55 @@ fn print_node(n: Rc<RefCell<Node>>, offset: usize) {
     }
 
     let node = n.borrow().clone();
-    eprintln!("{:?} {} '{}' {:?}", node.op, node.val, node.name, node.ty.borrow().ty);
+    eprintln!(
+        "{:?} {} '{}' {:?}",
+        node.op,
+        node.val,
+        node.name,
+        node.ty.borrow().ty
+    );
     //eprintln!("{:?}", node);
     if node.rhs.is_some() {
-        print_node(node.rhs.clone().unwrap(), offset+2);
+        print_node(node.rhs.clone().unwrap(), offset + 2);
     }
     if node.lhs.is_some() {
-        print_node(node.lhs.clone().unwrap(), offset+2);
+        print_node(node.lhs.clone().unwrap(), offset + 2);
     }
     if node.expr.is_some() {
-        print_node(node.expr.clone().unwrap(), offset+2);
+        print_node(node.expr.clone().unwrap(), offset + 2);
     }
     //eprintln!(">> {}", node.stmts.len());
     for i in node.stmts.iter() {
-        print_node(i.clone(), offset+2);
+        print_node(i.clone(), offset + 2);
     }
 
-
-    if node.cond.is_some() { print_node(node.cond.clone().unwrap(), offset+2); }
-    if node.then.is_some() { print_node(node.then.clone().unwrap(), offset+2); }
-    if node.els.is_some() { print_node(node.els.clone().unwrap(), offset+2); }
-    if node.init.is_some() { print_node(node.init.clone().unwrap(), offset+2); }
-    if node.inc.is_some() { print_node(node.inc.clone().unwrap(), offset+2); }
-    if node.body.is_some() { print_node(node.body.clone().unwrap(), offset+2); }
+    if node.cond.is_some() {
+        print_node(node.cond.clone().unwrap(), offset + 2);
+    }
+    if node.then.is_some() {
+        print_node(node.then.clone().unwrap(), offset + 2);
+    }
+    if node.els.is_some() {
+        print_node(node.els.clone().unwrap(), offset + 2);
+    }
+    if node.init.is_some() {
+        print_node(node.init.clone().unwrap(), offset + 2);
+    }
+    if node.inc.is_some() {
+        print_node(node.inc.clone().unwrap(), offset + 2);
+    }
+    if node.body.is_some() {
+        print_node(node.body.clone().unwrap(), offset + 2);
+    }
 
     for i in node.args.iter() {
-        print_node(i.clone(), offset+2);
+        print_node(i.clone(), offset + 2);
     }
 }
 
 fn usage() {
     println!("Usage: r9ir [-test] [-dump-ir1] [-dump-ir2] <file>");
 }
-
 
 fn main() {
     let argv: Vec<String> = env::args().collect();
@@ -126,7 +142,6 @@ fn main() {
         dump_ir(prog.funcs.clone());
         return;
     }
-    
 
     let asm = gen_x86(prog);
 

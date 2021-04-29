@@ -52,7 +52,7 @@ macro_rules! bad_node {
 fn check_lval(node: Rc<RefCell<Node>>) {
     let op = node.borrow().op.clone();
     match op {
-        NodeType::VARREF | NodeType::DEREF | NodeType::DOT => { }
+        NodeType::VARREF | NodeType::DEREF | NodeType::DOT => {}
         _ => {
             bad_node!(node, "not an lvalue");
         }
@@ -97,10 +97,7 @@ fn walk_nodecay(node: Rc<RefCell<Node>>, prog: &mut Program) -> Rc<RefCell<Node>
 fn do_walk(node: Rc<RefCell<Node>>, decay: bool, prog: &mut Program) -> Rc<RefCell<Node>> {
     let op = node.borrow().op.clone();
     match op {
-        NodeType::NUM |
-            NodeType::NULL |
-            NodeType::BREAK |
-            NodeType::CONTINUE => {
+        NodeType::NUM | NodeType::NULL | NodeType::BREAK | NodeType::CONTINUE => {
             return node;
         }
         NodeType::VARREF => {
@@ -142,7 +139,7 @@ fn do_walk(node: Rc<RefCell<Node>>, decay: bool, prog: &mut Program) -> Rc<RefCe
             node.borrow_mut().cond = Some(walk(cond.unwrap(), prog));
             let body = node.borrow().body.clone();
             node.borrow_mut().body = Some(walk(body.unwrap(), prog));
-            return node
+            return node;
         }
         NodeType::CASE => {
             let body = node.borrow().body.clone();
@@ -184,7 +181,8 @@ fn do_walk(node: Rc<RefCell<Node>>, decay: bool, prog: &mut Program) -> Rc<RefCe
                 let is_ptr = lhs_ty.borrow().ty == CType::PTR;
                 if is_ptr {
                     let rhs = node.borrow().rhs.clone().unwrap();
-                    node.borrow_mut().rhs = Some(scale_ptr(NodeType::MUL, rhs, lhs_ty.borrow().clone()));
+                    node.borrow_mut().rhs =
+                        Some(scale_ptr(NodeType::MUL, rhs, lhs_ty.borrow().clone()));
                     node.borrow_mut().ty = lhs.borrow().ty.clone();
                 } else {
                     node.borrow_mut().ty = Rc::new(RefCell::new(int_ty()));
@@ -201,7 +199,7 @@ fn do_walk(node: Rc<RefCell<Node>>, decay: bool, prog: &mut Program) -> Rc<RefCe
 
             let lhs = node.borrow().lhs.clone().unwrap();
             let rhs = node.borrow().rhs.clone().unwrap();
- 
+
             let lty = rhs.borrow().ty.clone();
             let rty = lhs.borrow().ty.clone();
 
@@ -270,42 +268,42 @@ fn do_walk(node: Rc<RefCell<Node>>, decay: bool, prog: &mut Program) -> Rc<RefCe
             node.borrow_mut().cond = Some(walk(cond.unwrap(), prog));
             node.borrow_mut().then = Some(walk(then.unwrap(), prog));
             node.borrow_mut().els = Some(walk(els.unwrap(), prog));
-            
+
             let then = node.borrow().then.clone().unwrap();
             node.borrow_mut().ty = then.borrow().ty.clone();
             return node;
         }
-        NodeType::MUL |
-            NodeType::DIV |
-            NodeType::MOD |
-            NodeType::LT |
-            NodeType::OR |
-            NodeType::XOR |
-            NodeType::AND |
-            NodeType::EQ |
-            NodeType::NE |
-            NodeType::LE |
-            NodeType::SHL |
-            NodeType::SHR |
-            NodeType::LOGAND |
-            NodeType::LOGOR => {
-                let lhs = node.borrow().lhs.clone();
-                let rhs = node.borrow().rhs.clone();
+        NodeType::MUL
+        | NodeType::DIV
+        | NodeType::MOD
+        | NodeType::LT
+        | NodeType::OR
+        | NodeType::XOR
+        | NodeType::AND
+        | NodeType::EQ
+        | NodeType::NE
+        | NodeType::LE
+        | NodeType::SHL
+        | NodeType::SHR
+        | NodeType::LOGAND
+        | NodeType::LOGOR => {
+            let lhs = node.borrow().lhs.clone();
+            let rhs = node.borrow().rhs.clone();
 
-                node.borrow_mut().lhs = Some(walk(lhs.unwrap(), prog));
-                node.borrow_mut().rhs = Some(walk(rhs.unwrap(), prog));
+            node.borrow_mut().lhs = Some(walk(lhs.unwrap(), prog));
+            node.borrow_mut().rhs = Some(walk(rhs.unwrap(), prog));
 
-                check_int(node.borrow().lhs.clone().unwrap());
-                check_int(node.borrow().rhs.clone().unwrap());
+            check_int(node.borrow().lhs.clone().unwrap());
+            check_int(node.borrow().rhs.clone().unwrap());
 
-                let lhs = node.borrow().lhs.clone();
-                if lhs.is_some() {
-                    let l = lhs.unwrap();
-                    node.borrow_mut().ty = l.borrow().ty.clone();
-                }
-                node.borrow_mut().ty = Rc::new(RefCell::new(int_ty()));
-                return node;
+            let lhs = node.borrow().lhs.clone();
+            if lhs.is_some() {
+                let l = lhs.unwrap();
+                node.borrow_mut().ty = l.borrow().ty.clone();
             }
+            node.borrow_mut().ty = Rc::new(RefCell::new(int_ty()));
+            return node;
+        }
         NodeType::COMMA => {
             let lhs = node.borrow().lhs.clone();
             let rhs = node.borrow().rhs.clone();

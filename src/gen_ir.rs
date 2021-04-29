@@ -11,7 +11,6 @@
 // Such infinite number of registers are mapped to a finite registers
 // in a later pass.
 
-
 // let mut off = 0;
 // for v in func.lvars.iter_mut() {
 //     off = roundup(off, v.borrow().ty.align);
@@ -41,14 +40,12 @@ fn set_fn(fun: Rc<RefCell<Function>>) {
 }
 
 fn fn_bbs_push(bb: Rc<RefCell<BB>>) {
-    FN.with(|f| {
-        match *f.borrow() {
-            Some(ref fun) => {
-                fun.borrow_mut().bbs.push(bb);
-            }
-            None => {
-                panic!();
-            }
+    FN.with(|f| match *f.borrow() {
+        Some(ref fun) => {
+            fun.borrow_mut().bbs.push(bb);
+        }
+        None => {
+            panic!();
         }
     })
 }
@@ -60,44 +57,37 @@ fn set_out(bb: Rc<RefCell<BB>>) {
 }
 
 fn out_ir_push(ir: Rc<RefCell<IR>>) {
-    OUT.with(|o| {
-        match *o.borrow() {
-            Some(ref out) => {
-                out.borrow_mut().ir.push(ir);
-            }
-            None => {
-                panic!();
-            }
+    OUT.with(|o| match *o.borrow() {
+        Some(ref out) => {
+            out.borrow_mut().ir.push(ir);
+        }
+        None => {
+            panic!();
         }
     })
 }
 
 fn out_param_set(reg: Rc<RefCell<Reg>>) {
-    OUT.with(|o| {
-        match *o.borrow() {
-            Some(ref out) => {
-                out.borrow_mut().param = Some(reg);
-            }
-            None => {
-                panic!();
-            }
+    OUT.with(|o| match *o.borrow() {
+        Some(ref out) => {
+            out.borrow_mut().param = Some(reg);
+        }
+        None => {
+            panic!();
         }
     })
 }
 
 fn out_param_get() -> Rc<RefCell<Reg>> {
-    OUT.with(|o| {
-        match *o.borrow() {
-            Some(ref out) => {
-                return out.borrow_mut().param.clone().unwrap();
-            }
-            None => {
-                panic!();
-            }
+    OUT.with(|o| match *o.borrow() {
+        Some(ref out) => {
+            return out.borrow_mut().param.clone().unwrap();
+        }
+        None => {
+            panic!();
         }
     })
 }
-
 
 fn bump_nreg() -> i32 {
     NREG.with(|v| {
@@ -256,7 +246,7 @@ pub fn alloc_ir() -> IR {
         globals: Vec::new(),
 
         kill: Vec::new(),
-        
+
         bbarg: None,
     }
 }
@@ -290,7 +280,12 @@ pub fn new_reg() -> Rc<RefCell<Reg>> {
     return r;
 }
 
-fn emit(op: IRType, r0: Option<Rc<RefCell<Reg>>>, r1: Option<Rc<RefCell<Reg>>>, r2: Option<Rc<RefCell<Reg>>>) -> Rc<RefCell<IR>> {
+fn emit(
+    op: IRType,
+    r0: Option<Rc<RefCell<Reg>>>,
+    r1: Option<Rc<RefCell<Reg>>>,
+    r2: Option<Rc<RefCell<Reg>>>,
+) -> Rc<RefCell<IR>> {
     let ir = new_ir(op);
     ir.borrow_mut().r0 = r0;
     ir.borrow_mut().r1 = r1;
@@ -361,7 +356,12 @@ fn gen_lval(node: Rc<RefCell<Node>>) -> Rc<RefCell<Reg>> {
         let r1 = new_reg();
         let r2 = gen_lval(node.borrow().expr.clone().unwrap());
         let r3 = imm(ty.borrow().offset);
-        emit(IRType::ADD, Some(r1.clone()), Some(r2.clone()), Some(r3.clone()));
+        emit(
+            IRType::ADD,
+            Some(r1.clone()),
+            Some(r2.clone()),
+            Some(r3.clone()),
+        );
         return r1;
     }
 
@@ -410,10 +410,18 @@ fn gen_expr(node: Rc<RefCell<Node>>) -> Rc<RefCell<Reg>> {
             let set1 = new_bb();
             let last = new_bb();
 
-            br(gen_expr(node.borrow().lhs.clone().unwrap()), bb.clone(), set0.clone());
+            br(
+                gen_expr(node.borrow().lhs.clone().unwrap()),
+                bb.clone(),
+                set0.clone(),
+            );
 
             set_out(bb);
-            br(gen_expr(node.borrow().rhs.clone().unwrap()), set1.clone(), set0.clone());
+            br(
+                gen_expr(node.borrow().rhs.clone().unwrap()),
+                set1.clone(),
+                set0.clone(),
+            );
 
             set_out(set0);
             jmp_arg(last.clone(), imm(0));
@@ -479,7 +487,11 @@ fn gen_expr(node: Rc<RefCell<Node>>) -> Rc<RefCell<Reg>> {
 
         NodeType::DEREF => {
             let r = new_reg();
-            load(node.clone(), r.clone(), gen_expr(node.borrow().expr.clone().unwrap()));
+            load(
+                node.clone(),
+                r.clone(),
+                gen_expr(node.borrow().expr.clone().unwrap()),
+            );
             return r;
         }
 
@@ -510,22 +522,51 @@ fn gen_expr(node: Rc<RefCell<Node>>) -> Rc<RefCell<Reg>> {
             ir.borrow_mut().size = ty.borrow().size;
             return r1;
         }
-        NodeType::ADD => { return gen_binop(IRType::ADD, node); }
-        NodeType::SUB => { return gen_binop(IRType::SUB, node); }
-        NodeType::MUL => { return gen_binop(IRType::MUL, node); }
-        NodeType::DIV => { return gen_binop(IRType::DIV, node); }
-        NodeType::MOD => { return gen_binop(IRType::MOD, node); }
-        NodeType::LT => { return gen_binop(IRType::LT, node); }
-        NodeType::LE => { return gen_binop(IRType::LE, node); }
-        NodeType::AND => { return gen_binop(IRType::AND, node); }
-        NodeType::OR => { return gen_binop(IRType::OR, node); }
-        NodeType::XOR => { return gen_binop(IRType::XOR, node); }
-        NodeType::SHL => { return gen_binop(IRType::SHL, node); }
-        NodeType::SHR => { return gen_binop(IRType::SHR, node); }
+        NodeType::ADD => {
+            return gen_binop(IRType::ADD, node);
+        }
+        NodeType::SUB => {
+            return gen_binop(IRType::SUB, node);
+        }
+        NodeType::MUL => {
+            return gen_binop(IRType::MUL, node);
+        }
+        NodeType::DIV => {
+            return gen_binop(IRType::DIV, node);
+        }
+        NodeType::MOD => {
+            return gen_binop(IRType::MOD, node);
+        }
+        NodeType::LT => {
+            return gen_binop(IRType::LT, node);
+        }
+        NodeType::LE => {
+            return gen_binop(IRType::LE, node);
+        }
+        NodeType::AND => {
+            return gen_binop(IRType::AND, node);
+        }
+        NodeType::OR => {
+            return gen_binop(IRType::OR, node);
+        }
+        NodeType::XOR => {
+            return gen_binop(IRType::XOR, node);
+        }
+        NodeType::SHL => {
+            return gen_binop(IRType::SHL, node);
+        }
+        NodeType::SHR => {
+            return gen_binop(IRType::SHR, node);
+        }
         NodeType::NOT => {
             let r1 = new_reg();
             let r2 = gen_expr(node.borrow().expr.clone().unwrap());
-            emit(IRType::XOR, Some(r1.clone()), Some(r2.clone()), Some(imm(-1)));
+            emit(
+                IRType::XOR,
+                Some(r1.clone()),
+                Some(r2.clone()),
+                Some(imm(-1)),
+            );
             return r1;
         }
         NodeType::COMMA => {
@@ -537,10 +578,14 @@ fn gen_expr(node: Rc<RefCell<Node>>) -> Rc<RefCell<Reg>> {
             let els = new_bb();
             let last = new_bb();
 
-            br(gen_expr(node.borrow().cond.clone().unwrap()), then.clone(), els.clone());
+            br(
+                gen_expr(node.borrow().cond.clone().unwrap()),
+                then.clone(),
+                els.clone(),
+            );
 
             set_out(then);
-            jmp_arg(last.clone(), gen_expr(node.borrow().then.clone().unwrap())); 
+            jmp_arg(last.clone(), gen_expr(node.borrow().then.clone().unwrap()));
 
             set_out(els);
             jmp_arg(last.clone(), gen_expr(node.borrow().els.clone().unwrap()));
@@ -573,7 +618,11 @@ fn gen_stmt(node: Rc<RefCell<Node>>) {
             let els = new_bb();
             let last = new_bb();
 
-            br(gen_expr(node.borrow().cond.clone().unwrap()), then.clone(), els.clone());
+            br(
+                gen_expr(node.borrow().cond.clone().unwrap()),
+                then.clone(),
+                els.clone(),
+            );
 
             set_out(then);
             gen_stmt(node.borrow().then.clone().unwrap());
@@ -584,7 +633,7 @@ fn gen_stmt(node: Rc<RefCell<Node>>) {
                 gen_stmt(node.borrow().els.clone().unwrap());
             }
             jmp(last.clone());
-            
+
             set_out(last);
         }
         NodeType::FOR => {
@@ -645,7 +694,12 @@ fn gen_stmt(node: Rc<RefCell<Node>>) {
 
                 let next = new_bb();
                 let r2 = new_reg();
-                emit(IRType::EQ, Some(r2.clone()), Some(r.clone()), Some(imm(c.borrow().val)));
+                emit(
+                    IRType::EQ,
+                    Some(r2.clone()),
+                    Some(r.clone()),
+                    Some(imm(c.borrow().val)),
+                );
                 br(r2.clone(), c.borrow().bb.clone(), next.clone());
                 set_out(next);
             }
@@ -672,7 +726,7 @@ fn gen_stmt(node: Rc<RefCell<Node>>) {
             set_out(new_bb());
         }
         NodeType::RETURN => {
-            let r = gen_expr(node.borrow().expr.clone().unwrap()); 
+            let r = gen_expr(node.borrow().expr.clone().unwrap());
             let ir = new_ir(IRType::RETURN);
             ir.borrow_mut().r2 = Some(r);
             set_out(new_bb());
@@ -691,7 +745,7 @@ fn gen_stmt(node: Rc<RefCell<Node>>) {
     }
 }
 
-fn gen_param(var: & Rc<RefCell<Var>>, i: usize) {
+fn gen_param(var: &Rc<RefCell<Var>>, i: usize) {
     let ir = new_ir(IRType::STORE_ARG);
     ir.borrow_mut().var = Some(var.clone());
     ir.borrow_mut().imm = i as i32;
@@ -702,7 +756,7 @@ fn gen_param(var: & Rc<RefCell<Var>>, i: usize) {
 pub fn gen_ir(prog: &mut Program) {
     for func in prog.funcs.iter_mut() {
         set_fn(func.clone());
-        
+
         let func_node = func.borrow().node.clone();
         assert!(func_node.borrow().op == NodeType::FUNC);
 

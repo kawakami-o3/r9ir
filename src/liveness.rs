@@ -1,4 +1,3 @@
-
 use crate::gen_ir::*;
 use crate::parse::*;
 use crate::util::*;
@@ -31,7 +30,7 @@ fn add_edges(bb: Rc<RefCell<BB>>) {
     }
 }
 
-fn set_def_regs(bb: & Rc<RefCell<BB>>) {
+fn set_def_regs(bb: &Rc<RefCell<BB>>) {
     let param = bb.borrow().param.clone();
     if param.is_some() {
         vec_union(bb.borrow().def_regs.clone(), &param.clone().unwrap());
@@ -46,7 +45,7 @@ fn set_def_regs(bb: & Rc<RefCell<BB>>) {
     }
 }
 
-fn propagate(bb: & Rc<RefCell<BB>>, r: Option<Rc<RefCell<Reg>>>) {
+fn propagate(bb: &Rc<RefCell<BB>>, r: Option<Rc<RefCell<Reg>>>) {
     if r.is_none() {
         return;
     }
@@ -54,20 +53,20 @@ fn propagate(bb: & Rc<RefCell<BB>>, r: Option<Rc<RefCell<Reg>>>) {
     if def_regs.borrow().contains(&r.clone().unwrap()) {
         return;
     }
-   
+
     if !vec_union(bb.borrow().in_regs.clone(), &r.clone().unwrap()) {
         return;
     }
 
     let preds = bb.borrow().pred.clone();
-    for pred  in preds.iter() {
+    for pred in preds.iter() {
         if vec_union(pred.borrow().out_regs.clone(), &r.clone().unwrap()) {
             propagate(pred, r.clone());
         }
     }
 }
 
-fn visit(bb: & Rc<RefCell<BB>>, ir: & Rc<RefCell<IR>>) {
+fn visit(bb: &Rc<RefCell<BB>>, ir: &Rc<RefCell<IR>>) {
     propagate(bb, ir.borrow().r1.clone());
     propagate(bb, ir.borrow().r2.clone());
     propagate(bb, ir.borrow().bbarg.clone());

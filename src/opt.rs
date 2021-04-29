@@ -20,7 +20,7 @@ use crate::parse::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-fn opt(ir: & Rc<RefCell<IR>>) {
+fn opt(ir: &Rc<RefCell<IR>>) {
     let op = ir.borrow().op.clone();
     if op == IRType::BPREL {
         let var = ir.borrow().var.clone().unwrap();

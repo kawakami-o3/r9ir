@@ -101,10 +101,10 @@ pub fn same_type(x: Rc<RefCell<Type>>, y: Rc<RefCell<Type>>) -> bool {
         CType::ARY => {
             let xary = xx.ary_of.clone().unwrap();
             let yary = yy.ary_of.clone().unwrap();
-            xx.size == yy.size && same_type(Rc::new(RefCell::new(*xary)), Rc::new(RefCell::new(*yary)))
+            xx.size == yy.size
+                && same_type(Rc::new(RefCell::new(*xary)), Rc::new(RefCell::new(*yary)))
         }
         CType::STRUCT | CType::FUNC => *xx == *yy,
         _ => true,
     }
 }
-

@@ -37,7 +37,7 @@ fn three_to_two(bb: Rc<RefCell<BB>>) {
             v.push(ir.clone());
             continue;
         }
- 
+
         assert!(r0.clone().unwrap() != r1.clone().unwrap());
 
         let mut ir2 = alloc_ir();
@@ -59,16 +59,15 @@ fn set_last_use(r: Option<Rc<RefCell<Reg>>>, ic: i32) {
                 reg.borrow_mut().last_use = ic;
             }
         }
-        None => { }
+        None => {}
     }
 }
 
-fn collect_regs(fun: & Rc<RefCell<Function>>) -> Vec<Rc<RefCell<Reg>>> {
+fn collect_regs(fun: &Rc<RefCell<Function>>) -> Vec<Rc<RefCell<Reg>>> {
     let mut v = Vec::new();
     let mut ic = 1; // instruction counter
 
     for bb in fun.borrow().bbs.iter() {
-
         if bb.borrow().param.is_some() {
             let param = bb.borrow().param.clone().unwrap();
             param.borrow_mut().def = ic;
@@ -114,7 +113,7 @@ fn collect_regs(fun: & Rc<RefCell<Function>>) -> Vec<Rc<RefCell<Reg>>> {
     return v;
 }
 
-fn choose_to_spill(used: & Vec<Option<Rc<RefCell<Reg>>>>) -> usize {
+fn choose_to_spill(used: &Vec<Option<Rc<RefCell<Reg>>>>) -> usize {
     let mut k = 0;
     for i in 1..num_regs() {
         let uk = used[k].clone().unwrap();
@@ -127,7 +126,7 @@ fn choose_to_spill(used: & Vec<Option<Rc<RefCell<Reg>>>>) -> usize {
 }
 
 // Allocate registers.
-fn scan(regs: & Vec<Rc<RefCell<Reg>>>) {
+fn scan(regs: &Vec<Rc<RefCell<Reg>>>) {
     let mut used: Vec<Option<Rc<RefCell<Reg>>>> = vec![None; num_regs()];
 
     for r in regs.iter() {
@@ -161,7 +160,7 @@ fn scan(regs: & Vec<Rc<RefCell<Reg>>>) {
     }
 }
 
-fn spill_store(v: &mut Vec<Rc<RefCell<IR>>>, ir: & Rc<RefCell<IR>>) {
+fn spill_store(v: &mut Vec<Rc<RefCell<IR>>>, ir: &Rc<RefCell<IR>>) {
     let r = ir.borrow().r0.clone();
     if r.is_none() {
         return;
@@ -178,7 +177,7 @@ fn spill_store(v: &mut Vec<Rc<RefCell<IR>>>, ir: & Rc<RefCell<IR>>) {
     v.push(Rc::new(RefCell::new(ir2)));
 }
 
-fn spill_load(v: &mut Vec<Rc<RefCell<IR>>>, _ir: & Rc<RefCell<IR>>, r: Option<Rc<RefCell<Reg>>>) {
+fn spill_load(v: &mut Vec<Rc<RefCell<IR>>>, _ir: &Rc<RefCell<IR>>, r: Option<Rc<RefCell<Reg>>>) {
     if r.is_none() {
         return;
     }
@@ -194,7 +193,7 @@ fn spill_load(v: &mut Vec<Rc<RefCell<IR>>>, _ir: & Rc<RefCell<IR>>, r: Option<Rc
     v.push(Rc::new(RefCell::new(ir2)));
 }
 
-fn emit_spill_code(bb: & Rc<RefCell<BB>>) {
+fn emit_spill_code(bb: &Rc<RefCell<BB>>) {
     let mut v: Vec<Rc<RefCell<IR>>> = Vec::new();
 
     let irs = bb.borrow().ir.clone();

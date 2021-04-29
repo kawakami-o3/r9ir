@@ -1,4 +1,3 @@
-
 // This pass generates x86-64 assembly from IR.
 
 #![allow(non_upper_case_globals)]
@@ -72,11 +71,11 @@ fn init_escaped() {
             return;
         }
 
-        escaped.insert(char::from(8), 'b');  // \b
+        escaped.insert(char::from(8), 'b'); // \b
         escaped.insert(char::from(12), 'f'); // \f
         escaped.insert(char::from(10), 'n'); // \n
         escaped.insert(char::from(13), 'r'); // \r
-        escaped.insert(char::from(9), 't');  // \t
+        escaped.insert(char::from(9), 't'); // \t
         escaped.insert('\\', '\\');
         escaped.insert('\'', '\'');
         escaped.insert('\"', '"');
@@ -93,7 +92,7 @@ fn escaped(c: char) -> Option<char> {
     })
 }
 
-fn emit_cmp(insn: &str, ir: & IR) {
+fn emit_cmp(insn: &str, ir: &IR) {
     let rr0 = ir.r0.clone().unwrap();
     let rr1 = ir.r1.clone().unwrap();
     let rr2 = ir.r2.clone().unwrap();
@@ -124,7 +123,7 @@ fn argreg(r: usize, size: i32) -> &'static str {
     }
 }
 
-fn emit_ir(ir: & IR, ret: & String) {
+fn emit_ir(ir: &IR, ret: &String) {
     let r0 = match ir.clone().r0 {
         Some(r) => r.borrow().rn,
         None => 0,
@@ -156,7 +155,11 @@ fn emit_ir(ir: & IR, ret: & String) {
         }
         IRType::CALL => {
             for i in 0..ir.nargs {
-                emit!("mov {}, {}", argregs[i], regs[ir.args[i].borrow().rn as usize]);
+                emit!(
+                    "mov {}, {}",
+                    argregs[i],
+                    regs[ir.args[i].borrow().rn as usize]
+                );
             }
 
             emit!("push r10");
@@ -205,7 +208,11 @@ fn emit_ir(ir: & IR, ret: & String) {
             if ir.bbarg.is_some() {
                 let param = bb1.borrow().param.clone().unwrap();
                 let bbarg = ir.bbarg.clone().unwrap();
-                emit!("mov {}, {}", regs[param.borrow().rn as usize], regs[bbarg.borrow().rn as usize]);
+                emit!(
+                    "mov {}, {}",
+                    regs[param.borrow().rn as usize],
+                    regs[bbarg.borrow().rn as usize]
+                );
             }
             emit!("jmp .L{}", bb1.borrow().label);
         }
@@ -251,7 +258,7 @@ fn emit_ir(ir: & IR, ret: & String) {
             emit!("imul {}", regs[r0 as usize]);
             emit!("mov {}, rax", regs[r0 as usize]);
             break;
-        }
+        },
         IRType::DIV => {
             emit!("mov rax, {}", regs[r0 as usize]);
             emit!("cqo");
@@ -307,7 +314,7 @@ fn emit_code(fun: &Function) {
     emit!("ret");
 }
 
-fn backslash_escape(s: & String) -> String {
+fn backslash_escape(s: &String) -> String {
     init_escaped();
 
     let mut buf = String::new();
@@ -327,11 +334,14 @@ fn backslash_escape(s: & String) -> String {
     return buf;
 }
 
-fn emit_data(var: & Var) {
+fn emit_data(var: &Var) {
     if var.data.is_some() {
         p!(".data");
         p!("{}:", var.name);
-        emit!(".ascii \"{}\"", backslash_escape(&var.data.clone().unwrap()));
+        emit!(
+            ".ascii \"{}\"",
+            backslash_escape(&var.data.clone().unwrap())
+        );
         return;
     }
 
@@ -345,7 +355,7 @@ pub fn gen_x86(prog: &mut Program) -> String {
 
     for v in prog.gvars.iter() {
         emit_data(&v.borrow());
-   }
+    }
 
     for f in prog.funcs.iter() {
         emit_code(&*f.borrow());

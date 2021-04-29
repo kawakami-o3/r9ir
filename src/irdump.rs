@@ -17,7 +17,7 @@ fn regno(r: Option<Rc<RefCell<Reg>>>) -> i32 {
     return rr.borrow().vn;
 }
 
-fn tostr_call(ir: & IR) -> String {
+fn tostr_call(ir: &IR) -> String {
     let mut s = String::new();
     s.push_str(&format!("r{} = {}(", regno(ir.r0.clone()), ir.name));
     for i in 0..ir.nargs {
@@ -30,7 +30,7 @@ fn tostr_call(ir: & IR) -> String {
     return s;
 }
 
-pub fn tostr(ir: & IR) -> String {
+pub fn tostr(ir: &IR) -> String {
     let r0 = regno(ir.r0.clone());
     let r1 = regno(ir.r1.clone());
     let r2 = regno(ir.r2.clone());
@@ -44,7 +44,7 @@ pub fn tostr(ir: & IR) -> String {
             let bb1 = ir.bb1.clone().unwrap();
             let bbarg = ir.bbarg.clone();
             if bbarg.is_some() {
-                return format!("JMP .L{} (r{})", bb1.borrow().label, regno(bbarg))
+                return format!("JMP .L{} (r{})", bb1.borrow().label, regno(bbarg));
             }
             return format!("JMP .L{}", bb1.borrow().label);
         }
@@ -83,12 +83,17 @@ pub fn tostr(ir: & IR) -> String {
         IRType::BR => {
             let bb1 = ir.bb1.clone().unwrap();
             let bb2 = ir.bb2.clone().unwrap();
-            return format!("BR r{} .L{} .L{}", r2, bb1.borrow().label, bb2.borrow().label);
+            return format!(
+                "BR r{} .L{} .L{}",
+                r2,
+                bb1.borrow().label,
+                bb2.borrow().label
+            );
         }
     }
 }
 
-fn print_rel(name: & str, v: Vec<Rc<RefCell<BB>>>) {
+fn print_rel(name: &str, v: Vec<Rc<RefCell<BB>>>) {
     if v.len() == 0 {
         return;
     }
@@ -102,7 +107,7 @@ fn print_rel(name: & str, v: Vec<Rc<RefCell<BB>>>) {
     }
 }
 
-fn print_regs(name: & str, v: Vec<Rc<RefCell<Reg>>>) {
+fn print_regs(name: &str, v: Vec<Rc<RefCell<Reg>>>) {
     if v.len() == 0 {
         return;
     }
@@ -149,4 +154,3 @@ pub fn dump_ir(irv: Vec<Rc<RefCell<Function>>>) {
         }
     }
 }
-
