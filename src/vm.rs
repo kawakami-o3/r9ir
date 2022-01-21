@@ -31,6 +31,7 @@ const ESI: Register = (6, "ESI");
 const EDI: Register = (7, "EDI");
 const REGISTERS: [Register; 8] = [EAX, ECX, EDX, EBX, ESP, EBP, ESI, EDI];
 
+#[allow(dead_code)]
 struct Emulator {
     registers: [u32; REGISTERS.len()],
     eflags: u32,
@@ -38,6 +39,7 @@ struct Emulator {
     eip: u32,
 }
 
+#[allow(unused_variables)]
 impl Emulator {
     fn create(size: usize, eip: u32, esp: u32) -> Emulator {
         let mut regs = [0; REGISTERS.len()];

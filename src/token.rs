@@ -349,7 +349,7 @@ fn open_file(f: String) -> Box<dyn Read> {
             return Box::new(file);
         }
         Err(e) => {
-            panic!(e);
+            panic!("{}", e);
         }
     }
 }
@@ -364,7 +364,7 @@ fn read_file<T: Read>(file: &mut T) -> String {
             return buffer;
         }
         Err(e) => {
-            panic!(e);
+            panic!("{}", e);
         }
     }
 }
@@ -469,7 +469,7 @@ pub fn bad_token(t: &Token, msg: String) {
 
 pub fn bad_position(idx: usize, msg: String) {
     print_line(&buf(), &path(), idx);
-    panic!(msg);
+    panic!("{}", msg);
 }
 
 pub fn get_line_number(t: &Token) -> i32 {
